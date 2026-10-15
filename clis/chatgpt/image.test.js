@@ -161,6 +161,13 @@ describe('chatgpt image upload flow', () => {
 });
 
 describe('chatgpt image failure contracts', () => {
+    it('returns the persisted URL after image rendering replaces a local draft ID', async () => {
+        const page = createPage();
+        page.evaluate.mockResolvedValueOnce('https://chatgpt.com/c/local-chatgpt%3Asynthetic').mockResolvedValue('https://chatgpt.com/c/persisted-image-test');
+        const rows = await imageCommand.func(page, { prompt: 'synthetic image', sd: true, timeout: 30 });
+        expect(rows[0].link).toBe('🔗 https://chatgpt.com/c/persisted-image-test');
+    });
+
     it('fails fast when the image prompt cannot be sent', async () => {
         mocks.sendChatGPTMessage.mockResolvedValue(false);
 

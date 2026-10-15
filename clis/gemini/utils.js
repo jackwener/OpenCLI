@@ -482,7 +482,7 @@ function getTurnsScript() {
     })()
   `;
 }
-function prepareComposerScript() {
+function prepareComposerScript(native = false) {
     return `
     (() => {
       ${buildGeminiComposerLocatorScript()}
@@ -497,11 +497,13 @@ function prepareComposerScript() {
         const selection = window.getSelection();
         const range = document.createRange();
         range.selectNodeContents(composer);
-        range.collapse(false);
+        // Native insertText replaces the selection without destroying Quill's
+        // paragraph nodes or desynchronizing its internal document state.
+        ${native ? '' : `range.collapse(false);`}
         selection?.removeAllRanges();
         selection?.addRange(range);
-        composer.textContent = '';
-        composer.dispatchEvent(new InputEvent('input', { bubbles: true, data: '', inputType: 'deleteContentBackward' }));
+        ${native ? '' : `composer.textContent = '';
+        composer.dispatchEvent(new InputEvent('input', { bubbles: true, data: '', inputType: 'deleteContentBackward' }));`}
       } catch (error) {
         return {
           ok: false,
@@ -691,7 +693,7 @@ function clickNewChatScript() {
     })()
   `;
 }
-function openGeminiToolsMenuScript() {
+function openGeminiToolsMenuScript(native = false) {
     return `
     (() => {
       const labels = ['tools', 'tool', 'mode', '研究', 'deep research', 'deep-research', '工具'];
@@ -773,12 +775,25 @@ function openGeminiToolsMenuScript() {
         return menuMatches[0] || matches[0];
       };
 
-      let target = null;
-      for (const root of roots) {
-        target = pickTarget(root);
-        if (target) break;
+      // The mode picker is a separate menu. Prefer the explicit tools trigger
+      // across the document before accepting the legacy ambiguous "mode" label.
+      const toolsLabels = ['upload and tools', 'tools', 'tool', '上传和工具', '工具'];
+      let target = Array.from(document.querySelectorAll('button, [role="button"]'))
+        .filter(isInteractable)
+        .find((node) => !node.closest('[role="menu"], [role="listbox"]')
+          && (toolsLabels.includes(normalize(node.getAttribute('aria-label')))
+            || toolsLabels.includes(normalize(node.textContent))));
+      if (!target) {
+        for (const root of roots) {
+          target = pickTarget(root);
+          if (target) break;
+        }
       }
       if (target instanceof HTMLElement) {
+        if (${native}) {
+          const rect = target.getBoundingClientRect();
+          return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+        }
         target.click();
         return true;
       }
@@ -1097,6 +1112,22 @@ export async function ensureGeminiPage(page) {
         await page.goto(GEMINI_APP_URL, { waitUntil: 'load', settleMs: 2500 });
         await page.wait(1);
     }
+    // Reused adapter tabs can be inactive after another site ran. Gemini's
+    // response animation then stays pending even when the model has finished.
+    // tabs() is session-scoped; only activate this session's Gemini target.
+    if (typeof page.tabs === 'function' && typeof page.selectTab === 'function') {
+        const tabs = await page.tabs();
+        const candidates = Array.isArray(tabs) ? tabs.filter((tab) => {
+            try { return new URL(tab.url).hostname === GEMINI_DOMAIN; }
+            catch { return false; }
+        }) : [];
+        const targetId = page.getActivePage?.();
+        const target = candidates.find((tab) => tab.page === targetId)
+            ?? (candidates.length === 1 ? candidates[0] : null);
+        if (target?.active === false && typeof target.page === 'string') {
+            await page.selectTab(target.page);
+        }
+    }
 }
 export async function getCurrentGeminiUrl(page) {
     await ensureGeminiPage(page);
@@ -1107,18 +1138,62 @@ export async function getCurrentGeminiUrl(page) {
 }
 export async function openGeminiToolsMenu(page) {
     await ensureGeminiPage(page);
-    const opened = await page.evaluate(openGeminiToolsMenuScript());
+    const native = typeof page.nativeClick === 'function';
+    const opened = await page.evaluate(openGeminiToolsMenuScript(native));
+    if (isObjectRecord(opened) && Number.isFinite(opened.x) && Number.isFinite(opened.y)) {
+        await page.nativeClick(opened.x, opened.y);
+    }
     if (opened) {
         await page.wait(0.5);
         return true;
     }
     return false;
 }
-export async function selectGeminiTool(page, labels) {
+async function selectGeminiToolAttempt(page, labels) {
     await ensureGeminiPage(page);
     await openGeminiToolsMenu(page);
-    const matched = await page.evaluate(selectGeminiToolScript(labels));
+    let matched = await page.evaluate(selectGeminiToolScript(labels));
+    if (typeof matched === 'string' && matched) return matched;
+    // Current tools drawer nests Deep Research and Canvas under More tools.
+    const openedMore = await page.evaluate(`(() => {
+        const menus = Array.from(document.querySelectorAll('[role="menu"], [role="listbox"]'));
+        for (const menu of menus) {
+            for (const node of menu.querySelectorAll('button, [role="menuitem"], [role="button"]')) {
+                if (!(node instanceof HTMLElement) || node.closest('[hidden], [aria-hidden="true"]')) continue;
+                if (node.hasAttribute('disabled') || node.getAttribute('aria-disabled') === 'true') continue;
+                const style = getComputedStyle(node);
+                const rect = node.getBoundingClientRect();
+                if (style.display === 'none' || style.visibility === 'hidden' || !rect.width || !rect.height) continue;
+                const label = (node.getAttribute('aria-label') || node.textContent || '').trim().toLowerCase();
+                if (label !== 'more tools' && label !== '更多工具') continue;
+                if (${typeof page.cdp === 'function'}) return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+                node.click();
+                return true;
+            }
+        }
+        return false;
+    })()`);
+    if (isObjectRecord(openedMore) && Number.isFinite(openedMore.x) && Number.isFinite(openedMore.y)) {
+        await page.cdp('Input.dispatchMouseEvent', { type: 'mouseMoved', x: openedMore.x, y: openedMore.y });
+    }
+    if (openedMore) {
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+            await page.wait(0.5);
+            matched = await page.evaluate(selectGeminiToolScript(labels));
+            if (typeof matched === 'string' && matched) return matched;
+        }
+    }
     return typeof matched === 'string' ? matched : '';
+}
+export async function selectGeminiTool(page, labels) {
+    // The drawer can be dismissed by the initial page render. Retry only menu
+    // discovery; stop immediately once an item has been selected.
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+        const matched = await selectGeminiToolAttempt(page, labels);
+        if (matched) return matched;
+        if (attempt < 2) await page.wait(1);
+    }
+    return '';
 }
 export async function waitForGeminiConfirmButton(page, labels, timeoutSeconds) {
     await ensureGeminiPage(page);
@@ -1256,7 +1331,9 @@ export async function waitForGeminiSubmission(page, before, timeoutSeconds) {
     const preSendAssistantCount = before.turns.filter((turn) => turn.Role === 'Assistant').length;
     const maxPolls = Math.max(1, Math.ceil(timeoutSeconds));
     for (let index = 0; index < maxPolls; index += 1) {
-        await page.wait(index === 0 ? 0.5 : 1);
+        // Numeric wait() settles the DOM and may return after only 500ms.
+        // Explicit time waits preserve the caller's timeout during quiet reasoning.
+        await page.wait({ time: Math.min(1, timeoutSeconds - index) });
         const current = await readGeminiSnapshot(page);
         const structuredAppend = diffTrustedStructuredTurns(before, current);
         const transcriptDelta = diffTranscriptLines(before, current);
@@ -1296,7 +1373,7 @@ export async function sendGeminiMessage(page, text) {
     await ensureGeminiPage(page);
     let prepared;
     for (let attempt = 0; attempt < GEMINI_COMPOSER_PREPARE_ATTEMPTS; attempt += 1) {
-        prepared = await page.evaluate(prepareComposerScript());
+        prepared = await page.evaluate(prepareComposerScript(typeof page.nativeType === 'function'));
         if (prepared?.ok)
             break;
         if (attempt < GEMINI_COMPOSER_PREPARE_ATTEMPTS - 1)
@@ -2558,7 +2635,8 @@ export async function waitForGeminiResponse(page, baseline, promptText, timeoutS
     let transcriptStableCount = 0;
     let transcriptMissCount = 0;
     for (let index = 0; index < maxPolls; index += 1) {
-        await page.wait(index === 0 ? 1 : 2);
+        // Do not count a DOM-stability wait as two seconds of response time.
+        await page.wait({ time: Math.min(2, timeoutSeconds - index * 2) });
         const current = await readGeminiSnapshot(page);
         const structuredCandidate = pickStructuredReplyCandidate(current);
         if (structuredCandidate) {

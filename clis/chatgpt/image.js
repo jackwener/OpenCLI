@@ -135,7 +135,7 @@ export const imageCommand = cli({
         }
 
         const urls = await waitForChatGPTImages(page, beforeUrls, timeout, convUrl);
-        const link = convUrl;
+        const link = await currentChatGPTLink(page);
 
         if (!urls.length) {
             throw new EmptyResultError('chatgpt image', `No generated images were detected before timeout. Open ${link} and verify whether ChatGPT finished generating the image.`);

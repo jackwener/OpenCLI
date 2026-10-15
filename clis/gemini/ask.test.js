@@ -251,9 +251,21 @@ describe('gemini ask orchestration', () => {
         mocks.waitForGeminiSubmission.mockResolvedValueOnce(submission);
         mocks.waitForGeminiResponse.mockResolvedValueOnce('');
 
-        await askCommand.func(page, { prompt: '请只回复：OK', timeout: 20, new: 'false' });
+        await expect(askCommand.func(page, { prompt: '请只回复：OK', timeout: 20, new: 'false' }))
+            .rejects.toMatchObject({ code: 'TIMEOUT', exitCode: 75 });
 
         expect(mocks.waitForGeminiResponse).toHaveBeenCalledWith(page, submission, '请只回复：OK', 0);
+    });
+
+    it('reports uncertain submission as a typed timeout and never sends twice', async () => {
+        const page = createPageMock();
+        mocks.readGeminiSnapshot.mockResolvedValueOnce(baseline);
+        mocks.sendGeminiMessage.mockResolvedValueOnce('button');
+        mocks.waitForGeminiSubmission.mockResolvedValueOnce(null);
+        await expect(askCommand.func(page, { prompt: 'test', timeout: 20, new: 'false' }))
+            .rejects.toMatchObject({ code: 'TIMEOUT', exitCode: 75 });
+        expect(mocks.sendGeminiMessage).toHaveBeenCalledTimes(1);
+        expect(mocks.waitForGeminiResponse).not.toHaveBeenCalled();
     });
 
     // ── Omitted --model (no model change) ────────────────────────────────

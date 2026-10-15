@@ -1,5 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError, TimeoutError } from '@jackwener/opencli/errors';
 import {
   GEMINI_DOMAIN,
   ensureGeminiPage,
@@ -19,7 +19,6 @@ function normalizeBooleanFlag(value) {
     const normalized = String(value ?? '').trim().toLowerCase();
     return normalized === 'true' || normalized === '1' || normalized === 'yes' || normalized === 'on';
 }
-const NO_RESPONSE_PREFIX = '[NO RESPONSE]';
 
 /**
  * Validate a --model value for gemini ask.
@@ -262,12 +261,14 @@ export const askCommand = cli({
         const submissionStartedAt = Date.now();
         const submitted = await waitForGeminiSubmission(page, before, timeout);
         if (!submitted) {
-            return [{ response: `💬 ${NO_RESPONSE_PREFIX} No Gemini response within ${timeout}s.` }];
+            throw new TimeoutError('Gemini reply', timeout,
+                'Your message may already be submitted. Check "opencli gemini read" before sending again. For future requests, use --timeout 120.');
         }
         const remainingTimeoutSeconds = Math.max(0, timeout - Math.ceil((Date.now() - submissionStartedAt) / 1000));
         const response = await waitForGeminiResponse(page, submitted, prompt, remainingTimeoutSeconds);
         if (!response) {
-            return [{ response: `💬 ${NO_RESPONSE_PREFIX} No Gemini response within ${timeout}s.` }];
+            throw new TimeoutError('Gemini reply', timeout,
+                'Your message may already be submitted. Check "opencli gemini read" before sending again. For future requests, use --timeout 120.');
         }
         return [{ response: `💬 ${response}` }];
     },

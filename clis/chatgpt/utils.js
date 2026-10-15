@@ -299,7 +299,23 @@ const PROJECT_LINK_SELECTOR = 'a[href*="/g/g-p-"]';
 // 2026-10 redesign: turns are [data-chatgpt-search-unit-key="…:user|:assistant"].
 export const CONVERSATION_MESSAGE_SELECTOR = '[data-message-author-role], article[data-testid*="conversation-turn"], [data-chatgpt-search-unit-key]';
 
+async function activateChatGPTSessionTab(page) {
+    if (typeof page.tabs !== 'function' || typeof page.selectTab !== 'function') return;
+    const tabs = await page.tabs();
+    const candidates = Array.isArray(tabs) ? tabs.filter((tab) => {
+        try { return isTrustedChatGPTHost(new URL(tab.url).hostname); }
+        catch { return false; }
+    }) : [];
+    const targetId = page.getActivePage?.();
+    const target = candidates.find((tab) => tab.page === targetId)
+        ?? (candidates.length === 1 ? candidates[0] : null);
+    if (target?.active === false && typeof target.page === 'string') {
+        await page.selectTab(target.page);
+    }
+}
+
 export async function ensureOnChatGPT(page) {
+    await activateChatGPTSessionTab(page);
     if (await isOnChatGPT(page)) return false;
     await page.goto(CHATGPT_URL, { settleMs: 2000 });
     try {
@@ -311,6 +327,7 @@ export async function ensureOnChatGPT(page) {
 }
 
 export async function startNewChat(page) {
+    await activateChatGPTSessionTab(page);
     await page.goto(`${CHATGPT_URL}/new`, { settleMs: 2000 });
     try {
         await page.wait({ selector: COMPOSER_WAIT_SELECTOR, timeout: 8 });
@@ -423,6 +440,11 @@ export async function getCurrentChatGPTModel(page) {
             return normalizedText.replace(/\\s+/g, '').includes(normalizedLabel.replace(/\\s+/g, ''));
         };
         const labels = ${JSON.stringify(CHATGPT_MODEL_TARGETS)};
+        const effortTrigger = Array.from(document.querySelectorAll('button[data-selected-reasoning-effort]')).find(isVisible);
+        if (effortTrigger instanceof HTMLElement && isVisible(effortTrigger)) {
+            const effortKey = { low: 'fast', medium: 'balanced', high: 'advanced', xhigh: 'very-high' }[effortTrigger.getAttribute('data-selected-reasoning-effort')];
+            if (effortKey) return { model: effortKey, label: labels[effortKey].label };
+        }
         const findEntryForText = (text) => {
             const matches = [];
             for (const [key, value] of Object.entries(labels)) {
@@ -559,6 +581,53 @@ async function setChatGPTModelConfig(page, target) {
     return { ok: true, status: response.status, modelSlug, effort };
 }
 
+async function selectModernChatGPTIntelligence(page, target) {
+    const desiredEffort = { fast: 'low', balanced: 'medium', advanced: 'high', 'very-high': 'xhigh' }[target.key];
+    if (!desiredEffort) return false;
+    const trigger = requireObjectEvaluateResult(unwrapEvaluateResult(await page.evaluate(`(() => {
+        const button = document.querySelector('button[data-selected-reasoning-effort]');
+        if (!(button instanceof HTMLElement)) return { found: false };
+        const rect = button.getBoundingClientRect();
+        if (!rect.width || !rect.height) return { found: false };
+        return { found: true, open: button.getAttribute('aria-expanded') === 'true', x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    })()`)), 'chatgpt reasoning trigger');
+    if (!trigger.found) return false;
+    if (typeof page.nativeKeyPress !== 'function') {
+        throw new CommandExecutionError('ChatGPT reasoning selection requires native browser keyboard support.');
+    }
+    if (!trigger.open) await page.nativeClick(trigger.x, trigger.y);
+    await page.wait(0.5);
+    try {
+        let focused = false;
+        for (let attempt = 0; attempt < 6 && !focused; attempt += 1) {
+            focused = requireBooleanEvaluateResult(unwrapEvaluateResult(await page.evaluate(`(() => {
+                const row = Array.from(document.querySelectorAll('[data-reasoning-slider="true"]')).find(node => {
+                    const rect = node.getBoundingClientRect();
+                    const style = getComputedStyle(node);
+                    return !node.hidden && style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+                });
+                if (!(row instanceof HTMLElement) || !row.querySelector('[role="slider"]')) return false;
+                row.focus();
+                return document.activeElement === row;
+            })()`)), 'chatgpt reasoning slider focus');
+            if (!focused) await page.wait({ time: 0.25 });
+        }
+        if (!focused) throw new CommandExecutionError('Could not focus the ChatGPT reasoning slider.');
+        const order = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra'];
+        for (let attempt = 0; attempt < order.length; attempt += 1) {
+            const effort = unwrapEvaluateResult(await page.evaluate(`Array.from(document.querySelectorAll('button[data-selected-reasoning-effort]')).find(node => { const r = node.getBoundingClientRect(); return r.width > 0 && r.height > 0; })?.getAttribute('data-selected-reasoning-effort')`));
+            if (effort === desiredEffort) return true;
+            const currentIndex = order.indexOf(effort);
+            if (currentIndex < 0) throw new CommandExecutionError('ChatGPT returned an unknown reasoning effort.');
+            await page.nativeKeyPress(currentIndex < order.indexOf(desiredEffort) ? 'ArrowRight' : 'ArrowLeft');
+            await page.wait(0.2);
+        }
+        throw new CommandExecutionError(`ChatGPT reasoning effort did not switch to ${target.label}.`);
+    } finally {
+        await page.nativeKeyPress('Escape');
+    }
+}
+
 export async function selectChatGPTModel(page, model) {
     const target = requireKnownChatGPTModel(model);
     debugChatGPTModel(`target=${target.key}`);
@@ -580,6 +649,9 @@ export async function selectChatGPTModel(page, model) {
     debugChatGPTModel(`before=${before.model || 'none'}`);
     if (before.model === target.key) {
         return { Status: 'Already selected', Model: target.label };
+    }
+    if (await selectModernChatGPTIntelligence(page, target)) {
+        return { Status: 'Success', Model: target.label };
     }
     const apiResult = await setChatGPTModelConfig(page, target);
     debugChatGPTModel(`api=${apiResult ? JSON.stringify({ ok: apiResult.ok, status: apiResult.status, reason: apiResult.reason }) : 'none'}`);
@@ -1226,7 +1298,7 @@ export async function getVisibleMessages(page, { textOnly = false } = {}) {
             if (!role && roleNode) role = roleOf(roleNode);
             if (!role) continue;
 
-            let contentNode = node.querySelector('[data-markdown-copy="contents"], [data-user-message-bubble] [data-search-result-target]')
+            let contentNode = node.querySelector('[data-markdown-copy="contents"], [data-markdown-text-style="assistant-message"], [data-user-message-bubble] [data-search-result-target]')
                 || node.querySelector('[data-message-author-role] .markdown')
                 || node.querySelector('.markdown')
                 || node.querySelector('[data-message-author-role]')
@@ -2257,7 +2329,7 @@ export async function waitForChatGPTResponse(page, baselineCount, prompt, timeou
     throw new TimeoutError(
         'chatgpt ask',
         timeoutSeconds,
-        'No ChatGPT response appeared before timeout. Re-run with a higher --timeout if it is still generating.',
+        'Your message may already be submitted. Check "opencli chatgpt read" before sending again. For future requests, use a higher --timeout.',
     );
 }
 
@@ -2268,7 +2340,7 @@ export async function getConversationList(page) {
 
     const openSidebar = requireBooleanEvaluateResult(unwrapEvaluateResult(await page.evaluate(`(() => {
         const button = Array.from(document.querySelectorAll('button'))
-            .find((node) => /open sidebar/i.test(node.getAttribute('aria-label') || ''));
+            .find((node) => /^(?:open|show) sidebar$|^(?:打开|展开)(?:侧边栏|边栏)$/i.test(node.getAttribute('aria-label') || ''));
         if (button instanceof HTMLElement) {
             button.click();
             return true;
@@ -2694,6 +2766,10 @@ export async function getChatGPTVisibleImageUrls(page) {
  * Wait for new images to appear after sending a prompt.
  */
 export async function waitForChatGPTImages(page, beforeUrls, timeoutSeconds, convUrl) {
+    // Local draft IDs are replaced by persisted IDs after submission. Reloading
+    // one discards the active rendering surface instead of restoring the chat.
+    const hasStableConversation = convUrl && convUrl.includes('/c/')
+        && !/\/c\/local-chatgpt(?::|%3A)/i.test(convUrl);
     const beforeSet = new Set(beforeUrls);
     const pollIntervalSeconds = 3;
     const maxPolls = Math.max(1, Math.ceil(timeoutSeconds / pollIntervalSeconds));
@@ -2705,7 +2781,7 @@ export async function waitForChatGPTImages(page, beforeUrls, timeoutSeconds, con
         await page.sleep(i === 0 ? 3 : pollIntervalSeconds);
 
         let currentUrl = '';
-        if (convUrl && convUrl.includes('/c/')) {
+        if (hasStableConversation) {
             currentUrl = unwrapEvaluateResult(await page.evaluate('window.location.href').catch(() => ''));
             if (currentUrl && !isSameChatGPTConversation(currentUrl, convUrl)) {
                 await page.goto(convUrl);
@@ -2717,7 +2793,7 @@ export async function waitForChatGPTImages(page, beforeUrls, timeoutSeconds, con
         stillRendering = generating;
         if (generating) continue;
 
-        if (convUrl && convUrl.includes('/c/') && i > 0 && i % 5 === 0) {
+        if (hasStableConversation && i > 0 && i % 5 === 0) {
             const onConversation = !currentUrl || isSameChatGPTConversation(currentUrl, convUrl);
             if (onConversation) {
                 await page.goto(convUrl);
@@ -2772,7 +2848,7 @@ export async function getProjectList(page) {
     // Ensure sidebar is open
     const openSidebar = requireBooleanEvaluateResult(unwrapEvaluateResult(await page.evaluate(`(() => {
         const button = Array.from(document.querySelectorAll('button'))
-            .find((node) => /open sidebar/i.test(node.getAttribute('aria-label') || ''));
+            .find((node) => /^(?:open|show) sidebar$|^(?:打开|展开)(?:侧边栏|边栏)$/i.test(node.getAttribute('aria-label') || ''));
         if (button instanceof HTMLElement) {
             button.click();
             return true;

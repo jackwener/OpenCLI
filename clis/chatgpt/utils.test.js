@@ -79,6 +79,12 @@ function createDomEvaluatePage(html) {
 }
 
 describe('chatgpt image wait contract', () => {
+    it.each(['local-chatgpt:synthetic', 'local-chatgpt%3Asynthetic'])('keeps a rendering draft when %s becomes a persisted ID', async id => {
+        const page = createPageMock({ location: 'https://chatgpt.com/c/persisted-test', generating: [false], imageUrls: [['blob:https://chatgpt.com/synthetic-image']] });
+        await expect(waitForChatGPTImages(page, [], 18, `https://chatgpt.com/c/${id}`)).resolves.toEqual(['blob:https://chatgpt.com/synthetic-image']);
+        expect(page.goto).not.toHaveBeenCalled();
+    });
+
     it('does not periodically reload the conversation while generation is still active', async () => {
         const convUrl = 'https://chatgpt.com/c/demo';
         const page = createPageMock({
@@ -523,6 +529,7 @@ describe('chatgpt model selection validation', () => {
             nativeClick: vi.fn().mockResolvedValue(undefined),
             evaluate: vi.fn((script) => {
                 if (script === 'window.location.href') return Promise.resolve('https://chatgpt.com/c/demo');
+                if (String(script).includes("const button = document.querySelector('button[data-selected-reasoning-effort]')")) return Promise.resolve({ found: false });
                 objectCall += 1;
                 if (objectCall === 1) return Promise.resolve({ isLoggedIn: true, hasLoginGate: false, hasComposer: true });
                 if (objectCall === 2) return Promise.resolve({ model: 'balanced', label: 'Balanced' });
@@ -550,6 +557,7 @@ describe('chatgpt model selection validation', () => {
             getCookies: vi.fn().mockResolvedValue([{ name: '__Secure-next-auth.session-token', value: 'cookie', domain: '.chatgpt.com' }]),
             evaluate: vi.fn((script) => {
                 if (script === 'window.location.href') return Promise.resolve('https://chatgpt.com/c/demo');
+                if (String(script).includes("const button = document.querySelector('button[data-selected-reasoning-effort]')")) return Promise.resolve({ found: false });
                 if (String(script).includes('oai-last-model-config')) return Promise.resolve(true);
                 objectCall += 1;
                 if (objectCall === 1) return Promise.resolve({ isLoggedIn: true, hasLoginGate: false, hasComposer: true });
@@ -579,6 +587,7 @@ describe('chatgpt model selection validation', () => {
             getCookies: vi.fn().mockResolvedValue([{ name: '__Secure-next-auth.session-token', value: 'cookie', domain: '.chatgpt.com' }]),
             evaluate: vi.fn((script) => {
                 if (script === 'window.location.href') return Promise.resolve('https://chatgpt.com/c/demo');
+                if (String(script).includes("const button = document.querySelector('button[data-selected-reasoning-effort]')")) return Promise.resolve({ found: false });
                 if (String(script).includes('oai-last-model-config')) return Promise.resolve(true);
                 objectCall += 1;
                 if (objectCall === 1) return Promise.resolve({ isLoggedIn: true, hasLoginGate: false, hasComposer: true });
@@ -608,6 +617,7 @@ describe('chatgpt model selection validation', () => {
             getCookies: vi.fn().mockResolvedValue([{ name: '__Secure-next-auth.session-token', value: 'cookie', domain: '.chatgpt.com' }]),
             evaluate: vi.fn((script) => {
                 if (script === 'window.location.href') return Promise.resolve('https://chatgpt.com/c/demo');
+                if (String(script).includes("const button = document.querySelector('button[data-selected-reasoning-effort]')")) return Promise.resolve({ found: false });
                 if (String(script).includes('oai-last-model-config')) return Promise.resolve(true);
                 objectCall += 1;
                 if (objectCall === 1) return Promise.resolve({ isLoggedIn: true, hasLoginGate: false, hasComposer: true });
@@ -636,6 +646,7 @@ describe('chatgpt model selection validation', () => {
             getCookies: vi.fn().mockResolvedValue([{ name: '__Secure-next-auth.session-token', value: 'cookie', domain: '.chatgpt.com' }]),
             evaluate: vi.fn((script) => {
                 if (script === 'window.location.href') return Promise.resolve('https://chatgpt.com/c/demo');
+                if (String(script).includes("const button = document.querySelector('button[data-selected-reasoning-effort]')")) return Promise.resolve({ found: false });
                 if (String(script).includes('oai-last-model-config')) return Promise.resolve(true);
                 objectCall += 1;
                 if (objectCall === 1) return Promise.resolve({ isLoggedIn: true, hasLoginGate: false, hasComposer: true });
@@ -665,6 +676,7 @@ describe('chatgpt model selection validation', () => {
             getCookies: vi.fn().mockResolvedValue([{ name: '__Secure-next-auth.session-token', value: 'cookie', domain: '.chatgpt.com' }]),
             evaluate: vi.fn((script) => {
                 if (script === 'window.location.href') return Promise.resolve('https://chatgpt.com/c/demo');
+                if (String(script).includes("const button = document.querySelector('button[data-selected-reasoning-effort]')")) return Promise.resolve({ found: false });
                 objectCall += 1;
                 if (objectCall === 1) return Promise.resolve({ isLoggedIn: true, hasLoginGate: false, hasComposer: true });
                 if (objectCall === 2) return Promise.resolve({ model: 'balanced', label: 'Balanced' });
@@ -691,6 +703,7 @@ describe('chatgpt model selection validation', () => {
             getCookies: vi.fn().mockResolvedValue([{ name: '__Secure-next-auth.session-token', value: 'cookie', domain: '.chatgpt.com' }]),
             evaluate: vi.fn((script) => {
                 if (script === 'window.location.href') return Promise.resolve('https://chatgpt.com/c/demo');
+                if (String(script).includes("const button = document.querySelector('button[data-selected-reasoning-effort]')")) return Promise.resolve({ found: false });
                 objectCall += 1;
                 if (objectCall === 1) return Promise.resolve({ isLoggedIn: true, hasLoginGate: false, hasComposer: true });
                 if (objectCall === 2) return Promise.resolve({ model: 'balanced', label: 'Balanced' });
@@ -926,6 +939,7 @@ describe('chatgpt model selection validation', () => {
             nativeClick: vi.fn().mockResolvedValue(undefined),
             evaluate: vi.fn((script) => {
                 if (script === 'window.location.href') return Promise.resolve('https://chatgpt.com/c/demo');
+                if (String(script).includes("const button = document.querySelector('button[data-selected-reasoning-effort]')")) return Promise.resolve({ found: false });
                 objectCall += 1;
                 if (objectCall === 1) return Promise.resolve({ isLoggedIn: true, hasLoginGate: false, hasComposer: true });
                 if (objectCall === 2) return Promise.resolve({ model: 'balanced', label: 'Balanced' });
