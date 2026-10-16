@@ -5,6 +5,7 @@ import {
     __test__,
     collectDoubaoTranscriptAdditions,
     getDoubaoConversationList,
+    getDoubaoPageState,
     mergeTranscriptSnapshots,
     parseDoubaoConversationId,
     sendDoubaoMessage,
@@ -618,5 +619,89 @@ describe('mergeTranscriptSnapshots', () => {
     it('keeps both windows when a virtualized panel returns adjacent chunks without full history', () => {
         const merged = mergeTranscriptSnapshots('Alice 00:00\nHello team\nBob 00:05\nHi', 'Alice 00:10\nNext topic\nBob 00:15\nAction items');
         expect(merged).toBe('Alice 00:00\nHello team\nBob 00:05\nHi\nAlice 00:10\nNext topic\nBob 00:15\nAction items');
+    });
+});
+describe('doubao page state login detection (status)', () => {
+    // Drives the real getDoubaoPageState() scripts through jsdom, so the asserted
+    // isLogin is exactly what `opencli doubao status` renders (Yes / No / Unknown).
+    //
+    // 对话形态 fixture 来自历史版本、未经现网验证（本机账号只能进入工作形态，
+    // 无法对对话形态做端到端验证）。结构取自本文件既有的 2026-05 DOM 片段：
+    // _ROUTER_DATA.loaderData.chat_layout.userSetting.data.is_login。
+    const conversationSkinRouterData = {
+        loaderData: { chat_layout: { userSetting: { data: { is_login: true } } } },
+    };
+    // Live sample from a Doubao Work page (2026-10-16): chat_layout exists but
+    // carries no userSetting at all, so the embedded-data fast path cannot answer.
+    const doubaoWorkSkinRouterData = {
+        loaderData: { chat_layout: { accountInfo: { data: { description: '' } } } },
+    };
+    const loggedInProbe = async () => ({
+        ok: true,
+        json: async () => ({ data: { user_id_str: '1065907194174404' } }),
+    });
+
+    // Runs the fixture through the real scripts. `probe` stands in for
+    // /passport/account/info/v2/; probeCalls counts how many times the account
+    // probe was reached, which is how the "no unconditional round trip" rule is
+    // asserted.
+    async function stateFromFixture(routerData, probe) {
+        const dom = new JSDOM('<textarea data-testid="chat_input_input" placeholder="发消息"></textarea>', {
+            url: 'https://www.doubao.com/chat/',
+            runScripts: 'outside-only',
+        });
+        if (routerData !== undefined)
+            dom.window._ROUTER_DATA = routerData;
+        let probeCalls = 0;
+        dom.window.fetch = async (...args) => {
+            probeCalls += 1;
+            return probe(...args);
+        };
+        const page = createPageMock();
+        vi.mocked(page.evaluate).mockImplementation(async (script) => (script === 'window.location.href'
+            ? 'https://www.doubao.com/chat/'
+            : dom.window.eval(script)));
+        const state = await getDoubaoPageState(page);
+        return { state, probeCalls };
+    }
+
+    it('reads the login state from the page-embedded data without reaching the account probe', async () => {
+        const { state, probeCalls } = await stateFromFixture(conversationSkinRouterData, loggedInProbe);
+        expect(state.isLogin).toBe(true);
+        expect(probeCalls).toBe(0);
+    });
+
+    it('keeps the embedded-data fast path as the source of truth when it says logged out', async () => {
+        const { state, probeCalls } = await stateFromFixture({
+            loaderData: { chat_layout: { userSetting: { data: { is_login: false } } } },
+        }, loggedInProbe);
+        expect(state.isLogin).toBe(false);
+        expect(probeCalls).toBe(0);
+    });
+
+    it('falls back to the account probe when the Doubao Work page has no embedded login flag', async () => {
+        // Guard: the fixture must genuinely lack the fast path, otherwise this
+        // test would pass without ever exercising the fallback.
+        expect(doubaoWorkSkinRouterData.loaderData.chat_layout.userSetting).toBeUndefined();
+
+        const { state, probeCalls } = await stateFromFixture(doubaoWorkSkinRouterData, loggedInProbe);
+        expect(state.isLogin).toBe(true);
+        expect(probeCalls).toBe(1);
+    });
+
+    it('reports logged out when the fallback probe is rejected by the account API', async () => {
+        const { state } = await stateFromFixture(doubaoWorkSkinRouterData, async () => ({
+            ok: false,
+            status: 401,
+            json: async () => ({}),
+        }));
+        expect(state.isLogin).toBe(false);
+    });
+
+    it('stays unknown instead of guessing when the fallback probe cannot reach the account API', async () => {
+        const { state } = await stateFromFixture(doubaoWorkSkinRouterData, async () => {
+            throw new Error('network down');
+        });
+        expect(state.isLogin).toBe(null);
     });
 });

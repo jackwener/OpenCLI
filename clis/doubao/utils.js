@@ -126,6 +126,29 @@ function getStateScript() {
     })()
   `;
 }
+// Account-API login probe, used ONLY when the page-embedded fast path cannot
+// answer. The Doubao Work skin's chat_layout carries no userSetting, so
+// is_login never resolves there and `status` used to report Unknown. This is the
+// same /passport/account/info/v2/ probe `whoami` runs (see clis/doubao/auth.js),
+// which is verified working in both skins.
+// Returns true / false, or null when the probe itself could not run.
+function getLoginProbeScript() {
+    return `
+    (async () => {
+      try {
+        const response = await fetch('/passport/account/info/v2/', {
+          credentials: 'include',
+          headers: { Accept: 'application/json' },
+        });
+        if (!response.ok) return false;
+        const payload = await response.json();
+        return !!(payload?.data?.user_id_str);
+      } catch {
+        return null;
+      }
+    })()
+  `;
+}
 function getTurnsScript() {
     return `
     (() => {
@@ -653,7 +676,15 @@ export async function ensureDoubaoChatPage(page) {
 }
 export async function getDoubaoPageState(page) {
     await ensureDoubaoChatPage(page);
-    return await page.evaluate(getStateScript());
+    const state = await page.evaluate(getStateScript());
+    if (typeof state?.isLogin === 'boolean')
+        return state;
+    // The embedded-data fast path came up empty, so pay for exactly one account
+    // probe rather than letting `status` print Unknown. When the fast path works
+    // (the conversation skin) this branch is never reached, so `status` does not
+    // become an unconditional network round trip.
+    const probed = await page.evaluate(getLoginProbeScript()).catch(() => null);
+    return { ...state, isLogin: typeof probed === 'boolean' ? probed : null };
 }
 export async function getDoubaoTurns(page) {
     await ensureDoubaoChatPage(page);
