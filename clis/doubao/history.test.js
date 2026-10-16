@@ -34,4 +34,16 @@ describe('doubao history', () => {
             },
         ]);
     });
+    it('keeps the original hint row when the sidebar yields no conversations', async () => {
+        mockGetDoubaoConversationList.mockResolvedValue([]);
+        const result = await history.func({}, {});
+        expect(result).toEqual([
+            {
+                Index: 0,
+                Id: '',
+                Title: 'No conversation history found. Make sure you are logged in.',
+                Url: '',
+            },
+        ]);
+    });
 });
