@@ -442,7 +442,7 @@ async function sendCommandRaw(
       // A second concurrent write on the same persistent site session is
       // rejected before the daemon dispatches anything — terminal, never
       // retried, and surfaced as a CliError so the busy message is the output.
-      if (result.errorCode === 'session_busy' || result.errorCode === 'slot_wait_timeout') {
+      if (result.errorCode === 'session_busy' || result.errorCode === 'slot_wait_timeout' || result.errorCode === 'slot_conflict') {
         throw new SessionBusyError(result.error ?? 'The site session is busy.', result.errorHint);
       }
 

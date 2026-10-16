@@ -162,6 +162,7 @@ describe('site slot pool — real Chrome', () => {
       `--load-extension=${ext}`,
       '--disable-features=DisableLoadExtensionCommandLineSwitch',
       '--no-first-run', '--no-default-browser-check', '--disable-sync', '--no-sandbox',
+      '--disable-background-networking', '--disable-component-update',
       '--window-size=1280,720',
       '--remote-debugging-port=0',
       'about:blank',
@@ -282,7 +283,18 @@ describe('site slot pool — real Chrome', () => {
     const stale = await (await post({ action: 'exec', code: '1', session: `site:${site}#0`, surface: 'adapter', siteSession: 'persistent', runId: 'run_1_1_other' })).json();
     expect(stale).toMatchObject({ ok: false, errorCode: 'session_busy' });
 
+    const crossed = await post({ action: 'slot-acquire', site: 'another-pool', runId: 'run_1_1_hold', poolSize: 1 });
+    expect(await crossed.json()).toMatchObject({ ok: false, errorCode: 'slot_conflict' });
+    const changed = await post({ action: 'slot-acquire', site, runId: 'run_new_policy', poolSize: 2 });
+    expect(await changed.json()).toMatchObject({ ok: false, errorCode: 'slot_conflict' });
+    const manual = await post({ action: 'exec', code: '1', session: `site:${site}#0`, surface: 'adapter' });
+    expect(await manual.json()).toMatchObject({ ok: false, errorCode: 'session_busy' });
+    const huge = await post({ action: 'slot-acquire', site, runId: 'run_huge', poolSize: 1e12 });
+    expect(huge.status).toBe(400);
+
     await post({ action: 'lease-release', runId: 'run_1_1_hold' });
     expect((await slotsOf(site))[0].runId).toBeNull();
+    const released = await post({ action: 'exec', code: '1', session: `site:${site}#0`, surface: 'adapter', runId: 'run_1_1_hold' });
+    expect(await released.json()).toMatchObject({ ok: false, errorCode: 'session_busy' });
   }, 30_000);
 });

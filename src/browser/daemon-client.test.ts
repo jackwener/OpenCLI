@@ -310,10 +310,10 @@ describe('daemon-client', () => {
     expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
   });
 
-  it('throws a terminal SessionBusyError when no site slot frees up in time', async () => {
+  it.each(['slot_wait_timeout', 'slot_conflict'])('treats %s as a terminal SessionBusyError', async (errorCode) => {
     vi.mocked(fetch).mockResolvedValue({
       status: 503,
-      json: () => Promise.resolve({ id: 'server', ok: false, errorCode: 'slot_wait_timeout', error: 'No xiaohongshu slot became free within 60s.' }),
+      json: () => Promise.resolve({ id: 'server', ok: false, errorCode, error: 'Slot admission rejected.' }),
     } as Response);
 
     await expect(sendCommand('slot-acquire', { site: 'xiaohongshu', runId: 'run_1_1_1', poolSize: 1 })).rejects.toBeInstanceOf(SessionBusyError);

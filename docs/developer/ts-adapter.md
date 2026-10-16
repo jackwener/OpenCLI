@@ -191,15 +191,20 @@ queue when every slot is busy. A command's `--timeout` covers the queue wait and
 the run together; without one, the wait alone is capped at 60s. The optional interval spaces slot grants start-to-start, so the
 pace applies per command run rather than per navigation. A waiting command that
 exits leaves the queue. When a holder stops sending commands for longer than the
-session-lease TTL, its slot can go to the next waiting run; from then on the old
-run's commands on that slot are rejected. Adapters need no changes to be pooled.
+session-lease TTL, its slot can go to the next waiting run. Commands from expired
+or released runs are rejected until they acquire a slot again. Adapters need no changes to be pooled.
 
 All adapter tabs share one automation window, and only its active tab renders.
 A pooled run brings its slot tab to the front when it starts, but another
 command opening a tab during the run (or a second slot of the same site) puts it
 in the background, where rAF and IntersectionObserver-driven lazy loading stall.
-Keep `poolSize` at `1` for render-dependent commands. When concurrent callers
-pass different policies for the same site, the most recent one applies.
+Keep `poolSize` at `1` for render-dependent commands.
+Slot pools require Browser Bridge; direct CDP callers can opt out with
+`--site-session ephemeral`. Pool sizes are limited to 1–32 and intervals/wait
+budgets to 2,147,483,647 ms. Concurrent callers must use the same policy while a
+pool has active runs or waiters. A policy can change after the pool is idle.
+Manual slot-session commands are rejected while a run holds that slot; runs
+must acquire their own slot and cannot reuse a run identity in another pool.
 
 ## The `page` Object
 

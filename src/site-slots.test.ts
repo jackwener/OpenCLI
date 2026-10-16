@@ -278,11 +278,13 @@ describe('SlotAdmission.admitCommand (slot ownership gate)', () => {
     expect(h.admission.admitCommand({ contextId: 'p1', session: 'site:xhs#0', runId: 'b' })).toBeNull();
   });
 
-  it('does not gate non-slot sessions, other profiles, or commands without a run identity', () => {
+  it('allows non-slot and idle manual sessions but rejects unowned runs', () => {
     const h = harness();
     h.acquire('a', one);
     expect(h.admission.admitCommand({ contextId: 'p1', session: 'site:xhs', runId: 'z' })).toBeNull();
-    expect(h.admission.admitCommand({ contextId: 'p2', session: 'site:xhs#0', runId: 'z' })).toBeNull();
+    expect(h.admission.admitCommand({ contextId: 'p2', session: 'site:xhs#0', runId: 'z' })).toMatchObject({ status: 409 });
+    expect(h.admission.admitCommand({ contextId: 'p1', session: 'site:xhs#0', runId: undefined })).toMatchObject({ status: 409 });
+    h.admission.release('a');
     expect(h.admission.admitCommand({ contextId: 'p1', session: 'site:xhs#0', runId: undefined })).toBeNull();
   });
 });
@@ -304,5 +306,67 @@ describe('parseSlotPolicy', () => {
 
   it('rejects a missing, zero, fractional or negative pool size', () => {
     for (const poolSize of [undefined, 0, 1.5, -1, '2']) expect(parseSlotPolicy({ poolSize })).toBeNull();
+  });
+});
+
+
+describe('slot admission boundaries', () => {
+  it('rejects reuse of a queued run in another pool without corrupting its original waiter', () => {
+    const h = harness();
+    h.acquire('a', one);
+    h.acquire('b', one);
+    const replies: SlotReply[] = [];
+    h.admission.acquire({ contextId: 'p2', site: 'other', runId: 'b', policy: one, waitMs: 1000, reply: r => replies.push(r) });
+    expect(replies[0]).toMatchObject({ status: 409, body: { errorCode: 'slot_conflict' } });
+    h.admission.release('a');
+    expect(h.replies.get('b')).toHaveLength(1);
+    expect(h.replies.get('b')?.[0]).toMatchObject({ status: 200, body: { data: { session: 'site:xhs#0' } } });
+  });
+  it('rejects reuse of a holder in another pool', () => {
+    const h = harness();
+    h.acquire('a', one);
+    const replies: SlotReply[] = [];
+    h.admission.acquire({ contextId: 'p2', site: 'other', runId: 'a', policy: one, waitMs: 1000, reply: r => replies.push(r) });
+    expect(replies[0].status).toBe(409);
+    expect(h.admission.admitCommand({ contextId: 'p1', session: 'site:xhs#0', runId: 'a' })).toBeNull();
+  });
+  it('does not let another caller expand an active pool or override its pacing', () => {
+    const h = harness();
+    h.acquire('a', one);
+    h.acquire('b', { poolSize: 2, minIntervalMs: 0, maxIntervalMs: 0 });
+    expect(h.replies.get('b')?.[0].status).toBe(409);
+    expect(h.admission.list()).toHaveLength(1);
+    h.admission.release('a');
+    h.acquire('c', { poolSize: 2, minIntervalMs: 0, maxIntervalMs: 0 });
+    expect(h.replies.get('c')?.[0].status).toBe(200);
+  });
+  it('does not let a released run drive an idle slot', () => {
+    const h = harness();
+    h.acquire('a', one);
+    h.admission.release('a');
+    expect(h.admission.admitCommand({ contextId: 'p1', session: 'site:xhs#0', runId: 'a' })).toMatchObject({ status: 409 });
+  });
+  it('drains all queued route failures without waiting for unrelated deadlines', () => {
+    let down = false;
+    const h = harness({ routeDown: () => down });
+    h.acquire('a', one); h.acquire('b', one); h.acquire('c', one);
+    down = true;
+    h.admission.release('a');
+    expect(h.replies.get('b')?.[0].status).toBe(503);
+    expect(h.replies.get('c')?.[0].status).toBe(503);
+    expect(h.timers.size).toBe(0);
+  });
+  it.each([NaN, Infinity, -1, 2_147_483_648])('rejects invalid wait budget %s without registering a waiter', waitMs => {
+    const h = harness();
+    h.acquire('a', one, waitMs);
+    expect(h.replies.get('a')?.[0].status).toBe(409);
+    expect(h.timers.size).toBe(0);
+  });
+  it('rejects unbounded pool allocation and invalid interval values', () => {
+    expect(parseSlotPolicy({ poolSize: 1e12 })).toBeNull();
+    for (const value of [Infinity, NaN, -1, '1', 2_147_483_648]) {
+      expect(parseSlotPolicy({ poolSize: 1, minIntervalMs: value })).toBeNull();
+      expect(parseSlotPolicy({ poolSize: 1, maxIntervalMs: value })).toBeNull();
+    }
   });
 });

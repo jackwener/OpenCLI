@@ -30,7 +30,7 @@ import { adapterLoadError, ArgumentError, CommandExecutionError, SessionBusyErro
 import { shouldUseBrowserSession } from './capabilityRouting.js';
 import { getBrowserFactory, browserSession, runWithTimeout, DEFAULT_BROWSER_COMMAND_TIMEOUT, type BrowserWindowMode } from './runtime.js';
 import { profileRouteParams, resolveProfileSelection } from './browser/profile.js';
-import { SLOT_WAIT_DEFAULT_MS, type SlotPolicy } from './site-slots.js';
+import { SLOT_WAIT_DEFAULT_MS, MAX_SLOT_DELAY_MS, parseSlotPolicy, type SlotPolicy } from './site-slots.js';
 import { acquireSiteSlot, clearDaemonRunContext, generateRunId, isUnknownOutcomeError, releaseSiteSessionLease, setDaemonCommandTimeoutSeconds, setDaemonRunContext } from './browser/daemon-client.js';
 import { emitHook, type HookContext } from './hooks.js';
 import { log } from './logger.js';
@@ -221,6 +221,9 @@ export async function executeCommand(
   const slotPolicy = resolvedSiteSession !== null && opts.siteSession !== 'ephemeral'
     ? resolveSiteSlotPolicy(cmd.site)
     : null;
+  if (slotPolicy && process.env.OPENCLI_CDP_ENDPOINT) {
+    throw new ArgumentError('OPENCLI_SITE_SLOTS requires Browser Bridge; use --site-session ephemeral with a direct CDP endpoint.');
+  }
   const siteSession = slotPolicy ? 'persistent' : resolvedSiteSession;
 
   let kwargs: CommandArgs;
@@ -277,10 +280,11 @@ export async function executeCommand(
         try {
           // A user --timeout budgets queue wait + run together; without one the
           // queue has its own default and the run keeps its usual ceiling.
-          const waitMs = userTimeoutSec !== null ? userTimeoutSec * 1000 : SLOT_WAIT_DEFAULT_MS;
+          const waitMs = userTimeoutSec !== null ? Math.min(MAX_SLOT_DELAY_MS, userTimeoutSec * 1000) : SLOT_WAIT_DEFAULT_MS;
+          const slotStartedAt = Date.now();
           const grant = await acquireSiteSlot({ site: cmd.site, ...slotPolicy, waitMs, ...profileRouting });
           session = grant.session;
-          slotWaitedSec = grant.waitedMs / 1000;
+          slotWaitedSec = Math.max(grant.waitedMs / 1000, (Date.now() - slotStartedAt) / 1000);
         } catch (err) {
           setDaemonRunContext(null);
           throw err;
@@ -631,7 +635,9 @@ function resolveSiteSlotPolicy(site: string): SlotPolicy | null {
     }
     const minIntervalMs = Number(match[2] ?? 0);
     const maxIntervalMs = Math.max(minIntervalMs, Number(match[3] ?? minIntervalMs));
-    return { poolSize: Number(match[1]), minIntervalMs, maxIntervalMs };
+    const policy = parseSlotPolicy({ poolSize: Number(match[1]), minIntervalMs, maxIntervalMs });
+    if (!policy) throw new ArgumentError('OPENCLI_SITE_SLOTS requires poolSize 1–32 and finite intervals no greater than 2147483647 ms.');
+    return policy;
   }
   return null;
 }

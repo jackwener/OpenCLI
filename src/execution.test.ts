@@ -1023,6 +1023,19 @@ describe('executeCommand — site slot pool (OPENCLI_SITE_SLOTS)', () => {
     expect(page.selectTab).not.toHaveBeenCalled();
   });
 
+  it('rejects pooled direct-CDP execution before acquiring a daemon slot', async () => {
+    vi.stubEnv('OPENCLI_SITE_SLOTS', 'test-slots:1');
+    vi.stubEnv('OPENCLI_CDP_ENDPOINT', 'http://127.0.0.1:9222');
+    const acquireSpy = vi.spyOn(daemonClient, 'acquireSiteSlot');
+    await expect(executeCommand(pooledCmd('read'), {})).rejects.toThrow('requires Browser Bridge');
+    expect(acquireSpy).not.toHaveBeenCalled();
+  });
+
+  it.each(['test-slots:1000000000', 'test-slots:1:2147483648', 'test-slots:1:0-' + '9'.repeat(400)])('rejects unbounded slot config %s before acquiring', config => {
+    vi.stubEnv('OPENCLI_SITE_SLOTS', config);
+    return expect(executeCommand(pooledCmd('read'), {})).rejects.toThrow('OPENCLI_SITE_SLOTS');
+  });
+
   it('borrows a slot for a READ run, drives the granted persistent session, and returns the slot', async () => {
     vi.stubEnv('OPENCLI_SITE_SLOTS', 'other:3,test-slots:2:1500-3000');
     const { sessionOpts, acquireSpy, releaseSpy, runCtxSpy } = stubBrowser();

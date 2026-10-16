@@ -59,6 +59,12 @@ export function parseSlotSession(session: unknown): { site: string; slot: number
 
 /** Queue wait budget when the caller does not send one. */
 export const SLOT_WAIT_DEFAULT_MS = 60_000;
+export const MAX_SITE_SLOTS = 32;
+export const MAX_SLOT_DELAY_MS = 2_147_483_647;
+
+export function validSlotWaitMs(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 && value <= MAX_SLOT_DELAY_MS;
+}
 
 export class SiteSlotScheduler {
   private readonly pools = new Map<string, Pool>();
@@ -74,23 +80,34 @@ export class SiteSlotScheduler {
     this.random = opts.random ?? Math.random;
   }
 
-  enqueue(key: string, input: { runId: string; policy: SlotPolicy; now: number }): void {
+  enqueue(key: string, input: { runId: string; policy: SlotPolicy; now: number }, hasPendingWork: (runId: string) => boolean = () => false): string | null {
+    if (!parseSlotPolicy({ ...input.policy })) return 'Invalid slot policy.';
+    const existingKey = this.runKeys.get(input.runId);
+    if (existingKey !== undefined && existingKey !== key) return 'A run cannot acquire slots in different pools.';
     let pool = this.pools.get(key);
     if (!pool) {
       pool = { policy: input.policy, slots: [], queue: [], nextGrantAt: 0 };
       this.pools.set(key, pool);
     }
-    pool.policy = input.policy;
+    if (pool.policy.poolSize !== input.policy.poolSize || pool.policy.minIntervalMs !== input.policy.minIntervalMs || pool.policy.maxIntervalMs !== input.policy.maxIntervalMs) {
+      if (pool.queue.length || pool.slots.some(h => this.isAlive(h, input.now, hasPendingWork))) {
+        return 'Slot policy cannot change while the pool has active runs or waiters.';
+      }
+      for (const holder of pool.slots) if (holder) this.runKeys.delete(holder.runId);
+      pool.slots = [];
+      pool.policy = input.policy;
+    }
     while (pool.slots.length < input.policy.poolSize) pool.slots.push(null);
     const held = this.holderOf(input.runId);
     if (held) {
       held.lastSeenAt = input.now;
       this.reacquired.add(input.runId);
-      return;
+      return null;
     }
-    if (this.runKeys.get(input.runId) === key) return;
+    if (this.runKeys.get(input.runId) === key) return null;
     this.runKeys.set(input.runId, key);
     pool.queue.push(input.runId);
+    return null;
   }
 
   isWaiting(runId: string): boolean {
@@ -259,6 +276,15 @@ export class SlotAdmission {
     reply: (reply: SlotReply) => void;
   }): () => void {
     const { runId } = input;
+    if (!validSlotWaitMs(input.waitMs)) {
+      input.reply({ status: 409, body: { ok: false, errorCode: 'slot_conflict', error: 'Invalid slot wait budget.' } });
+      return () => {};
+    }
+    const conflict = this.deps.scheduler.enqueue(slotPoolKey(input.contextId, input.site), { runId, policy: input.policy, now: this.now() }, this.deps.hasPendingWork);
+    if (conflict) {
+      input.reply({ status: 409, body: { ok: false, errorCode: 'slot_conflict', error: conflict } });
+      return () => {};
+    }
     const previous = this.waiters.get(runId);
     if (previous) {
       this.clearTimer(previous.waitTimer);
@@ -281,7 +307,6 @@ export class SlotAdmission {
       }, input.waitMs),
     };
     this.waiters.set(runId, waiter);
-    this.deps.scheduler.enqueue(slotPoolKey(input.contextId, input.site), { runId, policy: input.policy, now: waiter.requestedAt });
     this.pump();
     return () => {
       if (this.waiters.get(runId) !== waiter) return;
@@ -298,21 +323,24 @@ export class SlotAdmission {
    * session from a run that no longer holds it (it went silent past the TTL
    * and the slot was granted to another run) is rejected, so it can never
    * drive the new holder's tab. A holder's command refreshes its slot.
-   * Commands without a run identity (manual inspection) are not gated.
+   * Manual access without a run identity is allowed only while the slot is idle.
    */
   admitCommand(input: { contextId: string; session: unknown; runId: unknown }): SlotReply | null {
-    if (typeof input.runId !== 'string' || !input.runId) return null;
-    this.deps.scheduler.touch(input.runId, this.now());
     const parsed = parseSlotSession(input.session);
     if (!parsed) return null;
     const holder = this.deps.scheduler.holderAt(slotPoolKey(input.contextId, parsed.site), parsed.slot, this.now(), this.deps.hasPendingWork);
-    if (holder === null || holder === input.runId) return null;
+    if (typeof input.runId !== 'string' || !input.runId) {
+      if (holder === null) return null;
+    } else if (holder === input.runId) {
+      this.deps.scheduler.touch(input.runId, this.now());
+      return null;
+    }
     return {
       status: 409,
       body: {
         ok: false,
         errorCode: 'session_busy',
-        error: `Slot session "${input.session}" was reassigned to another run after this run went silent past the lease TTL.`,
+        error: `Slot session "${input.session}" is not held by this run. Acquire a slot before sending commands.`,
       },
     };
   }
@@ -335,26 +363,30 @@ export class SlotAdmission {
   pump(): void {
     const { scheduler, hasPendingWork } = this.deps;
     const now = this.now();
-    for (const grant of scheduler.pump(now, hasPendingWork)) {
-      const waiter = this.waiters.get(grant.runId);
-      if (!waiter) {
-        // Granted to a run whose client already left — hand the slot straight back.
-        scheduler.release(grant.runId);
-        continue;
+    // A failed route can free a just-granted slot. Drain the next eligible
+    // waiter immediately instead of leaving it with no wake event.
+    for (let grants = scheduler.pump(now, hasPendingWork); grants.length; grants = scheduler.pump(now, hasPendingWork)) {
+      for (const grant of grants) {
+        const waiter = this.waiters.get(grant.runId);
+        if (!waiter) {
+          // Granted to a run whose client already left — hand the slot straight back.
+          scheduler.release(grant.runId);
+          continue;
+        }
+        this.waiters.delete(grant.runId);
+        this.clearTimer(waiter.waitTimer);
+        // Post-wait recheck: the profile may have disconnected while queued.
+        const failure = this.deps.routeFailure(waiter.contextId);
+        if (failure) {
+          scheduler.release(grant.runId);
+          waiter.reply({ status: 503, body: { ok: false, ...failure } });
+          continue;
+        }
+        const session = slotSessionName(waiter.site, grant.slot);
+        const waitedMs = now - waiter.requestedAt;
+        this.deps.log?.(`[slots] ${grant.runId} granted ${session} after ${waitedMs}ms`);
+        waiter.reply({ status: 200, body: { ok: true, data: { session, slot: grant.slot, waitedMs } } });
       }
-      this.waiters.delete(grant.runId);
-      this.clearTimer(waiter.waitTimer);
-      // Post-wait recheck: the profile may have disconnected while queued.
-      const failure = this.deps.routeFailure(waiter.contextId);
-      if (failure) {
-        scheduler.release(grant.runId);
-        waiter.reply({ status: 503, body: { ok: false, ...failure } });
-        continue;
-      }
-      const session = slotSessionName(waiter.site, grant.slot);
-      const waitedMs = now - waiter.requestedAt;
-      this.deps.log?.(`[slots] ${grant.runId} granted ${session} after ${waitedMs}ms`);
-      waiter.reply({ status: 200, body: { ok: true, data: { session, slot: grant.slot, waitedMs } } });
     }
     if (this.wakeTimer !== null) {
       this.clearTimer(this.wakeTimer);
@@ -367,10 +399,10 @@ export class SlotAdmission {
 }
 
 export function parseSlotPolicy(body: Record<string, unknown>): SlotPolicy | null {
-  const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : null);
+  const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= MAX_SLOT_DELAY_MS ? v : null);
   const poolSize = num(body.poolSize);
-  const min = num(body.minIntervalMs) ?? 0;
-  const max = num(body.maxIntervalMs) ?? min;
-  if (poolSize === null || poolSize < 1 || !Number.isInteger(poolSize)) return null;
+  const min = body.minIntervalMs === undefined ? 0 : num(body.minIntervalMs);
+  const max = body.maxIntervalMs === undefined ? min : num(body.maxIntervalMs);
+  if (poolSize === null || poolSize < 1 || poolSize > MAX_SITE_SLOTS || !Number.isInteger(poolSize) || min === null || max === null) return null;
   return { poolSize, minIntervalMs: min, maxIntervalMs: Math.max(min, max) };
 }

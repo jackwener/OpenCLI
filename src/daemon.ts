@@ -43,7 +43,7 @@ import {
   getSessionLeaseKey,
   isSessionLeaseCommand,
 } from './session-lease.js';
-import { SLOT_WAIT_DEFAULT_MS, SiteSlotScheduler, SlotAdmission, parseSlotPolicy } from './site-slots.js';
+import { SLOT_WAIT_DEFAULT_MS, SiteSlotScheduler, SlotAdmission, parseSlotPolicy, validSlotWaitMs } from './site-slots.js';
 
 const PORT = DEFAULT_DAEMON_PORT;
 if (!isIgnorableDaemonPortEnv(process.env.OPENCLI_DAEMON_PORT)) {
@@ -405,7 +405,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       // is queued; a client that goes away is dequeued (site-slots.ts).
       if (body.action === 'slot-acquire') {
         const policy = parseSlotPolicy(body);
-        if (typeof body.site !== 'string' || !body.site || typeof body.runId !== 'string' || !body.runId || !policy) {
+        if (typeof body.site !== 'string' || !body.site || typeof body.runId !== 'string' || !body.runId || !policy || (body.waitMs !== undefined && !validSlotWaitMs(body.waitMs))) {
           jsonResponse(res, 400, { id: body.id, ok: false, error: 'slot-acquire needs site, runId, poolSize' });
           return;
         }
@@ -415,7 +415,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
           site: body.site,
           runId: body.runId,
           policy,
-          waitMs: typeof body.waitMs === 'number' && body.waitMs > 0 ? body.waitMs : SLOT_WAIT_DEFAULT_MS,
+          waitMs: body.waitMs === undefined ? SLOT_WAIT_DEFAULT_MS : body.waitMs as number,
           reply: ({ status, body: payload }) => {
             replied = true;
             jsonResponse(res, status, { id: body.id, ...payload });
