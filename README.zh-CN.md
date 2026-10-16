@@ -293,8 +293,10 @@ opencli plugin uninstall my-tool                            # 卸载
 
 | 插件 | 类型 | 描述 |
 |------|------|------|
+| [opencli-plugin-albato](https://github.com/vecyang1/opencli-plugin-albato) | JS | Albato 自动化工作流管理：方案查看、启停控制、失败诊断与重试 |
 | [opencli-plugin-amap](https://github.com/vecyang1/opencli-plugin-amap) | JS | 高德地图收藏地点与路线导出、坐标转换 (GCJ-02/WGS-84) 与 SSR 搜索 |
 | [opencli-plugin-github-trending](https://github.com/ByteYue/opencli-plugin-github-trending) | JS | GitHub Trending 仓库 |
+| [opencli-plugin-goofish](https://github.com/vecyang1/opencli-plugin-goofish) | JS | 闲鱼买家订单、收藏夹、私信消息、个人资料、商品搜索与交易履约统计 |
 | [opencli-plugin-hot-digest](https://github.com/ByteYue/opencli-plugin-hot-digest) | JS | 多平台热榜聚合 |
 | [opencli-plugin-juejin](https://github.com/Astro-Han/opencli-plugin-juejin) | JS | 稀土掘金热门文章 |
 | [opencli-plugin-vk](https://github.com/flobo3/opencli-plugin-vk) | JS | VK (VKontakte) 动态、信息流和搜索 |

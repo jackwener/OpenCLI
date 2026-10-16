@@ -173,8 +173,10 @@ cli({
 
 ## 示例 plugins
 
+- [`opencli-plugin-albato`](https://github.com/vecyang1/opencli-plugin-albato)：Albato 自动化工作流管理：方案查看、启停控制、失败诊断与重试
 - [`opencli-plugin-amap`](https://github.com/vecyang1/opencli-plugin-amap)：高德地图收藏地点与路线导出、坐标转换 (GCJ-02/WGS-84) 与 SSR 搜索
 - `opencli-plugin-github-trending`：GitHub Trending 仓库
+- [`opencli-plugin-goofish`](https://github.com/vecyang1/opencli-plugin-goofish)：闲鱼买家订单、收藏夹、私信消息、个人资料、商品搜索与交易履约统计
 - `opencli-plugin-hot-digest`：多平台热点聚合（zhihu、weibo、bilibili、v2ex、stackoverflow、reddit、linux-do）
 - `opencli-plugin-juejin`：稀土掘金热榜、分类和文章流
 - `opencli-plugin-rubysec`：RubySec 漏洞归档与单篇漏洞文章读取

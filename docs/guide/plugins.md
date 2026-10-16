@@ -205,8 +205,10 @@ On startup, if both `my-command.ts` and `my-command.js` exist, the `.js` version
 
 | Repo | Type | Description |
 |------|------|-------------|
+| [opencli-plugin-albato](https://github.com/vecyang1/opencli-plugin-albato) | JS | Albato automation workflow management: scenario inspection, start/pause, failure diagnosis, and retry |
 | [opencli-plugin-amap](https://github.com/vecyang1/opencli-plugin-amap) | JS | AutoNavi / 高德地图 spot & route extraction, coordinate decoders (GCJ-02 & WGS-84), and SSR search |
 | [opencli-plugin-github-trending](https://github.com/ByteYue/opencli-plugin-github-trending) | TS | GitHub Trending repositories |
+| [opencli-plugin-goofish](https://github.com/vecyang1/opencli-plugin-goofish) | JS | Goofish / 闲鱼 buyer orders, favorites, IM chat, profile, item search, and fulfillment stats |
 | [opencli-plugin-hot-digest](https://github.com/ByteYue/opencli-plugin-hot-digest) | TS | Multi-platform trending aggregator (zhihu, weibo, bilibili, v2ex, stackoverflow, reddit, linux-do) |
 | [opencli-plugin-juejin](https://github.com/Astro-Han/opencli-plugin-juejin) | TS | 稀土掘金 (Juejin) hot articles, categories, and article feed |
 | [opencli-plugin-rubysec](https://github.com/nullptrKey/opencli-plugin-rubysec) | TS | RubySec advisory archive and advisory article reader |
