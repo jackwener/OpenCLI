@@ -825,17 +825,29 @@ function getConversationListScript() {
       const sidebar = document.querySelector('[data-testid="flow_chat_sidebar"]');
       if (!sidebar) return [];
 
-      const items = Array.from(
-        sidebar.querySelectorAll('a[data-testid="chat_list_thread_item"]')
+      // Doubao serves two page skins from the same URL and the same sidebar root.
+      // Conversation skin: the item IS the <a href="/chat/<id>">. Doubao Work
+      // skin: the item is a div[data-testid="conversation-list-v2-item"] and the
+      // id only exists on an inner <a href="/chat/<id>">, while the title is the
+      // item's own text. Both selectors are kept so neither skin regresses.
+      const itemSelectors = [
+        'a[data-testid="chat_list_thread_item"]',
+        '[data-testid="conversation-list-v2-item"]',
+      ];
+
+      const items = itemSelectors.flatMap(
+        (selector) => Array.from(sidebar.querySelectorAll(selector))
       );
 
       return items
-        .map(a => {
-          const href = a.getAttribute('href') || '';
+        .map(item => {
+          const link = item.matches('a[href]') ? item : item.querySelector('a[href*="/chat/"]');
+          if (!link) return null;
+          const href = link.getAttribute('href') || '';
           const match = href.match(/\\/chat\\/(\\d{10,})/);
           if (!match) return null;
           const id = match[1];
-          const textContent = (a.textContent || a.innerText || '').trim();
+          const textContent = (item.textContent || item.innerText || '').trim();
           const title = textContent
             .replace(/\\s+/g, ' ')
             .substring(0, 200);
@@ -1140,6 +1152,7 @@ export const __test__ = {
     clickSendButtonScript,
     composerStateScript,
     detectDoubaoVerificationScript,
+    getConversationListScript,
     getTurnsScript,
     getTranscriptLinesScript,
 };

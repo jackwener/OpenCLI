@@ -4,6 +4,7 @@ import { CommandExecutionError } from '@jackwener/opencli/errors';
 import {
     __test__,
     collectDoubaoTranscriptAdditions,
+    getDoubaoConversationList,
     mergeTranscriptSnapshots,
     parseDoubaoConversationId,
     sendDoubaoMessage,
@@ -43,6 +44,118 @@ describe('parseDoubaoConversationId', () => {
     });
     it('keeps a raw id unchanged', () => {
         expect(parseDoubaoConversationId('1234567890123')).toBe('1234567890123');
+    });
+});
+describe('doubao conversation list (history)', () => {
+    // Drives the real sidebar extraction script through the real
+    // getDoubaoConversationList() so the asserted shape is exactly what
+    // `opencli doubao history` prints (Id / Title / Url).
+    async function listFromHtml(html) {
+        const dom = new JSDOM(html, { url: 'https://www.doubao.com/chat', runScripts: 'outside-only' });
+        const page = createPageMock();
+        vi.mocked(page.evaluate).mockImplementation(async (script) => (script === 'window.location.href'
+            ? 'https://www.doubao.com/chat'
+            : dom.window.eval(script)));
+        return getDoubaoConversationList(page);
+    }
+
+    // 对话形态 fixture 来自历史版本、未经现网验证（本机账号只能进入工作形态，
+    // 无法对对话形态做端到端验证）。结构取自本文件既有的 2026-05 DOM 片段：
+    // 会话项本身就是 <a data-testid="chat_list_thread_item" href="/chat/<id>">。
+    const conversationSkinSidebar = `
+      <div data-testid="flow_chat_sidebar">
+        <a data-testid="chat_list_thread_item" href="/chat/1234567890123">Weekly Sync</a>
+        <a data-testid="chat_list_thread_item" href="/chat/9876543210987">Sprint 计划</a>
+      </div>
+    `;
+
+    // Live DOM sample from a Doubao Work sidebar (2026-10-16). The sidebar root
+    // [data-testid="flow_chat_sidebar"] is unchanged, but each conversation is a
+    // div[data-testid="conversation-list-v2-item"] — NOT an <a> — and the id only
+    // exists on an inner <a href="/chat/<id>">, while the title is the item text.
+    const doubaoWorkSkinSidebar = `
+      <div data-testid="flow_chat_sidebar">
+        <div data-testid="chat_list_wrapper">
+          <div data-testid="conversation-section">
+            <div data-testid="conversation-list-v2-item">
+              <a href="/chat/46370507058831106">季度复盘会议纪要</a>
+              <button data-testid="chat_list_item_more_button"></button>
+            </div>
+            <div data-testid="conversation-list-v2-item">
+              <a href="/chat/46370507058842882">新工作任务</a>
+              <button data-testid="chat_list_item_more_button"></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    it('keeps the Doubao Work sidebar item selector alongside the conversation-skin one', () => {
+        const listScript = __test__.getConversationListScript();
+        expect(listScript).toContain('a[data-testid="chat_list_thread_item"]');
+        expect(listScript).toContain('[data-testid="conversation-list-v2-item"]');
+        expect(listScript).toContain('[data-testid="flow_chat_sidebar"]');
+    });
+
+    it('lists conversations from the conversation-skin sidebar', async () => {
+        expect(await listFromHtml(conversationSkinSidebar)).toEqual([
+            {
+                Id: '1234567890123',
+                Title: 'Weekly Sync',
+                Url: 'https://www.doubao.com/chat/1234567890123',
+            },
+            {
+                Id: '9876543210987',
+                Title: 'Sprint 计划',
+                Url: 'https://www.doubao.com/chat/9876543210987',
+            },
+        ]);
+    });
+
+    it('lists conversations from the Doubao Work sidebar, taking the id from the inner link', async () => {
+        // Guard: the item must stay a div without the legacy testid, otherwise
+        // this fixture would not exercise the new div/inner-link path at all.
+        expect(doubaoWorkSkinSidebar).toContain('<div data-testid="conversation-list-v2-item">');
+        expect(doubaoWorkSkinSidebar).not.toContain('chat_list_thread_item');
+
+        expect(await listFromHtml(doubaoWorkSkinSidebar)).toEqual([
+            {
+                Id: '46370507058831106',
+                Title: '季度复盘会议纪要',
+                Url: 'https://www.doubao.com/chat/46370507058831106',
+            },
+            {
+                Id: '46370507058842882',
+                Title: '新工作任务',
+                Url: 'https://www.doubao.com/chat/46370507058842882',
+            },
+        ]);
+    });
+
+    // Cross-skin mismatch guards. Both skins share the same URL and the same
+    // [data-testid="flow_chat_sidebar"] root, so a selector added for one skin is
+    // only safe if it cannot pick up the other skin's markup. Each fixture is run
+    // through the combined script and its rows pinned: a selector that starts
+    // matching across skins shows up as an added, dropped or duplicated row.
+
+    it('does not let the Doubao Work selector misread a conversation-skin sidebar', async () => {
+        expect(conversationSkinSidebar).not.toContain('conversation-list-v2-item');
+        expect(await listFromHtml(conversationSkinSidebar)).toHaveLength(2);
+    });
+
+    it('does not let the conversation-skin selector misread a Doubao Work sidebar', async () => {
+        expect(doubaoWorkSkinSidebar).not.toContain('chat_list_thread_item');
+        expect(await listFromHtml(doubaoWorkSkinSidebar)).toHaveLength(2);
+    });
+
+    it('returns no conversations when the sidebar holds only chrome', async () => {
+        expect(await listFromHtml(`
+          <div data-testid="flow_chat_sidebar">
+            <div data-testid="chat_list_wrapper">
+              <div data-testid="conversation-section"></div>
+            </div>
+          </div>
+        `)).toEqual([]);
     });
 });
 describe('doubao send strategy', () => {
