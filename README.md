@@ -263,6 +263,7 @@ opencli plugin uninstall my-tool
 | [opencli-plugin-goofish](https://github.com/vecyang1/opencli-plugin-goofish) | JS | Goofish / 闲鱼 buyer orders, favorites, IM chat, profile, item search, and fulfillment stats |
 | [opencli-plugin-hot-digest](https://github.com/ByteYue/opencli-plugin-hot-digest) | JS | Multi-platform trending aggregator |
 | [opencli-plugin-juejin](https://github.com/Astro-Han/opencli-plugin-juejin) | JS | 稀土掘金 (Juejin) hot articles |
+| [opencli-plugin-taobao](https://github.com/vecyang1/opencli-plugin-taobao) | JS | Taobao buyer chat history, 10-year orders, bought shops, favorites, and semantic reasoning |
 | [opencli-plugin-vk](https://github.com/flobo3/opencli-plugin-vk) | JS | VK (VKontakte) wall, feed, and search |
 | [opencli-plugin-x-article-publisher](https://github.com/genoooool/opencli-plugin-x-article-publisher) | JS | Publish Markdown with local images as X long-form Articles via OpenCLI and xPoster |
 
