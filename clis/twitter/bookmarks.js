@@ -73,6 +73,7 @@ export function extractBookmarkTweet(result, seen) {
 export function parseBookmarks(data, seen) {
     const tweets = [];
     let nextCursor = null;
+    let hasTimelineItems = false;
     const instructions = data?.data?.bookmark_timeline_v2?.timeline?.instructions
         || data?.data?.bookmark_timeline?.timeline?.instructions
         || [];
@@ -88,6 +89,9 @@ export function parseBookmarks(data, seen) {
                 nextCursor = content?.value || content?.itemContent?.value || nextCursor;
                 continue;
             }
+            // Deduplication or unsupported item shapes must not turn a repeated
+            // non-empty page into proof that the archive is complete.
+            hasTimelineItems = true;
             const direct = extractBookmarkTweet(content?.itemContent?.tweet_results?.result, seen);
             if (direct) {
                 tweets.push(direct);
@@ -100,7 +104,7 @@ export function parseBookmarks(data, seen) {
             }
         }
     }
-    return { tweets, nextCursor };
+    return { tweets, nextCursor, hasTimelineItems };
 }
 function readResumeFile(filePath, expected = null) {
     if (!filePath || !fs.existsSync(filePath))
@@ -262,7 +266,7 @@ cli({
             if (!hasInstructions) {
                 throw new CommandExecutionError('twitter_bookmarks_protocol_error: missing Bookmarks timeline instructions');
             }
-            const { tweets, nextCursor } = parseBookmarks(data, seen);
+            const { tweets, nextCursor, hasTimelineItems } = parseBookmarks(data, seen);
             if (useOutputFile) {
                 appendJsonlRows(outputFile, tweets);
                 outputCount += tweets.length;
@@ -270,7 +274,7 @@ cli({
             else {
                 allTweets.push(...tweets);
             }
-            const pageComplete = !nextCursor || (nextCursor === cursor && tweets.length === 0);
+            const pageComplete = !nextCursor || (nextCursor === cursor && !hasTimelineItems);
             writeResumeFile(resumeFile, {
                 cursor: pageComplete ? null : nextCursor,
                 count: useOutputFile ? outputCount : allTweets.length,

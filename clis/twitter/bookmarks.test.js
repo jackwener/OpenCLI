@@ -204,7 +204,7 @@ describe('twitter bookmarks parser', () => {
     });
 
     it('returns empty tweets + null cursor for unknown envelope', () => {
-        expect(parseBookmarks({}, new Set())).toEqual({ tweets: [], nextCursor: null });
+        expect(parseBookmarks({}, new Set())).toEqual({ tweets: [], nextCursor: null, hasTimelineItems: false });
     });
 });
 
