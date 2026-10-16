@@ -255,6 +255,8 @@ opencli plugin update --all
 opencli plugin uninstall my-tool
 ```
 
+Albato, Goofish and Taobao use local adapter-subdirectory installation; see the [installation notes](./docs/guide/plugins.md#community-adapter-bundles).
+
 | Plugin | Type | Description |
 |--------|------|-------------|
 | [opencli-plugin-albato](https://github.com/vecyang1/opencli-plugin-albato) | JS | Albato automation workflow management: scenario inspection, start/pause, failure diagnosis, and retry |
@@ -263,7 +265,7 @@ opencli plugin uninstall my-tool
 | [opencli-plugin-goofish](https://github.com/vecyang1/opencli-plugin-goofish) | JS | Goofish / 闲鱼 buyer orders, favorites, IM chat, profile, item search, and fulfillment stats |
 | [opencli-plugin-hot-digest](https://github.com/ByteYue/opencli-plugin-hot-digest) | JS | Multi-platform trending aggregator |
 | [opencli-plugin-juejin](https://github.com/Astro-Han/opencli-plugin-juejin) | JS | 稀土掘金 (Juejin) hot articles |
-| [opencli-plugin-taobao](https://github.com/vecyang1/opencli-plugin-taobao) | JS | Taobao buyer chat history, 10-year orders, bought shops, favorites, and semantic reasoning |
+| [opencli-plugin-taobao](https://github.com/vecyang1/opencli-plugin-taobao) | JS | Taobao buyer chat history, order history, bought shops, favorites, and keyword-based chat summaries |
 | [opencli-plugin-vk](https://github.com/flobo3/opencli-plugin-vk) | JS | VK (VKontakte) wall, feed, and search |
 | [opencli-plugin-x-article-publisher](https://github.com/genoooool/opencli-plugin-x-article-publisher) | JS | Publish Markdown with local images as X long-form Articles via OpenCLI and xPoster |
 

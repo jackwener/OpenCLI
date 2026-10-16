@@ -291,6 +291,8 @@ opencli plugin uninstall my-tool                            # 卸载
 
 当 plugin 的版本被记录到 `~/.opencli/plugins.lock.json` 后，`opencli plugin list` 也会显示对应的短 commit hash。
 
+Albato、Goofish 和 Taobao 需要从本地 adapter 子目录安装，见[安装说明](./docs/zh/guide/plugins.md#社区-adapter-集合)。
+
 | 插件 | 类型 | 描述 |
 |------|------|------|
 | [opencli-plugin-albato](https://github.com/vecyang1/opencli-plugin-albato) | JS | Albato 自动化工作流管理：方案查看、启停控制、失败诊断与重试 |
@@ -299,7 +301,7 @@ opencli plugin uninstall my-tool                            # 卸载
 | [opencli-plugin-goofish](https://github.com/vecyang1/opencli-plugin-goofish) | JS | 闲鱼买家订单、收藏夹、私信消息、个人资料、商品搜索与交易履约统计 |
 | [opencli-plugin-hot-digest](https://github.com/ByteYue/opencli-plugin-hot-digest) | JS | 多平台热榜聚合 |
 | [opencli-plugin-juejin](https://github.com/Astro-Han/opencli-plugin-juejin) | JS | 稀土掘金热门文章 |
-| [opencli-plugin-taobao](https://github.com/vecyang1/opencli-plugin-taobao) | JS | 淘宝买家聊天记录、10年全量订单、已购店铺、收藏夹与语义推理 |
+| [opencli-plugin-taobao](https://github.com/vecyang1/opencli-plugin-taobao) | JS | 淘宝买家聊天记录、历史订单、已购店铺、收藏夹与基于关键词的聊天摘要 |
 | [opencli-plugin-vk](https://github.com/flobo3/opencli-plugin-vk) | JS | VK (VKontakte) 动态、信息流和搜索 |
 | [opencli-plugin-x-article-publisher](https://github.com/genoooool/opencli-plugin-x-article-publisher) | JS | 通过 OpenCLI 与 xPoster 将带本地图片的 Markdown 发布为 X 长文 |
 

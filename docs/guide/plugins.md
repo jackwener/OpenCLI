@@ -212,8 +212,19 @@ On startup, if both `my-command.ts` and `my-command.js` exist, the `.js` version
 | [opencli-plugin-hot-digest](https://github.com/ByteYue/opencli-plugin-hot-digest) | TS | Multi-platform trending aggregator (zhihu, weibo, bilibili, v2ex, stackoverflow, reddit, linux-do) |
 | [opencli-plugin-juejin](https://github.com/Astro-Han/opencli-plugin-juejin) | TS | 稀土掘金 (Juejin) hot articles, categories, and article feed |
 | [opencli-plugin-rubysec](https://github.com/nullptrKey/opencli-plugin-rubysec) | TS | RubySec advisory archive and advisory article reader |
-| [opencli-plugin-taobao](https://github.com/vecyang1/opencli-plugin-taobao) | JS | Taobao buyer chat history, 10-year orders, bought shops, favorites, and semantic reasoning |
+| [opencli-plugin-taobao](https://github.com/vecyang1/opencli-plugin-taobao) | JS | Taobao buyer chat history, order history, bought shops, favorites, and keyword-based chat summaries |
 | [opencli-plugin-x-article-publisher](https://github.com/genoooool/opencli-plugin-x-article-publisher) | JS | Publish Markdown with local images as X long-form Articles via OpenCLI and xPoster |
+
+### Community adapter bundles
+
+Albato, Goofish and Taobao currently keep their command files under `clis/<site>` without a monorepo manifest. Installing the repository root with `github:vecyang1/opencli-plugin-<site>` fails structure validation. Clone the repository and install its command directory instead; keep the clone because local installs link to it:
+
+```bash
+git clone https://github.com/vecyang1/opencli-plugin-taobao.git
+opencli plugin install ./opencli-plugin-taobao/clis/taobao
+```
+
+For Albato or Goofish, substitute `albato` or `goofish` in both paths. Those two repositories require Node.js 22.5 or later. Follow each repository's README for its additional tools and setup. These are community-maintained adapters; the listing describes their commands, not a guarantee of historical-data completeness.
 
 ## Troubleshooting
 
