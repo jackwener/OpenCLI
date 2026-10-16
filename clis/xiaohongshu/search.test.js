@@ -373,6 +373,8 @@ describe('xiaohongshu search', () => {
             const { document } = dom.window;
             const input = document.querySelector('#search-input');
             const button = document.querySelector('.search-icon');
+            markVisible(input);
+            markVisible(button);
             let inputEvents = 0;
             let clicked = false;
             input.addEventListener('input', () => inputEvents++);
@@ -396,6 +398,68 @@ describe('xiaohongshu search', () => {
             expect(clicked).toBe(true);
         }
         finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it.each([
+        ['hidden clones', 'ok'],
+        ['duplicate input', 'layout'],
+        ['duplicate button', 'layout'],
+        ['disabled button', 'layout'],
+        ['cards only', 'ok'],
+        ['login after click', 'auth'],
+        ['captcha after click', 'security_block'],
+        ['wrong query', 'timeout'],
+    ])('handles %s without unsafe or premature submission', async (scenario, expected) => {
+        vi.useFakeTimers();
+        const dom = new JSDOM('<input id="search-input"><button class="search-icon">Search</button>', {
+            url: 'https://www.xiaohongshu.com/explore',
+        });
+        try {
+            const { document } = dom.window;
+            const input = document.querySelector('input');
+            const button = document.querySelector('button');
+            markVisible(input);
+            markVisible(button);
+            const cloneClick = vi.fn();
+            if (scenario === 'hidden clones' || scenario.startsWith('duplicate')) {
+                const container = document.createElement('div');
+                if (scenario === 'hidden clones') container.style.opacity = '0';
+                for (const control of scenario === 'duplicate input' ? [input] : scenario === 'duplicate button' ? [button] : [input, button]) {
+                    const clone = control.cloneNode(true);
+                    markVisible(clone);
+                    clone.addEventListener('click', cloneClick);
+                    container.append(clone);
+                }
+                document.body.prepend(container);
+            }
+            if (scenario === 'disabled button') button.disabled = true;
+            const click = vi.fn(() => {
+                dom.window.history.pushState({}, '', scenario === 'captcha after click'
+                    ? '/website-login/captcha' : '/search_result?keyword=' + (scenario === 'wrong query' ? 'old' : '测试'));
+                const card = document.createElement('section');
+                card.className = 'note-item';
+                document.body.append(card);
+                if (scenario === 'login after click') {
+                    const login = document.createElement('button');
+                    login.id = 'login-btn';
+                    markVisible(login);
+                    document.body.append(login);
+                }
+            });
+            button.addEventListener('click', click);
+            const pending = Function('document', 'location', 'HTMLInputElement', 'Event', 'setTimeout',
+                `return (${__test__.buildInSiteSearchJs('测试')})`)(
+                document, dom.window.location, dom.window.HTMLInputElement, dom.window.Event, setTimeout,
+            );
+            await vi.runAllTimersAsync();
+            await expect(pending).resolves.toMatchObject({ status: expected });
+            expect(cloneClick).not.toHaveBeenCalled();
+            expect(click).toHaveBeenCalledTimes(expected === 'layout' ? 0 : 1);
+        }
+        finally {
+            dom.window.close();
             vi.useRealTimers();
         }
     });
@@ -1219,6 +1283,21 @@ describe('search readiness before body creation', () => {
             else window.document.documentElement.append(body);
             await expect(pending).resolves.toBe('content');
         } finally { window.close(); }
+    });
+
+    it.each(['login_wall', 'security_block'])('does not let stale cards conceal %s', async (status) => {
+        const dom = new JSDOM('<section class="note-item">old result</section>', {
+            runScripts: 'outside-only',
+            url: status === 'security_block' ? 'https://www.xiaohongshu.com/website-login/captcha' : 'https://www.xiaohongshu.com/search_result',
+        });
+        try {
+            if (status === 'login_wall') {
+                const login = dom.window.document.createElement('button');
+                login.id = 'login-btn';
+                dom.window.document.body.append(login);
+            }
+            await expect(dom.window.eval(__test__.WAIT_FOR_CONTENT_JS)).resolves.toBe(status);
+        } finally { dom.window.close(); }
     });
 
     it('keeps the shared scroll helper bounded without a body', async () => {
