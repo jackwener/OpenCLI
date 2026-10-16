@@ -498,13 +498,25 @@ function clickSendButtonScript() {
     return `
     (() => {
       ${buildDoubaoComposerLocatorScript()}
-      const directSendButton = document.querySelector('button#flow-end-msg-send');
-      if (directSendButton instanceof HTMLElement && isVisible(directSendButton)) {
-        const disabled = directSendButton.getAttribute('disabled') !== null
-          || directSendButton.getAttribute('aria-disabled') === 'true';
-        if (!disabled) {
-          directSendButton.click();
-          return true;
+      // First-class send buttons, tried before any scoring heuristic.
+      // button#flow-end-msg-send is the conversation skin. The Doubao Work skin
+      // uses [data-testid="chat_input_send_button"], whose class is
+      // ring-dbx-fill-highlight-disable — one prefix away from the heuristic's
+      // bg-dbx-fill-highlight keyword. That gap is why the heuristic used to
+      // pick some other button and clear the composer without sending anything.
+      const directSendSelectors = [
+        'button#flow-end-msg-send',
+        '[data-testid="chat_input_send_button"]',
+      ];
+      for (const directSendSelector of directSendSelectors) {
+        const directSendButton = document.querySelector(directSendSelector);
+        if (directSendButton instanceof HTMLElement && isVisible(directSendButton)) {
+          const disabled = directSendButton.getAttribute('disabled') !== null
+            || directSendButton.getAttribute('aria-disabled') === 'true';
+          if (!disabled) {
+            directSendButton.click();
+            return true;
+          }
         }
       }
 
@@ -702,7 +714,33 @@ export async function getDoubaoTranscriptLines(page) {
     await ensureDoubaoChatPage(page);
     return await page.evaluate(getTranscriptLinesScript());
 }
-export async function sendDoubaoMessage(page, text) {
+// Delivery confirmation. `sendDoubaoMessage` used to report success as soon as
+// it had clicked something, so a cleared composer with no message sent looked
+// identical to a real send. Success now means a new user bubble showed up in the
+// conversation. Both skins are confirmed: silent failure is just as dangerous on
+// the conversation skin.
+const DOUBAO_SEND_VERIFY_INTERVAL_MS = 500;
+const DOUBAO_SEND_VERIFY_WINDOW_MS = 3000;
+// ponytail: polls the rendered conversation, not the network. If Doubao ever
+// virtualizes the newest bubble out of the DOM before it renders, raise the
+// window rather than reaching for request interception.
+async function countDoubaoUserBubbles(page) {
+    const turns = await page.evaluate(getTurnsScript());
+    return Array.isArray(turns) ? turns.filter((turn) => turn?.Role === 'User').length : 0;
+}
+async function waitForNewDoubaoUserBubble(page, beforeCount, intervalMs, windowMs) {
+    const deadline = Date.now() + windowMs;
+    for (;;) {
+        if (await countDoubaoUserBubbles(page) > beforeCount)
+            return true;
+        if (Date.now() >= deadline)
+            return false;
+        await page.wait(intervalMs / 1000);
+    }
+}
+export async function sendDoubaoMessage(page, text, options = {}) {
+    const verifyIntervalMs = options.verifyIntervalMs ?? DOUBAO_SEND_VERIFY_INTERVAL_MS;
+    const verifyWindowMs = options.verifyWindowMs ?? DOUBAO_SEND_VERIFY_WINDOW_MS;
     await ensureDoubaoChatPage(page);
     const normalizeComposerText = (value) => value.replace(/\r\n/g, '\n').trim();
     const expectedText = normalizeComposerText(text);
@@ -728,6 +766,7 @@ export async function sendDoubaoMessage(page, text) {
     if (!hasText) {
         throw new CommandExecutionError('Failed to insert text into Doubao composer');
     }
+    const bubblesBefore = await countDoubaoUserBubbles(page);
     let submittedBy = 'enter';
     const clicked = await page.evaluate(clickSendButtonScript());
     if (clicked) {
@@ -750,6 +789,10 @@ export async function sendDoubaoMessage(page, text) {
         throw new CommandExecutionError('Doubao blocked the request with a verification challenge', verification.reason
             ? `Detected challenge signal: ${verification.reason}`
             : 'Please complete the challenge in the browser and try again.');
+    }
+    const delivered = await waitForNewDoubaoUserBubble(page, bubblesBefore, verifyIntervalMs, verifyWindowMs);
+    if (!delivered) {
+        throw new CommandExecutionError('Doubao did not send the message (消息未发出，输入框已被清空)', `No new user bubble appeared in the conversation within ${verifyWindowMs}ms. The composer was cleared, so the text is gone — reopen the conversation and retry.`);
     }
     return submittedBy;
 }
