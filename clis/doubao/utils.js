@@ -901,9 +901,10 @@ function getConversationListScript() {
 
       // Doubao serves two page skins from the same URL and the same sidebar root.
       // Conversation skin: the item IS the <a href="/chat/<id>">. Doubao Work
-      // skin: the item is a div[data-testid="conversation-list-v2-item"] and the
-      // id only exists on an inner <a href="/chat/<id>">, while the title is the
-      // item's own text. Both selectors are kept so neither skin regresses.
+      // skin: the item is a div[data-testid="conversation-list-v2-item"] that
+      // carries data-conversation-id, and its <a href="/chat/<id>"> is the
+      // PARENT (verified against the live DOM, not a descendant), while the title
+      // is the item's own text. Both selectors are kept so neither skin regresses.
       const itemSelectors = [
         'a[data-testid="chat_list_thread_item"]',
         '[data-testid="conversation-list-v2-item"]',
@@ -913,16 +914,28 @@ function getConversationListScript() {
         (selector) => Array.from(sidebar.querySelectorAll(selector))
       );
 
+      // Doubao Work renders the title three times inside the item (hidden copies
+      // behind its overflow effect), so textContent repeats it verbatim and the
+      // naive title came out tripled. Collapse an exact repetition of the whole
+      // string; an ordinary title has no whole-string period and passes through.
+      const collapseRepeatedText = (value) => {
+        for (let len = 1; len <= value.length / 2; len += 1) {
+          if (value.length % len !== 0) continue;
+          if (value.slice(0, len).repeat(value.length / len) === value) return value.slice(0, len);
+        }
+        return value;
+      };
+
       return items
         .map(item => {
-          const link = item.matches('a[href]') ? item : item.querySelector('a[href*="/chat/"]');
-          if (!link) return null;
-          const href = link.getAttribute('href') || '';
-          const match = href.match(/\\/chat\\/(\\d{10,})/);
+          const dataId = item.getAttribute('data-conversation-id') || '';
+          const link = item.matches('a[href]') ? item : item.closest('a[href]');
+          const href = link ? (link.getAttribute('href') || '') : '';
+          const match = dataId.match(/^(\\d{10,})$/) || href.match(/\\/chat\\/(\\d{10,})/);
           if (!match) return null;
           const id = match[1];
           const textContent = (item.textContent || item.innerText || '').trim();
-          const title = textContent
+          const title = collapseRepeatedText(textContent)
             .replace(/\\s+/g, ' ')
             .substring(0, 200);
           return { id, title, href };
