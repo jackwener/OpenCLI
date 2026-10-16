@@ -721,7 +721,7 @@ export async function getDoubaoTranscriptLines(page) {
 // the conversation skin.
 const DOUBAO_SEND_VERIFY_INTERVAL_MS = 500;
 const DOUBAO_SEND_VERIFY_WINDOW_MS = 3000;
-// ponytail: polls the rendered conversation, not the network. If Doubao ever
+// Polls the rendered conversation, not the network. If Doubao ever
 // virtualizes the newest bubble out of the DOM before it renders, raise the
 // window rather than reaching for request interception.
 async function countDoubaoUserBubbles(page) {
