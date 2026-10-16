@@ -275,6 +275,119 @@ describe('doubao receive strategy', () => {
         expect(transcriptScript).toContain('请仔细甄别');
         expect(transcriptScript).toContain('下载电脑版');
     });
+
+    // ---------------------------------------------------------------------
+    // Doubao Work ("豆包工作") skin.
+    //
+    // Enterprise accounts land on a page whose URL is identical to the
+    // conversation skin, so the two can only be told apart by DOM shape.
+    // Doubao Work keeps the [data-testid="message-list"] /
+    // [data-testid="union_message"] item roots, but renders bubbles as
+    // [data-testid="send_message"] / [data-testid="receive_message"] with the
+    // text in [data-testid="message_text_content"] — the same three testids
+    // getConversationDetailScript() reads.
+    // ---------------------------------------------------------------------
+
+    // Live DOM sample from a Doubao Work conversation (2026-10-16): the message
+    // list is a virtual list (v_list_*), each row wraps one union_message.
+    const doubaoWorkSkin = `
+      <main>
+        <aside>最近</aside>
+        <section data-testid="message-list" class="v_list-D34x3M">
+          <div class="scroller v_list_scroller-BxcoIX">
+            <div class="scroller_content">
+              <div class="list_items">
+                <div class="v_list_row">
+                  <div data-testid="union_message" class="w-full inner-item-BjaxFt">
+                    <div data-testid="message-block-container" class="w-full">
+                      <div data-testid="send_message">
+                        <div data-testid="message_text_content">1+1 等于几？只回答一个数字。</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="v_list_row">
+                  <div data-testid="union_message" class="w-full inner-item-BjaxFt">
+                    <div data-testid="message-block-container" data-reply-message="true" class="w-full">
+                      <div data-testid="receive_message">
+                        <div data-testid="message_text_content">2</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+    `;
+
+    // 对话形态 fixture 来自历史版本、未经现网验证（本机账号只能进入工作形态，
+    // 无法对对话形态做端到端验证）。它取自本文件既有的 2026-05 DOM 片段。
+    const conversationSkin = `
+      <main>
+        <aside>历史对话</aside>
+        <section class="message-list-S2Fv2S">
+          <div class="top-item-user">
+            <div class="inner-item-user">
+              <div class="bg-g-send-msg-bubble">测试一下，只回复OK</div>
+            </div>
+          </div>
+          <div class="top-item-assistant">
+            <div class="inner-item-assistant">
+              <div class="flow-markdown-body"><p>OK</p></div>
+            </div>
+          </div>
+        </section>
+      </main>
+    `;
+
+    it('keeps the Doubao Work bubble testids in the turns script', () => {
+        const turnsScript = __test__.getTurnsScript();
+        expect(turnsScript).toContain('[data-testid="send_message"]');
+        expect(turnsScript).toContain('[data-testid="receive_message"]');
+        expect(turnsScript).toContain('[data-testid="message_text_content"]');
+        expect(turnsScript).toContain('[data-testid="union_message"]');
+    });
+
+    it('extracts user and assistant turns from the Doubao Work skin', () => {
+        expect(runTurnsScript(doubaoWorkSkin)).toEqual([
+            { Role: 'User', Text: '1+1 等于几？只回答一个数字。' },
+            { Role: 'Assistant', Text: '2' },
+        ]);
+    });
+
+    // Cross-skin mismatch guards. Adding a second skin's selectors to a shared
+    // candidate list is only safe if neither skin's markup can be picked up by
+    // the other skin's path, so each fixture is run through the combined script
+    // and the exact turns are pinned: a selector that starts matching across
+    // skins shows up as an added, dropped, or relabelled turn.
+
+    it('does not let the Doubao Work path misread a conversation-skin fixture', () => {
+        // Guard: the fixture must not carry Doubao Work markers, otherwise this
+        // test would not exercise the cross-skin path at all.
+        expect(conversationSkin).not.toContain('send_message');
+        expect(conversationSkin).not.toContain('receive_message');
+        expect(conversationSkin).not.toContain('message_text_content');
+
+        expect(runTurnsScript(conversationSkin)).toEqual([
+            { Role: 'User', Text: '测试一下，只回复OK' },
+            { Role: 'Assistant', Text: 'OK' },
+        ]);
+    });
+
+    it('does not let the conversation-skin path misread a Doubao Work fixture', () => {
+        // Guard: the fixture must not carry conversation-skin markers.
+        expect(doubaoWorkSkin).not.toContain('bg-g-send-msg-bubble');
+        expect(doubaoWorkSkin).not.toContain('bg-g-receive-msg-bubble');
+        expect(doubaoWorkSkin).not.toContain('flow-markdown-body');
+        expect(doubaoWorkSkin).not.toContain('md-box-root');
+
+        expect(runTurnsScript(doubaoWorkSkin)).toEqual([
+            { Role: 'User', Text: '1+1 等于几？只回答一个数字。' },
+            { Role: 'Assistant', Text: '2' },
+        ]);
+    });
 });
 describe('collectDoubaoTranscriptAdditions', () => {
     it('ignores landing-page capability chips that are not assistant content', () => {
