@@ -107,6 +107,67 @@ describe('ChatGPT current reasoning slider', () => {
         } finally { fetchSpy.mockRestore(); }
     });
 
+    it('ignores a transparent reasoning-control clone before the real trigger', async () => {
+        const page = sliderPage();
+        const { document } = page.dom.window;
+        const trigger = document.querySelector('button');
+        const wrapper = document.createElement('div');
+        wrapper.style.opacity = '0';
+        const clone = trigger.cloneNode(true);
+        clone.setAttribute('data-selected-reasoning-effort', 'high');
+        clone.getBoundingClientRect = () => ({ left: 700, top: 0, width: 120, height: 36 });
+        wrapper.append(clone);
+        document.body.prepend(wrapper);
+        await expect(selectChatGPTModel(page, 'advanced')).resolves.toMatchObject({ Status: 'Success' });
+        expect(page.nativeClick).toHaveBeenCalledWith(60, 18);
+        expect(trigger.getAttribute('data-selected-reasoning-effort')).toBe('high');
+    });
+
+    it('rejects multiple visible triggers even if one already shows the requested effort', async () => {
+        const page = sliderPage();
+        const { document } = page.dom.window;
+        const clone = document.querySelector('button').cloneNode(true);
+        clone.setAttribute('data-selected-reasoning-effort', 'high');
+        clone.getBoundingClientRect = () => ({ left: 0, top: 0, width: 120, height: 36 });
+        document.body.prepend(clone);
+        await expect(selectChatGPTModel(page, 'advanced')).rejects.toThrow('ambiguous');
+        expect(page.nativeClick).not.toHaveBeenCalled();
+        expect(page.nativeKeyPress).not.toHaveBeenCalled();
+    });
+
+    it('rejects a disabled reasoning trigger without clicking it', async () => {
+        const page = sliderPage();
+        page.dom.window.document.querySelector('button').disabled = true;
+        await expect(selectChatGPTModel(page, 'advanced')).rejects.toThrow('disabled');
+        expect(page.nativeClick).not.toHaveBeenCalled();
+    });
+
+    it('does not send arrow keys when two visible sliders compete for focus', async () => {
+        const page = sliderPage();
+        const { document } = page.dom.window;
+        const clone = document.querySelector('[data-reasoning-slider]').cloneNode(true);
+        clone.hidden = false;
+        clone.getBoundingClientRect = () => ({ left: 0, top: 0, width: 120, height: 36 });
+        document.body.append(clone);
+        await expect(selectChatGPTModel(page, 'advanced')).rejects.toThrow('focus');
+        expect(page.nativeKeyPress.mock.calls).toEqual([['Escape']]);
+    });
+
+    it('stops sending arrow keys if the slider disappears after the first change', async () => {
+        const page = sliderPage();
+        const { document } = page.dom.window;
+        const row = document.querySelector('[data-reasoning-slider]');
+        page.nativeKeyPress.mockImplementation(async key => {
+            if (key === 'ArrowRight') {
+                expect(document.activeElement).toBe(row);
+                document.querySelector('button').setAttribute('data-selected-reasoning-effort', 'medium');
+                row.remove();
+            }
+        });
+        await expect(selectChatGPTModel(page, 'advanced')).rejects.toThrow('focus target');
+        expect(page.nativeKeyPress.mock.calls).toEqual([['ArrowRight'], ['Escape']]);
+    });
+
     it('waits for the slider to mount before focusing and sending native keys', async () => {
         const page = sliderPage();
         const trigger = page.dom.window.document.querySelector('button');

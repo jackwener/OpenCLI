@@ -418,6 +418,30 @@ function requireKnownChatGPTTool(tool) {
     return { key, ...option };
 }
 
+const REASONING_CONTROLS_JS = `
+    const reasoningVisible = (element) => {
+        if (!(element instanceof HTMLElement) || element.closest('[hidden], [inert], [aria-hidden="true"]')) return false;
+        const rect = element.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0) return false;
+        for (let node = element; node; node = node.parentElement) {
+            const style = getComputedStyle(node);
+            if (style.display === 'none' || style.visibility === 'hidden' ||
+                (style.opacity !== '' && Number(style.opacity) < 0.01)) return false;
+        }
+        return true;
+    };
+    const reasoningMatches = (selector) => Array.from(document.querySelectorAll(selector)).filter(reasoningVisible);
+`;
+const FOCUS_REASONING_SLIDER_JS = `(() => {
+    ${REASONING_CONTROLS_JS}
+    const rows = reasoningMatches('[data-reasoning-slider="true"]');
+    if (rows.length !== 1) return false;
+    const row = rows[0];
+    if (!row.querySelector('[role="slider"]') || row.getAttribute('aria-disabled') === 'true') return false;
+    row.focus();
+    return document.activeElement === row;
+})()`;
+
 export async function getCurrentChatGPTModel(page) {
     return requireObjectEvaluateResult(unwrapEvaluateResult(await page.evaluate(`(() => {
         const isVisible = (el) => {
@@ -440,7 +464,10 @@ export async function getCurrentChatGPTModel(page) {
             return normalizedText.replace(/\\s+/g, '').includes(normalizedLabel.replace(/\\s+/g, ''));
         };
         const labels = ${JSON.stringify(CHATGPT_MODEL_TARGETS)};
-        const effortTrigger = Array.from(document.querySelectorAll('button[data-selected-reasoning-effort]')).find(isVisible);
+        ${REASONING_CONTROLS_JS}
+        const effortTriggers = reasoningMatches('button[data-selected-reasoning-effort]');
+        if (effortTriggers.length > 1) return { model: null, label: '', ambiguousReasoning: true };
+        const effortTrigger = effortTriggers[0];
         if (effortTrigger instanceof HTMLElement && isVisible(effortTrigger)) {
             const effortKey = { low: 'fast', medium: 'balanced', high: 'advanced', xhigh: 'very-high' }[effortTrigger.getAttribute('data-selected-reasoning-effort')];
             if (effortKey) return { model: effortKey, label: labels[effortKey].label };
@@ -585,14 +612,21 @@ async function selectModernChatGPTIntelligence(page, target) {
     const desiredEffort = { fast: 'low', balanced: 'medium', advanced: 'high', 'very-high': 'xhigh' }[target.key];
     if (!desiredEffort) return false;
     const trigger = requireObjectEvaluateResult(unwrapEvaluateResult(await page.evaluate(`(() => {
-        const button = document.querySelector('button[data-selected-reasoning-effort]');
-        if (!(button instanceof HTMLElement)) return { found: false };
+        ${REASONING_CONTROLS_JS}
+        const buttons = reasoningMatches('button[data-selected-reasoning-effort]');
+        if (buttons.length > 1) return { ambiguous: true };
+        const button = buttons[0];
+        if (!button) return { found: false };
+        if (button.disabled || button.getAttribute('aria-disabled') === 'true') return { disabled: true };
         const rect = button.getBoundingClientRect();
         if (!rect.width || !rect.height) return { found: false };
         return { found: true, open: button.getAttribute('aria-expanded') === 'true', x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
     })()`)), 'chatgpt reasoning trigger');
+    if (trigger.ambiguous || trigger.disabled) {
+        throw new CommandExecutionError('ChatGPT reasoning control is ambiguous or disabled.');
+    }
     if (!trigger.found) return false;
-    if (typeof page.nativeKeyPress !== 'function') {
+    if (typeof page.nativeKeyPress !== 'function' || (!trigger.open && typeof page.nativeClick !== 'function')) {
         throw new CommandExecutionError('ChatGPT reasoning selection requires native browser keyboard support.');
     }
     if (!trigger.open) await page.nativeClick(trigger.x, trigger.y);
@@ -600,25 +634,23 @@ async function selectModernChatGPTIntelligence(page, target) {
     try {
         let focused = false;
         for (let attempt = 0; attempt < 6 && !focused; attempt += 1) {
-            focused = requireBooleanEvaluateResult(unwrapEvaluateResult(await page.evaluate(`(() => {
-                const row = Array.from(document.querySelectorAll('[data-reasoning-slider="true"]')).find(node => {
-                    const rect = node.getBoundingClientRect();
-                    const style = getComputedStyle(node);
-                    return !node.hidden && style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
-                });
-                if (!(row instanceof HTMLElement) || !row.querySelector('[role="slider"]')) return false;
-                row.focus();
-                return document.activeElement === row;
-            })()`)), 'chatgpt reasoning slider focus');
+            focused = requireBooleanEvaluateResult(unwrapEvaluateResult(await page.evaluate(FOCUS_REASONING_SLIDER_JS)), 'chatgpt reasoning slider focus');
             if (!focused) await page.wait({ time: 0.25 });
         }
         if (!focused) throw new CommandExecutionError('Could not focus the ChatGPT reasoning slider.');
         const order = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra'];
         for (let attempt = 0; attempt < order.length; attempt += 1) {
-            const effort = unwrapEvaluateResult(await page.evaluate(`Array.from(document.querySelectorAll('button[data-selected-reasoning-effort]')).find(node => { const r = node.getBoundingClientRect(); return r.width > 0 && r.height > 0; })?.getAttribute('data-selected-reasoning-effort')`));
+            const effort = unwrapEvaluateResult(await page.evaluate(`(() => {
+                ${REASONING_CONTROLS_JS}
+                const buttons = reasoningMatches('button[data-selected-reasoning-effort]');
+                return buttons.length === 1 ? buttons[0].getAttribute('data-selected-reasoning-effort') : null;
+            })()`));
             if (effort === desiredEffort) return true;
             const currentIndex = order.indexOf(effort);
             if (currentIndex < 0) throw new CommandExecutionError('ChatGPT returned an unknown reasoning effort.');
+            if (!requireBooleanEvaluateResult(unwrapEvaluateResult(await page.evaluate(FOCUS_REASONING_SLIDER_JS)), 'chatgpt reasoning slider focus')) {
+                throw new CommandExecutionError('ChatGPT reasoning slider lost its unique focus target.');
+            }
             await page.nativeKeyPress(currentIndex < order.indexOf(desiredEffort) ? 'ArrowRight' : 'ArrowLeft');
             await page.wait(0.2);
         }
@@ -647,6 +679,9 @@ export async function selectChatGPTModel(page, model) {
 
     const before = await getCurrentChatGPTModel(page);
     debugChatGPTModel(`before=${before.model || 'none'}`);
+    if (before.ambiguousReasoning) {
+        throw new CommandExecutionError('ChatGPT reasoning control is ambiguous.');
+    }
     if (before.model === target.key) {
         return { Status: 'Already selected', Model: target.label };
     }
