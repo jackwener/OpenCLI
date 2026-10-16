@@ -326,7 +326,9 @@ export function buildCommentsExtractJs(withReplies, limit = 20) {
           const images = extractImages(item)
 
           if (!text) {
-            skippedEmpty++
+            // Empty skeletons are not evidence that comments have loaded.
+            // Only rendered media/stickers explain a textless comment.
+            if (images.length > 0 || item.querySelector('.content img[src], .note-text img[src]')) skippedEmpty++
             continue
           }
           results.push({ author, authorHrefRaw, text, likes, time, is_reply: false, reply_to: '', images })

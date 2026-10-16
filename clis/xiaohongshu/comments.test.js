@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { JSDOM } from 'jsdom';
 import { getRegistry } from '@jackwener/opencli/registry';
-import { buildCommentsExtractJs, buildXhsProfileUrl, parseXhsCommentTotal, parseXhsLikeCountText, parseXhsProfileHref } from './comments.js';
+import { assertCommentsLoaded, buildCommentsExtractJs, buildXhsProfileUrl, parseXhsCommentTotal, parseXhsLikeCountText, parseXhsProfileHref } from './comments.js';
 function createPageMock(evaluateResult) {
     return {
         goto: vi.fn().mockResolvedValue(undefined),
@@ -400,10 +400,20 @@ describe('xiaohongshu comments', () => {
     it('counts comments skipped for having no text (image or sticker only)', async () => {
         const data = await runCommentsExtract(`
           <main>
-            <section class="parent-comment"><div class="comment-item"><span class="name">Bob</span><div class="content"></div></div></section>
+            <section class="parent-comment"><div class="comment-item"><span class="name">Bob</span><div class="content"><img src="https://fixture.invalid/sticker.png"></div></div></section>
           </main>
         `);
         expect(data).toMatchObject({ skippedEmpty: 1, results: [] });
+    });
+    it('does not let empty skeletons disguise comments that failed to load', async () => {
+        const data = await runCommentsExtract(`
+          <main>
+            <div class="comments-container"><div class="total">共 10 条评论</div></div>
+            <section class="parent-comment"><div class="comment-item"><div class="content"></div></div></section>
+          </main>
+        `);
+        expect(data).toMatchObject({ commentTotal: 10, skippedEmpty: 0, results: [] });
+        expect(() => assertCommentsLoaded(data, 0, 'xiaohongshu/comments')).toThrow('none loaded');
     });
     it('extracts shortform like counts from the shared xiaohongshu/rednote DOM script', async () => {
         const data = await runCommentsExtract(`
