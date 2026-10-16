@@ -419,16 +419,32 @@ async function fillField(page, selectors, text, fieldName) {
  *
  * For each topic we:
  *   1. focus the body contenteditable and move the caret to the end,
- *   2. type " #<topic>" using native CDP insertion (falls back to execCommand)
- *      so XHS fires its inline suggestion dropdown,
- *   3. wait for the dropdown, then click the suggestion whose text best matches
- *      the topic (falling back to the first suggestion, then to Enter),
- *   4. confirm a topic chip/link was produced before moving on.
+ *   2. type "#<topic>" with native CDP insertion so XHS opens its inline
+ *      suggestion dropdown (a tiptap suggestion rendered in a light-DOM tippy),
+ *   3. poll the dropdown until the search results load, then DOM-click the
+ *      item whose name is exactly "#<topic>",
+ *   4. confirm a topic entity was produced before moving on.
+ *
+ * Neither a fixed sleep nor an Enter key press is reliable here: the results
+ * load behind a client-side debounce plus a search request, and Chrome clamps
+ * that debounce to ~1s and silently drops CDP key events whenever the tab is
+ * hidden (a minimized, occluded, or other-Space window, even one opened with
+ * --window foreground). A DOM click on the item works in every window state.
  *
  * A requested topic is a write-side postcondition: if XHS does not create a
  * real topic entity, fail before publishing instead of silently emitting a note
  * with bare "#text".
  */
+const TOPIC_SUGGESTION_POLL_MS = 250;
+/** Upper bound for the search results to load (hidden tabs take ~2s). */
+const TOPIC_SUGGESTION_MAX_WAIT_MS = 8_000;
+/**
+ * If no dropdown container shows up at all within this window, assume an
+ * editor variant whose dropdown our light-DOM queries cannot see and fall back
+ * to pressing Enter on the auto-highlighted suggestion.
+ */
+const TOPIC_DROPDOWN_APPEAR_MS = 2_500;
+const TOPIC_ENTITY_MAX_WAIT_MS = 2_000;
 async function focusBodyEnd(page, bodySelectors) {
     return unwrapBrowserResult(await page.evaluate(`
     (selectors => {
@@ -448,85 +464,89 @@ async function focusBodyEnd(page, bodySelectors) {
     })(${JSON.stringify(bodySelectors)})
   `));
 }
-function topicSuggestionScript(topic, { click = false } = {}) {
-    // Returns the best matching suggestion's screen coordinates (center) so the
-    // caller can issue a real click.
+/**
+ * Inspect the inline topic dropdown and click the item named exactly
+ * "#<topic>" when it is present. Only an exact name match is clicked: a prefix
+ * match (e.g. "#家庭教育知识") would attach a different topic.
+ */
+function topicSuggestionScript(topic) {
     return `
     (topicName => {
-      const norm = (value) => (value || '').replace(/^#/, '').replace(/\\s+/g, '').trim();
+      const __opencli_xhs_topic_suggestion = true;
+      const norm = (value) => String(value || '')
+        .replace(/[\\u200b-\\u200d\\u2060\\ufeff]/g, '')
+        .replace(/\\s+/g, '')
+        .replace(/^#/, '');
       const want = norm(topicName);
-      const SUGGESTION_SELECTORS = [
+      const isVisible = (node) => {
+        if (!node || node.offsetParent === null) return false;
+        const rect = node.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0) return false;
+        const tippy = node.closest('[data-tippy-root]');
+        return !tippy || getComputedStyle(tippy).visibility !== 'hidden';
+      };
+      const container = document.querySelector('#creator-editor-topic-container');
+      const containerVisible = isVisible(container);
+      const ITEM_SELECTORS = [
+        '#creator-editor-topic-container .item',
+        // Older editor variants.
         '[class*="topic-item"]',
         '[class*="hashtag-item"]',
         '[class*="suggest-item"]',
-        '[class*="suggestion"] li',
-        '[class*="mention"] li',
-        '[class*="dropdown"] li',
-        '[id*="topic"] li',
-        '[class*="topic"] li',
       ];
       const seen = new Set();
       const items = [];
-      for (const sel of SUGGESTION_SELECTORS) {
+      for (const sel of ITEM_SELECTORS) {
         for (const node of document.querySelectorAll(sel)) {
-          if (!node || seen.has(node)) continue;
-          if (node.offsetParent === null) continue;
-          const rect = node.getBoundingClientRect();
-          if (rect.width <= 0 || rect.height <= 0) continue;
+          if (seen.has(node) || !isVisible(node)) continue;
           seen.add(node);
           items.push(node);
         }
       }
-      if (!items.length) return { ok: false, count: 0 };
-      let target = items.find(node => norm(node.innerText || node.textContent) === want);
-      if (!target) target = items.find(node => norm(node.innerText || node.textContent).includes(want));
-      if (!target) target = items[0];
-      const rect = target.getBoundingClientRect();
-      ${click ? "try { target.click(); } catch (e) { return { ok: false, count: items.length, message: String(e) }; }" : ''}
-      return {
-        ok: true,
-        count: items.length,
-        x: Math.round(rect.left + rect.width / 2),
-        y: Math.round(rect.top + rect.height / 2),
-        text: (target.innerText || target.textContent || '').trim().slice(0, 40),
+      const nameOf = (node) => {
+        const nameNode = node.querySelector('.name');
+        const text = nameNode ? nameNode.textContent : String(node.innerText || node.textContent || '').split('\\n')[0];
+        // Not trim(): it also strips the U+FEFF padding that tells look-alikes apart.
+        return String(text || '').replace(/^[ \\t\\r\\n]+|[ \\t\\r\\n]+$/g, '');
       };
+      const names = items.map(nameOf);
+      const placeholder = containerVisible && !items.length
+        ? String(container.innerText || container.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 40)
+        : '';
+      // Prefer the literal name; XHS also lists look-alikes padded with
+      // zero-width characters, which only count when no literal match exists.
+      let index = names.findIndex(name => name.replace(/^#/, '') === String(topicName).trim());
+      if (index === -1) index = names.findIndex(name => norm(name) === want);
+      if (index === -1) {
+        return { container: containerVisible, count: items.length, names: names.slice(0, 8), placeholder, clicked: false };
+      }
+      items[index].click();
+      return { container: containerVisible, count: items.length, names: names.slice(0, 8), placeholder, clicked: true, name: names[index], index };
     })(${JSON.stringify(topic)})
   `;
 }
-function topicEntityCountScript(topic, bodySelectors) {
-    return `
-    ((topicName, selectors) => {
-      const norm = (value) => (value || '').replace(/^#/, '').replace(/\\s+/g, '').trim();
-      const want = norm(topicName);
-      const editor = selectors
-        .map(sel => Array.from(document.querySelectorAll(sel)))
-        .flat()
-        .find(node => node && node.offsetParent !== null && node.isContentEditable);
-      if (!editor || !want) return 0;
-      const hasTopicSignal = (node) => {
-        const tag = (node.tagName || '').toLowerCase();
-        const role = (node.getAttribute && node.getAttribute('role')) || '';
-        const cls = String(node.className || '');
-        const id = String(node.id || '');
-        const href = (node.getAttribute && node.getAttribute('href')) || '';
-        const dataKeys = node.dataset ? Object.keys(node.dataset).join(' ') : '';
-        const haystack = [tag, role, cls, id, href, dataKeys].join(' ');
-        return tag === 'a'
-          || /link/i.test(role)
-          || /topic|hashtag|hash-tag|tag|mention|keyword/i.test(haystack)
-          || node.isContentEditable === false;
-      };
-      let count = 0;
-      for (const node of Array.from(editor.querySelectorAll('*'))) {
-        if (!node || node.offsetParent === null) continue;
-        if (!hasTopicSignal(node)) continue;
-        const text = norm(node.innerText || node.textContent || '');
-        if (text === want || text === '#' + want) count += 1;
-      }
-      return count;
-    })(${JSON.stringify(topic)}, ${JSON.stringify(bodySelectors)})
-  `;
+async function pickTopicSuggestion(page, topic) {
+    const maxAttempts = Math.ceil(TOPIC_SUGGESTION_MAX_WAIT_MS / TOPIC_SUGGESTION_POLL_MS);
+    const appearAttempts = Math.ceil(TOPIC_DROPDOWN_APPEAR_MS / TOPIC_SUGGESTION_POLL_MS);
+    let state = { container: false, count: 0, names: [], placeholder: '', clicked: false };
+    // The container briefly unmounts while results load, so remember whether
+    // it was ever seen instead of trusting a single poll.
+    let seenDropdown = false;
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        state = unwrapBrowserResult(await page.evaluate(topicSuggestionScript(topic))) || state;
+        if (state.clicked) return { ...state, container: true };
+        seenDropdown = seenDropdown || Boolean(state.container) || state.count > 0;
+        if (!seenDropdown && attempt + 1 >= appearAttempts) break;
+        await page.wait({ time: TOPIC_SUGGESTION_POLL_MS / 1_000 });
+    }
+    return { ...state, container: seenDropdown };
 }
+/**
+ * Count real topic entities for `topic` in the body editor: the current tiptap
+ * editor renders each as `<a data-topic='{"name":...}'>`, and every variant
+ * serializes it as "#<topic>[话题]" in the editor text. `textContent` keeps the
+ * marker independent of how XHS styles its hidden "[话题]#" suffix.
+ */
 function topicMarkerCountScript(topic, bodySelectors) {
     return `
     ((topicName, selectors) => {
@@ -536,40 +556,27 @@ function topicMarkerCountScript(topic, bodySelectors) {
         .map(sel => Array.from(document.querySelectorAll(sel)))
         .flat()
         .find(node => node && node.offsetParent !== null && node.isContentEditable);
-      if (!editor || !marker) return 0;
-      const text = editor.innerText || editor.textContent || '';
-      let count = 0;
+      if (!editor || !topicName) return 0;
+      const norm = (value) => String(value || '').replace(/[\\u200b-\\u200d\\u2060\\ufeff\\s]/g, '');
+      let entities = 0;
+      for (const node of editor.querySelectorAll('[data-topic]')) {
+        try {
+          if (norm(JSON.parse(node.getAttribute('data-topic') || '{}').name) === norm(topicName)) entities += 1;
+        } catch { /* not a topic payload */ }
+      }
+      const text = editor.textContent || '';
+      let markers = 0;
       let index = text.indexOf(marker);
       while (index !== -1) {
-        count += 1;
+        markers += 1;
         index = text.indexOf(marker, index + marker.length);
       }
-      return count;
+      return Math.max(entities, markers);
     })(${JSON.stringify(topic)}, ${JSON.stringify(bodySelectors)})
   `;
 }
-async function typeTopicQuery(page, topic) {
-    // Type "#<topic>" so XHS recognizes it as a topic query and pops the inline
-    // suggestion dropdown. The caller separates topics with Enter beforehand so
-    // each query starts on its own line and matches cleanly.
-    const query = `#${topic}`;
-    if (typeof page.insertText === 'function') {
-        try {
-            await page.insertText(query);
-            return true;
-        }
-        catch {
-            // fall through to execCommand path
-        }
-    }
-    return unwrapBrowserResult(await page.evaluate(`
-    (text => {
-      const ok = document.execCommand('insertText', false, text);
-      const active = document.activeElement;
-      if (active) active.dispatchEvent(new Event('input', { bubbles: true }));
-      return ok;
-    })(${JSON.stringify(query)})
-  `));
+async function countTopicEntities(page, topic, bodySelectors) {
+    return Number(unwrapBrowserResult(await page.evaluate(topicMarkerCountScript(topic, bodySelectors)))) || 0;
 }
 async function addTopics(page, bodySelectors, topics) {
     const added = [];
@@ -578,8 +585,10 @@ async function addTopics(page, bodySelectors, topics) {
         if (!focused) {
             throw new CommandExecutionError(`Could not attach topic "${topic}": body editor not found`);
         }
-        const beforeMarkerCount = Number(unwrapBrowserResult(await page.evaluate(topicMarkerCountScript(topic, bodySelectors)))) || 0;
-        // Separate this topic from the preceding text so the dropdown is clean.
+        const beforeCount = await countTopicEntities(page, topic, bodySelectors);
+        // Separate this topic from the preceding text. Best effort only: Chrome
+        // drops CDP key events in hidden tabs, and the "#" trigger also works
+        // inline, so the topic then just lands at the end of the last line.
         if (typeof page.pressKey === 'function') {
             try {
                 await page.pressKey('Enter');
@@ -599,31 +608,41 @@ async function addTopics(page, bodySelectors, topics) {
         catch {
             throw new CommandExecutionError(`Could not attach topic "${topic}": failed to type inline topic query`);
         }
-        await page.wait({ time: 1.2 }); // Let the suggestion dropdown render.
-        // The suggestion dropdown lives inside the editor's closed shadow root,
-        // so light-DOM queries cannot enumerate its items. XHS auto-highlights
-        // the first matching suggestion as soon as the query is typed, so
-        // pressing Enter accepts it directly. `page.nativeClick` would also
-        // work but is not always wired up in the browser-bridge wrapper.
-        if (typeof page.pressKey !== 'function') {
-            throw new CommandExecutionError(`Could not attach topic "${topic}": page.pressKey is unavailable`);
+        const suggestion = await pickTopicSuggestion(page, topic);
+        if (!suggestion.clicked) {
+            if (suggestion.count > 0) {
+                throw new CommandExecutionError(`Could not attach topic "${topic}": no suggestion named "#${topic}" `
+                    + `(saw: ${suggestion.names.join(' ')})`);
+            }
+            // No suggestion items we recognize (e.g. an editor variant that
+            // renders the dropdown in a closed shadow root): accept the
+            // auto-highlighted first suggestion with Enter and let the
+            // postcondition below decide.
+            if (typeof page.pressKey !== 'function') {
+                throw new CommandExecutionError(`Could not attach topic "${topic}": no suggestion dropdown found and page.pressKey is unavailable`);
+            }
+            try {
+                await page.pressKey('Enter');
+            }
+            catch (err) {
+                throw new CommandExecutionError(`Could not attach topic "${topic}": failed to accept suggestion (${err && err.message || err})`);
+            }
         }
-        try {
-            await page.pressKey('Enter');
+        // Require the scoped entity count to increase so an existing topic
+        // elsewhere in the body cannot satisfy the write postcondition.
+        let afterCount = beforeCount;
+        const entityAttempts = Math.ceil(TOPIC_ENTITY_MAX_WAIT_MS / TOPIC_SUGGESTION_POLL_MS);
+        for (let attempt = 0; attempt < entityAttempts && afterCount <= beforeCount; attempt++) {
+            await page.wait({ time: TOPIC_SUGGESTION_POLL_MS / 1_000 });
+            afterCount = await countTopicEntities(page, topic, bodySelectors);
         }
-        catch (err) {
-            throw new CommandExecutionError(`Could not attach topic "${topic}": failed to accept suggestion (${err && err.message || err})`);
-        }
-        await page.wait({ time: 0.8 });
-        // Verify the topic chip actually rendered. The chip itself lives in a
-        // closed shadow root so we cannot count `<a>` elements, but XHS exposes
-        // a stable "#<topic>[话题]" marker in the body editor's innerText once
-        // the suggestion is accepted. Require the scoped marker count to
-        // increase so an existing marker elsewhere cannot satisfy the write
-        // postcondition.
-        const afterMarkerCount = Number(unwrapBrowserResult(await page.evaluate(topicMarkerCountScript(topic, bodySelectors)))) || 0;
-        if (afterMarkerCount <= beforeMarkerCount) {
-            throw new CommandExecutionError(`Could not attach topic "${topic}": no real topic entity appeared after selection`);
+        if (afterCount <= beforeCount) {
+            const detail = suggestion.clicked
+                ? ''
+                : suggestion.container
+                    ? ` (suggestions did not load within ${TOPIC_SUGGESTION_MAX_WAIT_MS / 1_000}s${suggestion.placeholder ? `; dropdown: ${suggestion.placeholder}` : ''})`
+                    : ' (no suggestion dropdown found)';
+            throw new CommandExecutionError(`Could not attach topic "${topic}": no real topic entity appeared after selection${detail}`);
         }
         added.push(topic);
         await page.wait({ time: 0.4 });

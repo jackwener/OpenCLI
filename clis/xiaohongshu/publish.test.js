@@ -645,21 +645,26 @@ describe('xiaohongshu publish', () => {
             draft: false,
         })).rejects.toThrow(CommandExecutionError);
     });
-    it('attaches topics via Enter to accept the inline suggestion (shadow-DOM dropdown)', async () => {
-        const cmd = getRegistry().get('xiaohongshu/publish');
-        expect(cmd?.func).toBeTypeOf('function');
+});
+
+describe('xiaohongshu publish topics', () => {
+    const getCmd = () => getRegistry().get('xiaohongshu/publish');
+    const runPublish = (page, topics) => {
         const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-xhs-publish-'));
         const imagePath = path.join(tempDir, 'demo.jpg');
         fs.writeFileSync(imagePath, Buffer.from([0xff, 0xd8, 0xff, 0xd9]));
-        const insertText = vi.fn().mockResolvedValue(undefined);
-        const pressKey = vi.fn().mockResolvedValue(undefined);
-        const focusCalls = [];
-        // Track per-topic chip-marker evaluate calls: before selection, then
-        // after Enter accepts the highlighted suggestion.
-        let markerChecks = 0;
-        // Skip the upload path entirely: page.setFileInput is a no-op for
-        // these tests because the topic flow is what we care about.
-        const setFileInput = vi.fn().mockResolvedValue(undefined);
+        return getCmd().func(page, {
+            title: '带话题的标题',
+            content: '带话题的正文',
+            images: imagePath,
+            topics,
+            draft: false,
+        });
+    };
+    // Upload-mode page with every non-topic step stubbed; `topicEvaluate`
+    // answers the topic-step scripts (return undefined to fall through).
+    function createTopicFlowPage(topicEvaluate, overrides = {}) {
+        const state = { published: false };
         const page = createConditionalPageMock((code) => {
             if (code.includes('location.href'))
                 return 'https://creator.xiaohongshu.com/publish/publish?from=menu_left';
@@ -667,205 +672,204 @@ describe('xiaohongshu publish', () => {
                 return { ok: true, target: '上传图文', text: '上传图文' };
             if (code.includes('hasTitleInput') && code.includes('hasVideoSurface'))
                 return { state: 'editor_ready', hasTitleInput: true, hasImageInput: true, hasVideoSurface: false };
-            // CDP setFileInput selector probe.
-            if (code.includes('document.querySelector(sels)')) {
-                return 'input[type="file"][accept*="image"]';
-            }
-            if (code.includes('const images =') && code.includes('dt.items.add(new File)'))
+            if (code.includes('const images =') && code.includes('for (const img of images)'))
                 return { ok: true, count: 1 };
             if (code.includes('[class*="upload"][class*="progress"]'))
                 return false;
             if (code.includes('const sels =') && code.includes('for (const sel of sels)'))
                 return true;
-            // Body-editor focus helper.
-            if (code.includes('node.isContentEditable') && code.includes('selectNodeContents')) {
-                focusCalls.push(true);
-                return true;
-            }
-            // Body-scoped chip-marker postcondition. Each topic checks count
-            // before and after Enter; simulate one new marker after selection.
-            if (code.includes('__opencli_xhs_topic_marker_count')) {
-                markerChecks += 1;
-                return markerChecks % 2 === 1 ? 0 : 1;
-            }
             if (code.includes('__opencli_xhs_fill_phase') && code.includes('"locate"')) {
                 return code.includes('[contenteditable="true"][placeholder*="标题"]')
                     ? { ok: true, sel: '[contenteditable="true"][placeholder*="标题"]', kind: 'contenteditable' }
-                    : { ok: true, sel: '[contenteditable="true"][class*="content"]', kind: 'contenteditable' };
+                    : { ok: true, sel: '.tiptap.ProseMirror', kind: 'contenteditable' };
             }
-            if (code.includes('__opencli_xhs_fill_phase') && code.includes('"prepare"'))
-                return { ok: true };
-            if (code.includes('__opencli_xhs_fill_phase') && code.includes('"verify"')) {
-                return code.includes('[contenteditable="true"][placeholder*="标题"]')
-                    ? { ok: true, actual: '带话题的标题' }
-                    : { ok: true, actual: '带话题的正文' };
-            }
-            if (code.includes('(function(selectors, text)')) {
-                return code.includes('[contenteditable="true"][placeholder*="标题"]')
-                    ? { ok: true, sel: '[contenteditable="true"][placeholder*="标题"]', kind: 'contenteditable', actual: '带话题的标题' }
-                    : { ok: true, sel: '[contenteditable="true"][class*="content"]', kind: 'contenteditable', actual: '带话题的正文' };
-            }
-            if (code.includes('labels.some'))
+            if (code.includes('__opencli_xhs_fill_phase'))
+                return { ok: true, actual: '' };
+            const topicResult = topicEvaluate(code);
+            if (topicResult !== undefined)
+                return topicResult;
+            // Body-editor focus helper.
+            if (code.includes('node.isContentEditable') && code.includes('selectNodeContents'))
+                return true;
+            if (code.includes('labels.some')) {
+                state.published = true;
                 return { ok: true, via: 'click', text: '发布' };
+            }
             if (code.includes('for (const el of document.querySelectorAll'))
                 return '发布成功';
             throw new Error(`Unhandled evaluate call: ${code.slice(0, 120)}`);
         }, {
-            insertText,
-            pressKey,
-            setFileInput,
+            insertText: vi.fn().mockResolvedValue(undefined),
+            ...overrides,
         });
-        const result = await cmd.func(page, {
-            title: '带话题的标题',
-            content: '带话题的正文',
-            images: imagePath,
-            topics: 'AI,效率提升',
-            draft: false,
+        return { page, state };
+    }
+    /**
+     * JSDOM stand-in for the creator-center tiptap editor and its tippy topic
+     * dropdown, mirroring the live DOM: typing "#<q>" opens an "无结果"
+     * placeholder, results appear only after a few polls (debounce + search
+     * request), and clicking an item swaps the query for a topic entity.
+     * Key presses are ignored, as Chrome drops CDP key events in hidden tabs.
+     */
+    function createTopicEditorDom(resultNames) {
+        const dom = new JSDOM(`<!doctype html><html><body>
+          <div class="tiptap ProseMirror" contenteditable="true"><p>带话题的正文</p></div>
+        </body></html>`, {
+            url: 'https://creator.xiaohongshu.com/publish/publish?from=menu_left',
+            runScripts: 'outside-only',
         });
-        // Each topic is typed as "#<topic>" via page.insertText.
-        expect(insertText).toHaveBeenCalledWith('#AI');
-        expect(insertText).toHaveBeenCalledWith('#效率提升');
-        // Body editor was focused once per topic before typing.
-        expect(focusCalls.length).toBe(2);
-        // pressKey was called at least twice per topic (separator + accept).
-        const enterCount = pressKey.mock.calls.filter(args => args[0] === 'Enter').length;
-        expect(enterCount).toBeGreaterThanOrEqual(4);
-        // Chip-marker postcondition checked before and after each topic.
-        expect(markerChecks).toBe(4);
+        const { window } = dom;
+        const { document } = window;
+        // JSDOM has no layout: report every connected element as rendered.
+        Object.defineProperty(window.HTMLElement.prototype, 'offsetParent', {
+            configurable: true,
+            get() { return this.isConnected ? document.body : null; },
+        });
+        window.HTMLElement.prototype.getBoundingClientRect = () => ({ left: 0, top: 0, width: 120, height: 24 });
+        Object.defineProperty(window.HTMLElement.prototype, 'isContentEditable', {
+            configurable: true,
+            get() { return this.getAttribute('contenteditable') === 'true'; },
+        });
+        const editor = document.querySelector('.tiptap');
+        const clicked = [];
+        let query = null;
+        let polls = 0;
+        const renderDropdown = () => {
+            document.querySelector('[data-tippy-root]')?.remove();
+            const names = polls > 2 ? resultNames(query) : [];
+            const root = document.createElement('div');
+            root.setAttribute('data-tippy-root', '');
+            root.innerHTML = '<div class="tippy-box" data-state="visible"><div class="tippy-content">'
+                + '<div id="creator-editor-topic-container" class="items">'
+                + (names.length
+                    ? names.map((name) => `<div class="item"><span class="name">${name}</span><span class="num">1万浏览</span></div>`).join('')
+                    : '<div class="empty"><div>无结果</div></div>')
+                + '</div></div></div>';
+            for (const item of root.querySelectorAll('.item')) {
+                item.addEventListener('click', () => {
+                    const name = item.querySelector('.name').textContent.replace(/^#/, '');
+                    clicked.push(name);
+                    editor.querySelector('.suggestion').outerHTML = `<a class="tiptap-topic" data-topic='${JSON.stringify({ id: 'x', name })}' contenteditable="false">#${name}<span class="content-hide">[话题]#</span></a>&nbsp;`;
+                    root.remove();
+                });
+            }
+            document.body.appendChild(root);
+        };
+        const insertText = vi.fn(async (text) => {
+            if (!text.startsWith('#'))
+                return; // title / body fills are stubbed elsewhere
+            query = text.slice(1);
+            polls = 0;
+            editor.lastElementChild.insertAdjacentHTML('beforeend', `<span class="suggestion">${text}</span>`);
+            renderDropdown();
+        });
+        const evaluate = (code) => {
+            if (code.includes('__opencli_xhs_topic_suggestion')) {
+                polls += 1;
+                if (document.querySelector('[data-tippy-root]'))
+                    renderDropdown();
+                return window.eval(code);
+            }
+            if (code.includes('__opencli_xhs_topic_marker_count')
+                || (code.includes('node.isContentEditable') && code.includes('selectNodeContents')))
+                return window.eval(code);
+            return undefined;
+        };
+        const topicNames = () => Array.from(editor.querySelectorAll('[data-topic]'))
+            .map((node) => JSON.parse(node.getAttribute('data-topic')).name);
+        return { evaluate, insertText, clicked, topicNames, editor };
+    }
+    it('clicks the exact suggestion once results load, without relying on Enter', async () => {
+        // Prefix and zero-width look-alikes are listed before the exact topic.
+        const fake = createTopicEditorDom((q) => [`#${q}知识`, `#${q}﻿﻿`, `#${q}`]);
+        const pressKey = vi.fn().mockResolvedValue(undefined);
+        const { page, state } = createTopicFlowPage(fake.evaluate, { insertText: fake.insertText, pressKey });
+        const result = await runPublish(page, '家庭教育,未成年人保护');
+        expect(fake.insertText).toHaveBeenCalledWith('#家庭教育');
+        expect(fake.insertText).toHaveBeenCalledWith('#未成年人保护');
+        expect(fake.clicked).toEqual(['家庭教育', '未成年人保护']);
+        expect(fake.topicNames()).toEqual(['家庭教育', '未成年人保护']);
+        expect(fake.editor.textContent).toContain('#家庭教育[话题]#');
+        // Enter is only the best-effort line separator before each query.
+        expect(pressKey.mock.calls).toEqual([['Enter'], ['Enter']]);
+        expect(state.published).toBe(true);
         expect(result).toEqual([
             {
                 status: '✅ 发布成功',
-                detail: '"带话题的标题" · 1张图片 · 话题: AI 效率提升 · 发布成功',
+                detail: '"带话题的标题" · 1张图片 · 话题: 家庭教育 未成年人保护 · 发布成功',
             },
         ]);
     });
-    it('fails typed when XHS does not render the topic chip marker after Enter', async () => {
-        const cmd = getRegistry().get('xiaohongshu/publish');
-        expect(cmd?.func).toBeTypeOf('function');
-        const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-xhs-publish-'));
-        const imagePath = path.join(tempDir, 'demo.jpg');
-        fs.writeFileSync(imagePath, Buffer.from([0xff, 0xd8, 0xff, 0xd9]));
-        const insertText = vi.fn().mockResolvedValue(undefined);
+    it('accepts a zero-width padded look-alike when no literal match is listed', async () => {
+        const fake = createTopicEditorDom((q) => [`#${q}经验`, `#${q}﻿`]);
+        const { page, state } = createTopicFlowPage(fake.evaluate, { insertText: fake.insertText });
+        await runPublish(page, '家庭教育');
+        expect(fake.clicked).toEqual(['家庭教育﻿']);
+        expect(state.published).toBe(true);
+    });
+    it('fails with the seen suggestions instead of attaching a different topic', async () => {
+        const fake = createTopicEditorDom((q) => [`#${q}绘画`, `#${q}工具`]);
         const pressKey = vi.fn().mockResolvedValue(undefined);
-        const page = createConditionalPageMock((code) => {
-            if (code.includes('location.href'))
-                return 'https://creator.xiaohongshu.com/publish/publish?from=menu_left';
-            if (code.includes("const targets = ['上传图文', '图文', '图片']"))
-                return { ok: true, target: '上传图文', text: '上传图文' };
-            if (code.includes('hasTitleInput') && code.includes('hasVideoSurface'))
-                return { state: 'editor_ready', hasTitleInput: true, hasImageInput: true, hasVideoSurface: false };
-            // Base64 fallback (no setFileInput in the test page).
-            if (code.includes('const images =') && code.includes('for (const img of images)'))
-                return { ok: true, count: 1 };
-            if (code.includes('[class*="upload"][class*="progress"]'))
-                return false;
-            if (code.includes('const sels =') && code.includes('for (const sel of sels)'))
-                return true;
-            if (code.includes('node.isContentEditable') && code.includes('selectNodeContents'))
-                return true;
-            // Chip marker count does not increase → topic attachment failed.
-            if (code.includes('__opencli_xhs_topic_marker_count')) {
+        const { page, state } = createTopicFlowPage(fake.evaluate, { insertText: fake.insertText, pressKey });
+        const err = await runPublish(page, 'AI').catch((e) => e);
+        expect(err).toBeInstanceOf(CommandExecutionError);
+        expect(err.message).toContain('no suggestion named "#AI" (saw: #AI绘画 #AI工具)');
+        expect(fake.clicked).toEqual([]);
+        expect(pressKey).toHaveBeenCalledTimes(1); // separator only, never "accept"
+        expect(state.published).toBe(false);
+    });
+    it('falls back to Enter when no suggestion dropdown is visible to DOM queries', async () => {
+        // Editor variant whose dropdown lives in a closed shadow root.
+        let suggestionPolls = 0;
+        const pressKey = vi.fn().mockResolvedValue(undefined);
+        const { page, state } = createTopicFlowPage((code) => {
+            if (code.includes('__opencli_xhs_topic_suggestion')) {
+                suggestionPolls += 1;
+                return { container: false, count: 0, names: [], placeholder: '', clicked: false };
+            }
+            // Separator + accept: the second Enter attaches the topic.
+            if (code.includes('__opencli_xhs_topic_marker_count'))
+                return pressKey.mock.calls.length >= 2 ? 1 : 0;
+            return undefined;
+        }, { pressKey });
+        const result = await runPublish(page, 'AI');
+        // Gives up on the dropdown after ~2.5s instead of the full 8s budget.
+        expect(suggestionPolls).toBe(10);
+        expect(pressKey.mock.calls).toEqual([['Enter'], ['Enter']]);
+        expect(state.published).toBe(true);
+        expect(result[0].detail).toContain('话题: AI');
+    });
+    it('reports the dropdown status when suggestions never load', async () => {
+        let suggestionPolls = 0;
+        const { page, state } = createTopicFlowPage((code) => {
+            if (code.includes('__opencli_xhs_topic_suggestion')) {
+                suggestionPolls += 1;
+                return { container: true, count: 0, names: [], placeholder: '无结果', clicked: false };
+            }
+            if (code.includes('__opencli_xhs_topic_marker_count'))
                 return 0;
-            }
-            if (code.includes('__opencli_xhs_fill_phase') && code.includes('"locate"')) {
-                return code.includes('[contenteditable="true"][placeholder*="标题"]')
-                    ? { ok: true, sel: '[contenteditable="true"][placeholder*="标题"]', kind: 'contenteditable' }
-                    : { ok: true, sel: '[contenteditable="true"][class*="content"]', kind: 'contenteditable' };
-            }
-            if (code.includes('__opencli_xhs_fill_phase') && code.includes('"prepare"'))
-                return { ok: true };
-            if (code.includes('__opencli_xhs_fill_phase') && code.includes('"verify"')) {
-                return code.includes('[contenteditable="true"][placeholder*="标题"]')
-                    ? { ok: true, actual: '话题失败标题' }
-                    : { ok: true, actual: '话题失败正文' };
-            }
-            if (code.includes('(function(selectors, text)')) {
-                return code.includes('[contenteditable="true"][placeholder*="标题"]')
-                    ? { ok: true, sel: '[contenteditable="true"][placeholder*="标题"]', kind: 'contenteditable', actual: '话题失败标题' }
-                    : { ok: true, sel: '[contenteditable="true"][class*="content"]', kind: 'contenteditable', actual: '话题失败正文' };
-            }
-            if (code.includes('labels.some')) {
-                throw new Error('publish button should not be clicked after topic postcondition failure');
-            }
-            throw new Error(`Unhandled evaluate call: ${code.slice(0, 120)}`);
-        }, {
-            insertText,
-            pressKey,
+            return undefined;
         });
-
-        await expect(cmd.func(page, {
-            title: '话题失败标题',
-            content: '话题失败正文',
-            images: imagePath,
-            topics: '不存在的话题',
-            draft: false,
-        })).rejects.toBeInstanceOf(CommandExecutionError);
-        // We still typed and accepted the suggestion, but the postcondition
-        // check rejected the result before the publish button was clicked.
-        expect(insertText).toHaveBeenCalledWith('#不存在的话题');
-        expect(pressKey).toHaveBeenCalledWith('Enter');
+        const err = await runPublish(page, '不存在的话题').catch((e) => e);
+        expect(err).toBeInstanceOf(CommandExecutionError);
+        expect(err.message).toBe('Could not attach topic "不存在的话题": no real topic entity appeared after selection '
+            + '(suggestions did not load within 8s; dropdown: 无结果)');
+        expect(suggestionPolls).toBe(32);
+        expect(state.published).toBe(false);
     });
     it('does not accept a pre-existing topic marker as proof of a new attached topic', async () => {
-        const cmd = getRegistry().get('xiaohongshu/publish');
-        expect(cmd?.func).toBeTypeOf('function');
-        const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-xhs-publish-'));
-        const imagePath = path.join(tempDir, 'demo.jpg');
-        fs.writeFileSync(imagePath, Buffer.from([0xff, 0xd8, 0xff, 0xd9]));
-        const insertText = vi.fn().mockResolvedValue(undefined);
-        const pressKey = vi.fn().mockResolvedValue(undefined);
-        const page = createConditionalPageMock((code) => {
-            if (code.includes('location.href'))
-                return 'https://creator.xiaohongshu.com/publish/publish?from=menu_left';
-            if (code.includes("const targets = ['上传图文', '图文', '图片']"))
-                return { ok: true, target: '上传图文', text: '上传图文' };
-            if (code.includes('hasTitleInput') && code.includes('hasVideoSurface'))
-                return { state: 'editor_ready', hasTitleInput: true, hasImageInput: true, hasVideoSurface: false };
-            if (code.includes('const images =') && code.includes('for (const img of images)'))
-                return { ok: true, count: 1 };
-            if (code.includes('[class*="upload"][class*="progress"]'))
-                return false;
-            if (code.includes('const sels =') && code.includes('for (const sel of sels)'))
-                return true;
-            if (code.includes('node.isContentEditable') && code.includes('selectNodeContents'))
-                return true;
-            // Existing marker before selection, but Enter does not attach a new
-            // entity; count remains unchanged and must fail.
-            if (code.includes('__opencli_xhs_topic_marker_count')) {
+        const { page, state } = createTopicFlowPage((code) => {
+            if (code.includes('__opencli_xhs_topic_suggestion'))
+                return { container: true, count: 1, names: ['#AI'], placeholder: '', clicked: true, name: '#AI', index: 0 };
+            // The body already carries one AI topic; the click adds nothing.
+            if (code.includes('__opencli_xhs_topic_marker_count'))
                 return 1;
-            }
-            if (code.includes('__opencli_xhs_fill_phase') && code.includes('"locate"')) {
-                return code.includes('[contenteditable="true"][placeholder*="标题"]')
-                    ? { ok: true, sel: '[contenteditable="true"][placeholder*="标题"]', kind: 'contenteditable' }
-                    : { ok: true, sel: '[contenteditable="true"][class*="content"]', kind: 'contenteditable' };
-            }
-            if (code.includes('__opencli_xhs_fill_phase') && code.includes('"prepare"'))
-                return { ok: true };
-            if (code.includes('__opencli_xhs_fill_phase') && code.includes('"verify"')) {
-                return code.includes('[contenteditable="true"][placeholder*="标题"]')
-                    ? { ok: true, actual: '已有话题标题' }
-                    : { ok: true, actual: '已有话题正文 #AI[话题]' };
-            }
-            if (code.includes('(function(selectors, text)')) {
-                return code.includes('[contenteditable="true"][placeholder*="标题"]')
-                    ? { ok: true, sel: '[contenteditable="true"][placeholder*="标题"]', kind: 'contenteditable', actual: '已有话题标题' }
-                    : { ok: true, sel: '[contenteditable="true"][class*="content"]', kind: 'contenteditable', actual: '已有话题正文 #AI[话题]' };
-            }
-            if (code.includes('labels.some')) {
-                throw new Error('publish button should not be clicked after topic postcondition failure');
-            }
-            throw new Error(`Unhandled evaluate call: ${code.slice(0, 120)}`);
-        }, {
-            insertText,
-            pressKey,
+            return undefined;
         });
-
-        await expect(cmd.func(page, {
-            title: '已有话题标题',
-            content: '已有话题正文 #AI[话题]',
-            images: imagePath,
-            topics: 'AI',
-            draft: false,
-        })).rejects.toBeInstanceOf(CommandExecutionError);
+        const err = await runPublish(page, 'AI').catch((e) => e);
+        expect(err).toBeInstanceOf(CommandExecutionError);
+        expect(err.message).toBe('Could not attach topic "AI": no real topic entity appeared after selection');
+        expect(state.published).toBe(false);
     });
 });
 
