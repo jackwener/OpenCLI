@@ -332,6 +332,29 @@ describe('deepseek sendWithFile Not allowed fallback', () => {
     expect(result).toEqual({ ok: true });
   });
 
+  it.each([false, true])('checks current upload send button disabled=%s before submission', async (disabled) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-deepseek-'));
+    tempDirs.push(dir);
+    const filePath = path.join(dir, 'image.png');
+    fs.writeFileSync(filePath, 'fixture');
+    const dom = new JSDOM(`<div><textarea placeholder="DeepSeek"></textarea><img src="blob:preview"><button class="ds-button--primary" ${disabled ? 'disabled' : ''}><svg></svg></button></div>`, { runScripts: 'outside-only' });
+    const { window } = dom;
+    window.setTimeout = (fn) => { fn(); return 0; };
+    window.document.execCommand = () => true;
+    const click = vi.fn();
+    window.document.querySelector('button').addEventListener('click', click);
+    const page = {
+      setFileInput: vi.fn(async () => {}),
+      wait: vi.fn(async () => {}),
+      evaluate: vi.fn(async (script) => window.eval(script)),
+    };
+    try {
+      const result = await sendWithFile(page, filePath, 'describe');
+      expect(result).toEqual(disabled ? { ok: false, reason: 'send button did not enable after upload' } : { ok: true });
+      expect(click).toHaveBeenCalledTimes(disabled ? 0 : 1);
+    } finally { window.close(); }
+  });
+
   it('does not treat send-button enablement alone as image upload proof', async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-deepseek-'));
     tempDirs.push(dir);

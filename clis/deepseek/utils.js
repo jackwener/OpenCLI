@@ -96,6 +96,8 @@ export async function setFeature(page, featureName, enabled) {
     })()`);
 }
 
+export const SEND_BUTTON_SELECTOR = 'button.ds-button--primary, div[role="button"]:not(.ds-toggle-button)';
+
 export async function sendMessage(page, prompt) {
     const promptJson = JSON.stringify(prompt);
     return page.evaluate(`(async () => {
@@ -111,7 +113,7 @@ export async function sendMessage(page, prompt) {
         // Find the send button: last non-toggle button in the textarea's container.
         // The composer buttons are <button class="ds-button ds-button--primary"> on
         // the current UI and were div[role="button"] before.
-        var SEND = 'button.ds-button--primary, div[role="button"]:not(.ds-toggle-button)';
+        var SEND = ${JSON.stringify(SEND_BUTTON_SELECTOR)};
         var container = box.parentElement;
         while (container && !container.querySelector(SEND)) {
             container = container.parentElement;
@@ -363,7 +365,8 @@ async function waitForFilePreview(page, fileName) {
             var box = document.querySelector('${TEXTAREA_SELECTOR}');
             if (!box) return false;
             var c = box.parentElement;
-            while (c && !c.querySelector('div[role="button"]')) c = c.parentElement;
+            var SEND = ${JSON.stringify(SEND_BUTTON_SELECTOR)};
+            while (c && !c.querySelector(SEND)) c = c.parentElement;
             if (!c) return false;
             return !!c.querySelector('img[src], canvas, video, [style*="background-image"], [class*="preview"], [class*="upload"]');
         })()`);
@@ -449,11 +452,12 @@ export async function sendWithFile(page, filePath, prompt) {
             var box = document.querySelector('${TEXTAREA_SELECTOR}');
             if (!box) return false;
             var c = box.parentElement;
-            while (c && !c.querySelector('div[role="button"]')) c = c.parentElement;
+            var SEND = ${JSON.stringify(SEND_BUTTON_SELECTOR)};
+            while (c && !c.querySelector(SEND)) c = c.parentElement;
             if (!c) return false;
-            var btns = c.querySelectorAll('div[role="button"]:not(.ds-toggle-button)');
+            var btns = c.querySelectorAll(SEND);
             var last = btns[btns.length - 1];
-            return !!(last && last.getAttribute('aria-disabled') === 'false');
+            return !!(last && last.getAttribute('aria-disabled') !== 'true' && !last.disabled && last.querySelector('svg'));
         })()`);
         if (enabled) {
             sendEnabled = true;

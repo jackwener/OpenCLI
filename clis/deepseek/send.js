@@ -4,6 +4,7 @@ import {
     DEEPSEEK_DOMAIN,
     MESSAGE_SELECTOR,
     TEXTAREA_SELECTOR,
+    SEND_BUTTON_SELECTOR,
     parseDeepSeekConversationId,
 } from './utils.js';
 
@@ -77,16 +78,17 @@ export const sendCommand = cli({
             if ((box.value || '').trim() !== expected.trim()) {
                 return { ok: false, reason: 'native input did not populate textarea (got ' + JSON.stringify(box.value) + ')' };
             }
+            const SEND = ${JSON.stringify(SEND_BUTTON_SELECTOR)};
             let container = box.parentElement;
-            while (container && !container.querySelector('div[role="button"]')) {
+            while (container && !container.querySelector(SEND)) {
                 container = container.parentElement;
             }
-            const btns = container ? container.querySelectorAll('div[role="button"]:not(.ds-toggle-button)') : [];
+            const btns = container ? container.querySelectorAll(SEND) : [];
             const sendBtn = btns[btns.length - 1];
             if (!sendBtn || sendBtn.querySelectorAll('svg').length === 0) {
                 return { ok: false, reason: 'send button not found' };
             }
-            if (sendBtn.getAttribute('aria-disabled') !== 'false') {
+            if (sendBtn.getAttribute('aria-disabled') === 'true' || sendBtn.disabled) {
                 return { ok: false, reason: 'send button stayed disabled after native input' };
             }
             sendBtn.click();
