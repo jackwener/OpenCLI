@@ -505,10 +505,10 @@ export async function sendMessage(page, prompt) {
     const beforeKeys = new Set(beforeTurns.map((turn) => turn.id + '\\n' + turn.text));
     // Grok renders markdown in the user bubble (code fences lose their backticks,
     // lists become elements), so a formatted prompt never equals its rendered
-    // text. Compare the opening of the prompt with markdown backticks removed.
+    // text. Compare the complete prompt with markdown backticks removed.
     const comparable = (value) => value.replace(/\\x60/g, '').replace(/\\s+/g, ' ').trim();
-    const promptHead = comparable(promptText).slice(0, 40);
-    const matchesPrompt = (text) => text === promptText || comparable(text).startsWith(promptHead);
+    const comparablePrompt = comparable(promptText);
+    const matchesPrompt = (text) => text === promptText || (comparablePrompt.length > 0 && comparable(text) === comparablePrompt);
     const waitForSubmittedUserTurn = async () => {
       for (let attempt = 0; attempt < 60; attempt += 1) {
         const turns = userTurns();

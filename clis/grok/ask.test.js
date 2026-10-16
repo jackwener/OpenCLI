@@ -43,13 +43,47 @@ describe('grok ask helpers', () => {
                 { id: 'u1-user', role: 'User', text: 'question', html: '' },
                 { id: 'a1-assistant', role: 'Assistant', text: 'the whole answer, not cut mid-sentence', html: '' },
             ]);
-            expect(await __test__.rereadFinalAnswer(page)).toBe('the whole answer, not cut mid-sentence');
+            expect(await __test__.rereadFinalAnswer(page, { id: 'a1-assistant', text: 'the whole answer' })).toBe('the whole answer, not cut mid-sentence');
             expect(page.visited).toEqual(['https://grok.com/c/0f3c6a52-1b2c-4d5e-8f90-123456789abc']);
+        });
+
+        it('ignores old turns and waits for the matching answer to hydrate fully', async () => {
+            const page = fakePage('https://grok.com/c/0f3c6a52-1b2c-4d5e-8f90-123456789abc', []);
+            const frames = ['old', 'short', 'the complete answer'];
+            let reads = 0;
+            page.evaluate = async (expr) => expr === 'window.location.href'
+                ? 'https://grok.com/c/0f3c6a52-1b2c-4d5e-8f90-123456789abc'
+                : [{ id: reads === 0 ? 'old-assistant' : 'a1-assistant', role: 'Assistant', text: frames[Math.min(reads++, 2)] }];
+            expect(await __test__.rereadFinalAnswer(page, { id: 'a1-assistant', text: 'the complete' })).toBe('the complete answer');
+            expect(reads).toBe(5);
+        });
+
+        it('keeps the original result when navigation fails or only an old reply appears', async () => {
+            const page = fakePage('https://grok.com/c/0f3c6a52-1b2c-4d5e-8f90-123456789abc', [
+                { id: 'old-assistant', role: 'Assistant', text: 'old answer' },
+            ]);
+            const target = { id: 'a1-assistant', text: 'answer' };
+            expect(await __test__.rereadFinalAnswer(page, target)).toBe('');
+            page.goto = async () => { throw new Error('navigation failed'); };
+            expect(await __test__.rereadFinalAnswer(page, target)).toBe('');
+        });
+
+        it('never replaces the answer with a persistently shorter render', async () => {
+            const page = fakePage('https://grok.com/c/0f3c6a52-1b2c-4d5e-8f90-123456789abc', [
+                { id: 'a1-assistant', role: 'Assistant', text: 'short' },
+            ]);
+            expect(await __test__.rereadFinalAnswer(page, { id: 'a1-assistant', text: 'the complete answer' })).toBe('');
+        });
+
+        it('does not reload positional identities', async () => {
+            const page = fakePage('https://grok.com/c/0f3c6a52-1b2c-4d5e-8f90-123456789abc', []);
+            expect(await __test__.rereadFinalAnswer(page, { id: 'pos-1-assistant', text: 'answer' })).toBe('');
+            expect(page.visited).toEqual([]);
         });
 
         it('returns an empty string when the tab is not on a conversation', async () => {
             const page = fakePage('https://grok.com/', []);
-            expect(await __test__.rereadFinalAnswer(page)).toBe('');
+            expect(await __test__.rereadFinalAnswer(page, { id: 'a1-assistant', text: 'the whole answer' })).toBe('');
             expect(page.visited).toEqual([]);
         });
     });

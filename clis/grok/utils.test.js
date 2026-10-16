@@ -202,6 +202,7 @@ describe('grok sendMessage with a formatted prompt', () => {
             { runScripts: 'outside-only' },
         );
         const { window } = dom;
+        window.setTimeout = (callback) => { callback(); return 0; };
         Object.defineProperty(window.HTMLElement.prototype, 'getBoundingClientRect', {
             configurable: true,
             value: () => ({ width: 100, height: 20, top: 0, left: 0, right: 100, bottom: 20 }),
@@ -225,6 +226,15 @@ describe('grok sendMessage with a formatted prompt', () => {
         const prompt = 'Revisa esta funcion Python que reparte el alquiler.\n\n```python\ndef repartir(x):\n    return x\n```\nSe conciso.';
         const rendered = 'Revisa esta funcion Python que reparte el alquiler.\n\npython\ndef repartir(x):\n    return x\nSe conciso.';
         await expect(submitPrompt(prompt, rendered)).resolves.toEqual({ ok: true, submittedVia: 'submit-button' });
+    });
+
+    it('rejects a different prompt sharing the first forty characters', async () => {
+        const prefix = 'Please carefully review this lengthy implementation: ';
+        await expect(submitPrompt(prefix + 'correct code', prefix + 'different code')).resolves.toMatchObject({ ok: false });
+    });
+
+    it('does not treat an empty normalized prompt as matching any turn', async () => {
+        await expect(submitPrompt('```', 'unrelated message')).resolves.toMatchObject({ ok: false });
     });
 
     it('accepts the rendered bubble of a prompt that starts with a code fence', async () => {
