@@ -36,7 +36,7 @@ describe('ChatGPT file upload scope',()=>{
     await expect(uploadChatGPTFiles(f.page,[f.file,second])).resolves.toMatchObject({ok:true});
     expect(changed).toHaveBeenCalledTimes(1);
     expect(input.files.map(file=>file.name)).toEqual(['notes.txt','empty.txt']);
-    expect(Buffer.from(await input.files[0].arrayBuffer())).toEqual(bytes);
+    expect(Buffer.from(await input.files[0].arrayBuffer()).equals(bytes)).toBe(true);
     expect(input.files[1].size).toBe(0);
     expect(Math.max(...f.page.evaluate.mock.calls.map(([script])=>Buffer.byteLength(JSON.stringify({code:script}))))).toBeLessThan(400000);
     expect(input.__opencliFileChunks).toBeUndefined();
