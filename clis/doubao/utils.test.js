@@ -72,20 +72,26 @@ describe('doubao conversation list (history)', () => {
 
     // Live DOM sample from a Doubao Work sidebar (2026-10-16). The sidebar root
     // [data-testid="flow_chat_sidebar"] is unchanged, but each conversation is a
-    // div[data-testid="conversation-list-v2-item"] — NOT an <a> — and the id only
-    // exists on an inner <a href="/chat/<id>">, while the title is the item text.
+    // div[data-testid="conversation-list-v2-item"] — NOT an <a> — carrying
+    // data-conversation-id, wrapped in its own <a href="/chat/<id>"> PARENT
+    // (the anchor is an ancestor, not a descendant), while the title is the item
+    // text.
     const doubaoWorkSkinSidebar = `
       <div data-testid="flow_chat_sidebar">
         <div data-testid="chat_list_wrapper">
           <div data-testid="conversation-section">
-            <div data-testid="conversation-list-v2-item">
-              <a href="/chat/46370507058831106">季度复盘会议纪要</a>
-              <button data-testid="chat_list_item_more_button"></button>
-            </div>
-            <div data-testid="conversation-list-v2-item">
-              <a href="/chat/46370507058842882">新工作任务</a>
-              <button data-testid="chat_list_item_more_button"></button>
-            </div>
+            <a href="/chat/46370507058831106">
+              <div data-testid="conversation-list-v2-item" data-conversation-id="46370507058831106">
+                季度复盘会议纪要季度复盘会议纪要季度复盘会议纪要
+                <button data-testid="chat_list_item_more_button"></button>
+              </div>
+            </a>
+            <a href="/chat/46370507058842882">
+              <div data-testid="conversation-list-v2-item" data-conversation-id="46370507058842882">
+                新工作任务
+                <button data-testid="chat_list_item_more_button"></button>
+              </div>
+            </a>
           </div>
         </div>
       </div>
@@ -113,11 +119,14 @@ describe('doubao conversation list (history)', () => {
         ]);
     });
 
-    it('lists conversations from the Doubao Work sidebar, taking the id from the inner link', async () => {
-        // Guard: the item must stay a div without the legacy testid, otherwise
-        // this fixture would not exercise the new div/inner-link path at all.
-        expect(doubaoWorkSkinSidebar).toContain('<div data-testid="conversation-list-v2-item">');
+    it('lists conversations from the Doubao Work sidebar, taking the id from the item itself', async () => {
+        // Guards: the item must stay a div without the legacy testid and carry
+        // data-conversation-id, and the anchor must sit ABOVE it — otherwise this
+        // fixture would not exercise the live div/parent-anchor shape at all.
+        expect(doubaoWorkSkinSidebar).toContain('data-testid="conversation-list-v2-item"');
+        expect(doubaoWorkSkinSidebar).toContain('data-conversation-id="46370507058831106"');
         expect(doubaoWorkSkinSidebar).not.toContain('chat_list_thread_item');
+        expect(doubaoWorkSkinSidebar).not.toContain('inner-link');
 
         expect(await listFromHtml(doubaoWorkSkinSidebar)).toEqual([
             {
