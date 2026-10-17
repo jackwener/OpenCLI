@@ -4,6 +4,7 @@ import path from 'node:path';
 import { afterEach, expect, it, vi } from 'vitest';
 import {
   cancelMidjourneyJob,
+  clickVisibleControl,
   creditsToFastMinutes,
   downloadOriginals,
   downloadRawVideo,
@@ -18,11 +19,16 @@ import {
   promptKeySignature,
   jobStatusRow,
   selectSiteSetting,
+  SLOT_HEADINGS,
   waitForCompletedJob,
   waitForDerivedJob,
   waitForSubmittedJobsAfter,
   submittedJobIdsFromCaptures,
   uploadedStorageUrlsFromCaptures,
+  verifyPromptAttachments,
+  verifyDropSettled,
+  verifyReferenceTarget,
+  verifySubmittedReferences,
 } from './utils.js';
 
 const JOB = 'd5664250-5f1f-4cd0-9637-2ce0153dd30a';
@@ -31,6 +37,8 @@ const tempDirs = [];
 afterEach(async () => {
   vi.restoreAllMocks();
   delete globalThis.window;
+  delete globalThis.document;
+  delete globalThis.getComputedStyle;
   await Promise.all(tempDirs.splice(0).map((dir) => fs.rm(dir, { recursive: true, force: true })));
 });
 
@@ -592,4 +600,162 @@ it('image originals unwrap Browser Bridge result envelopes', async () => {
   expect((await fs.stat(file.filePath)).size).toBe(PNG_BYTES.length);
   expect(page.state.gotos).toHaveLength(1);
   expect(page.state.buffers.size).toBe(0);
+});
+
+// A minimal DOM for the in-page reference-panel logic. It models the current
+// panel: three slot cells side by side, each with a heading, a hint and a
+// button that is present whether or not the slot is filled (that button is why
+// the old "has a button or img" assertion passed on empty slots).
+function node(tag, { text = '', bg = 'none', attrs = {}, kids = [] } = {}) {
+  const self = {
+    tagName: tag.toUpperCase(), ownText: text, bg, attrs, children: [], parentElement: null, disabled: false,
+    title: attrs.title || '', src: attrs.src || '',
+    get textContent() { return self.ownText + self.children.map((child) => child.textContent).join(''); },
+    getAttribute: (name) => self.attrs[name] ?? null,
+    getBoundingClientRect: () => ({ width: 100, height: 40, left: 10, top: 20 }),
+    descendants() { return self.children.flatMap((child) => [child, ...child.descendants()]); },
+    querySelectorAll(selector) {
+      const tags = selector === '*' ? null : selector.split(',').map((item) => item.trim().toUpperCase());
+      return self.descendants().filter((item) => !tags || tags.includes(item.tagName));
+    },
+    querySelector(selector) { return self.querySelectorAll(selector)[0] || null; },
+  };
+  for (const kid of kids) { kid.parentElement = self; self.children.push(kid); }
+  return self;
+}
+
+const THUMB_A = 'https://cdn.midjourney.com/u/11111111-2222-3333-4444-555555555555/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png';
+const THUMB_B = 'https://cdn.midjourney.com/u/11111111-2222-3333-4444-555555555555/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.png';
+
+function slotCell(heading, hint, { thumb, urls = [THUMB_A] } = {}) {
+  return node('div', { kids: [
+    node('button'),
+    node('div', { text: heading }),
+    node('div', { text: hint }),
+    ...(thumb === 'bg' ? urls.map((url) => node('div', { bg: `url("${url}")` })) : []),
+    ...(thumb === 'img' ? urls.map((url) => node('img', { attrs: { src: url } })) : []),
+  ] });
+}
+
+function panelPage(cells, buttons = []) {
+  const root = node('div', { kids: [node('div', { kids: cells }), ...buttons] });
+  globalThis.document = { querySelectorAll: (selector) => root.querySelectorAll(selector) };
+  globalThis.getComputedStyle = (item) => ({ display: 'block', backgroundImage: item.bg });
+  const clicks = [];
+  return { clicks, evaluate: async (fn, ...args) => fn(...args), nativeClick: async (x, y) => { clicks.push([x, y]); } };
+}
+
+const attachCell = (opts) => slotCell('Attach to prompt', 'Edit or combine images, like "make this car red"', opts);
+const styleCell = (opts) => slotCell('Style reference', 'Use the style of an image', opts);
+const imageCell = (opts) => slotCell('Image Prompts', 'Use the elements of an image', opts);
+
+it('clickVisibleControl matches a control whatever its label case', async () => {
+  const page = panelPage([], [node('button', { text: 'Add images', attrs: { 'aria-label': 'Add images' } })]);
+  await clickVisibleControl(page, 'Add Images');
+  expect(page.clicks).toEqual([[60, 40]]);
+  await expect(clickVisibleControl(panelPage([], []), 'Add Images')).rejects.toThrow(/"Add Images" was not found/);
+});
+
+it('reference assertion rejects empty slots, which the old button-or-img test let through', async () => {
+  const page = panelPage([attachCell(), styleCell(), imageCell()]);
+  await expect(verifyReferenceTarget(page, SLOT_HEADINGS.image)).rejects.toThrow(/not verified/);
+  await expect(verifyReferenceTarget(page, SLOT_HEADINGS.style)).rejects.toThrow(/not verified/);
+});
+
+it('reference assertion accepts a background-image thumbnail in the matching slot only', async () => {
+  const page = panelPage([attachCell({ thumb: 'bg' }), styleCell(), imageCell({ thumb: 'bg' })]);
+  await verifyReferenceTarget(page, SLOT_HEADINGS.image);
+  await expect(verifyReferenceTarget(page, SLOT_HEADINGS.style)).rejects.toThrow(/not verified/);
+});
+
+it('reference assertion knows the singular Style reference heading and the older img thumbnails', async () => {
+  await verifyReferenceTarget(panelPage([attachCell(), styleCell({ thumb: 'bg' }), imageCell()]), SLOT_HEADINGS.style);
+  await verifyReferenceTarget(panelPage([slotCell('Style References', 'x', { thumb: 'img' }), imageCell()]), SLOT_HEADINGS.style);
+});
+
+it('a thumbnail in a neighbouring slot does not satisfy this slot', async () => {
+  const page = panelPage([attachCell({ thumb: 'bg' }), styleCell(), imageCell()]);
+  await expect(verifyReferenceTarget(page, SLOT_HEADINGS.image)).rejects.toThrow(/not verified/);
+});
+
+it('a failed second drop fails verification: one leftover thumbnail is not two', async () => {
+  // The first reference landed; the second drag silently missed. The slot
+  // still shows the first thumbnail, which used to satisfy "has a thumbnail".
+  const page = panelPage([attachCell({ thumb: 'bg', urls: [THUMB_A] }), styleCell({ thumb: 'bg', urls: [THUMB_A] }), imageCell()]);
+  await expect(verifyReferenceTarget(page, SLOT_HEADINGS.style, {
+    expectedCount: 2,
+    sourceUrl: THUMB_B,
+  })).rejects.toThrow(/expected 2 thumbnail\(s\), the slot shows 1/);
+});
+
+it('a late-rendering drop verifies after bounded retries, extra thumbnails do not', async () => {
+  panelPage([attachCell(), styleCell(), imageCell({ thumb: 'bg' })]); // installs getComputedStyle
+  const emptyDoc = globalThis.document;
+  panelPage([attachCell(), styleCell(), imageCell()]);
+  const emptyAgain = globalThis.document;
+  panelPage([attachCell(), styleCell(), imageCell({ thumb: 'bg' })]);
+  const filledDoc = globalThis.document;
+  const docs = [emptyDoc, emptyAgain, filledDoc];
+  let phase = 0;
+  const latePage = {
+    wait: async () => {},
+    evaluate: async (fn, ...args) => {
+      globalThis.document = docs[Math.min(phase, docs.length - 1)];
+      phase += 1;
+      return fn(...args);
+    },
+  };
+  await verifyDropSettled(latePage, SLOT_HEADINGS.image, { requireThumbnail: true, expectedCount: 1, sourceUrl: THUMB_A });
+  // More thumbnails than expected is bad state, not rendering lag: no retry.
+  const extra = panelPage([attachCell(), styleCell({ thumb: 'bg', urls: [THUMB_A, THUMB_B] }), imageCell()]);
+  await expect(verifyDropSettled({ wait: async () => {}, evaluate: extra.evaluate }, SLOT_HEADINGS.style, {
+    requireThumbnail: true, expectedCount: 1, sourceUrl: THUMB_A,
+  })).rejects.toThrow(/the slot shows 2/);
+});
+
+it('a slot holding more than the dropped references fails closed', async () => {
+  const page = panelPage([attachCell(), styleCell({ thumb: 'bg', urls: [THUMB_A, THUMB_B] }), imageCell()]);
+  await expect(verifyReferenceTarget(page, SLOT_HEADINGS.style, {
+    expectedCount: 1,
+    sourceUrl: THUMB_A,
+  })).rejects.toThrow(/expected 1 thumbnail\(s\), the slot shows 2/);
+});
+
+it('the dropped image must be among the slot thumbnails, size variants match', async () => {
+  const variant = THUMB_B.replace('.png', '_384_N.png');
+  const page = panelPage([attachCell(), styleCell({ thumb: 'bg', urls: [THUMB_A, variant] }), imageCell()]);
+  await verifyReferenceTarget(page, SLOT_HEADINGS.style, { expectedCount: 2, sourceUrl: THUMB_B });
+  const wrongImage = panelPage([attachCell(), styleCell({ thumb: 'bg', urls: [THUMB_A] }), imageCell()]);
+  await expect(verifyReferenceTarget(wrongImage, SLOT_HEADINGS.style, {
+    expectedCount: 1,
+    sourceUrl: THUMB_B,
+  })).rejects.toThrow(/dropped image is not shown/);
+});
+
+it('prompt attachments accounted for before the paid submit', async () => {
+  const uploaded = [THUMB_A, THUMB_B];
+  const pinned = panelPage([attachCell({ thumb: 'bg', urls: uploaded }), styleCell(), imageCell()]);
+  await verifyPromptAttachments(pinned, uploaded);
+  const stale = panelPage([attachCell({ thumb: 'bg', urls: [THUMB_A, 'https://cdn.midjourney.com/u/other.png'] }), styleCell(), imageCell()]);
+  await expect(verifyPromptAttachments(stale, uploaded)).rejects.toThrow(/images this command did not upload/);
+  // An empty section carries nothing; fine.
+  await verifyPromptAttachments(panelPage([attachCell(), styleCell(), imageCell()]), uploaded);
+  // But with local uploads an unreadable section must stop the submission.
+  await expect(verifyPromptAttachments(panelPage([styleCell(), imageCell()]), uploaded))
+    .rejects.toThrow(/attachments could not be read/);
+});
+
+it('submitted captures must mention every uploaded local reference', async () => {
+  const captures = [{ prompt: `a room https://cdn.midjourney.com/u/11111111-2222-3333-4444-555555555555/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa_384_N.png`, success: [{ job_id: JOB }] }];
+  verifySubmittedReferences(captures, [THUMB_A], [JOB]);
+  // No captures at all (older Browser Bridge) cannot verify; it must not fail.
+  verifySubmittedReferences([], [THUMB_A], [JOB]);
+  expect(() => verifySubmittedReferences(captures, [THUMB_A, THUMB_B], [JOB]))
+    .toThrow(/submitted without 1 of the requested local reference\(s\)/);
+  try {
+    verifySubmittedReferences(captures, [THUMB_A, THUMB_B], [JOB]);
+    expect.unreachable('expected verifySubmittedReferences to throw');
+  } catch (error) {
+    expect(error.hint).toContain(JOB);
+  }
 });

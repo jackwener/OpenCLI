@@ -980,6 +980,10 @@ export async function openImagePanel(page) {
   const markInput = async () => unwrapEvaluateResult(await page.evaluate(() => {
     document.querySelectorAll('[data-opencli-image-input]').forEach((node) => node.removeAttribute('data-opencli-image-input'));
     const inputs = [...document.querySelectorAll('input[type="file"][accept*="image"]')];
+    if (!inputs.length) return false;
+    // Prefer an input with a rendered drop zone around it. The current panel
+    // keeps its input permanently hidden until the OS picker opens, so a
+    // hidden input is still markable: setting files does not need it visible.
     const active = inputs.find((input) => {
       let root = input.parentElement;
       for (let depth = 0; depth < 8 && root; depth += 1, root = root.parentElement) {
@@ -987,15 +991,18 @@ export async function openImagePanel(page) {
         if (rect.width > 100 && rect.height > 40) return true;
       }
       return false;
-    });
-    if (!active) return false;
+    }) || inputs[0];
     active.setAttribute('data-opencli-image-input', '1');
     return true;
   }));
   if (!await markInput()) {
     await clickVisibleControl(page, 'Add Images');
-    await page.wait({ selector: 'input[type="file"][accept*="image"]', timeout: 10 });
-    if (!await markInput()) throw new CommandExecutionError('Midjourney image upload input did not become active');
+    let opened = false;
+    for (let attempt = 0; attempt < 10 && !opened; attempt += 1) {
+      await page.wait(0.5);
+      opened = await markInput();
+    }
+    if (!opened) throw new CommandExecutionError('Midjourney image upload input did not become active');
   }
 }
 
@@ -1093,14 +1100,29 @@ async function injectImagesFallback(page, localPaths) {
   }
 }
 
-async function markReferenceTarget(page, sourceUrl, slotLabel) {
-  const result = unwrapEvaluateResult(await page.evaluate((url, label) => {
+// Panel headings drift between releases ("Style References" became "Style
+// reference", and Omni Reference has left the panel), so slots are matched by
+// any known heading, case-insensitively.
+export const SLOT_HEADINGS = {
+  image: ['Image Prompts'],
+  style: ['Style References', 'Style reference'],
+  omni: ['Omni Reference'],
+  end: ['End Frame'],
+  attach: ['Attach to prompt'],
+};
+const ALL_PANEL_HEADINGS = ['Image Prompts', 'Style References', 'Style reference', 'Omni Reference', 'Attach to prompt'];
+
+async function markReferenceTarget(page, sourceUrl, slotHeadings) {
+  const slotLabel = slotHeadings[0];
+  const result = unwrapEvaluateResult(await page.evaluate((url, headings) => {
     document.querySelectorAll('[data-opencli-ref-source],[data-opencli-ref-target]').forEach((el) => {
       el.removeAttribute('data-opencli-ref-source');
       el.removeAttribute('data-opencli-ref-target');
     });
     const source = [...document.querySelectorAll('img[src]')].find((img) => img.src === url);
-    const labelNode = [...document.querySelectorAll('div,span')].find((node) => node.children.length === 0 && node.textContent?.trim() === label);
+    const wanted = headings.map((heading) => heading.toLowerCase());
+    const labelNode = [...document.querySelectorAll('div,span')]
+      .find((node) => node.children.length === 0 && wanted.includes(node.textContent?.trim().toLowerCase()));
     if (!source || !labelNode) return { ok: false, source: Boolean(source), target: Boolean(labelNode) };
     let target = labelNode.parentElement;
     while (target && target.parentElement) {
@@ -1112,28 +1134,139 @@ async function markReferenceTarget(page, sourceUrl, slotLabel) {
     source.setAttribute('data-opencli-ref-source', '1');
     target.setAttribute('data-opencli-ref-target', '1');
     return { ok: true };
-  }, sourceUrl, slotLabel));
+  }, sourceUrl, slotHeadings));
   if (!result?.ok) throw new CommandExecutionError(`Could not locate Midjourney ${slotLabel} slot after upload`);
 }
 
-async function verifyReferenceTarget(page, slotLabel) {
-  const assigned = unwrapEvaluateResult(await page.evaluate((label) => {
+// Slot thumbnails can be resized variants of the library image
+// (`..._<size>_N.png`), so comparisons use the base form of the URL.
+function refUrlBase(url) {
+  return String(url).split(/[?#]/, 1)[0].replace(/_\d+_N(?=\.[a-z]+$)/i, '').toLowerCase();
+}
+
+// Reads the thumbnail URLs shown in one reference-panel slot. Returns null
+// when the heading is absent, an empty array when the slot holds no thumbnail.
+async function readSlotThumbnails(page, slotHeadings) {
+  const urls = unwrapEvaluateResult(await page.evaluate((headings, allHeadings) => {
+    const wanted = headings.map((heading) => heading.toLowerCase());
     const labelNode = [...document.querySelectorAll('div,span')]
-      .find((node) => node.children.length === 0 && node.textContent?.trim() === label);
-    if (!labelNode) return false;
-    const peerLabels = ['Image Prompts', 'Style References', 'Omni Reference'].filter((item) => item !== label);
+      .find((node) => node.children.length === 0 && wanted.includes(node.textContent?.trim().toLowerCase()));
+    if (!labelNode) return null;
+    const peerLabels = allHeadings.map((item) => item.toLowerCase()).filter((item) => !wanted.includes(item));
+    const visible = (element) => {
+      const rect = element.getBoundingClientRect();
+      return rect.width > 0 && rect.height > 0 && getComputedStyle(element).display !== 'none';
+    };
     let target = labelNode;
     for (let depth = 0; depth < 8 && target?.parentElement; depth += 1) {
       target = target.parentElement;
-      const text = target.textContent || '';
+      const text = (target.textContent || '').toLowerCase();
       if (peerLabels.some((peer) => text.includes(peer))) break;
+      // The current panel wraps the hint across lines ("Select\nimages\nbelow").
       const empty = [...target.querySelectorAll('div')]
-        .some((node) => /^Select images? below$/i.test(node.textContent?.trim() || ''));
-      if (!empty && target.querySelector('button,img')) return true;
+        .some((node) => /^select images? below$/i.test((node.textContent || '').replace(/\s+/g, ' ').trim()));
+      if (!empty && target.querySelector('button,img')) {
+        // A filled slot shows each reference as a thumbnail: an <img> in older
+        // layouts, a CSS background image in the current one.
+        const urls = [];
+        for (const element of target.querySelectorAll('*')) {
+          if (!visible(element)) continue;
+          if (element.tagName === 'IMG' && element.src && !urls.includes(element.src)) urls.push(element.src);
+          const background = /url\(["']?([^"')]+)["']?\)/.exec(getComputedStyle(element).backgroundImage || '');
+          if (background && !urls.includes(background[1])) urls.push(background[1]);
+        }
+        return urls;
+      }
     }
-    return false;
-  }, slotLabel));
-  if (!assigned) throw new CommandExecutionError(`Midjourney ${slotLabel} reference assignment was not verified`);
+    return null;
+  }, slotHeadings, ALL_PANEL_HEADINGS));
+  return Array.isArray(urls) ? urls : null;
+}
+
+export async function verifyReferenceTarget(page, slotHeadings, { requireThumbnail = true, expectedCount = null, sourceUrl = null } = {}) {
+  const slotLabel = slotHeadings[0];
+  const urls = await readSlotThumbnails(page, slotHeadings);
+  if (urls === null) throw new CommandExecutionError(`Midjourney ${slotLabel} reference assignment was not verified: the slot was not found`);
+  if (!requireThumbnail) return;
+  if (expectedCount != null && urls.length !== expectedCount) {
+    throw new CommandExecutionError(
+      `Midjourney ${slotLabel} reference assignment was not verified: expected ${expectedCount} thumbnail(s), the slot shows ${urls.length}`,
+      urls.length < expectedCount
+        ? 'A drag-and-drop may have failed; the dropped reference is missing from the slot.'
+        : 'The slot held references this command did not upload; nothing was submitted.',
+    );
+  }
+  if (sourceUrl && !urls.some((url) => refUrlBase(url) === refUrlBase(sourceUrl))) {
+    throw new CommandExecutionError(`Midjourney ${slotLabel} reference assignment was not verified: the dropped image is not shown in the slot`);
+  }
+  if (expectedCount == null && !urls.length) {
+    throw new CommandExecutionError(`Midjourney ${slotLabel} reference assignment was not verified: the slot shows no thumbnail`);
+  }
+}
+
+// Uploading a local reference also pins it under the panel's "Attach to
+// prompt" heading. Before the paid submit, every pinned image must be one this
+// command uploaded; anything else is stale composer state that would ride
+// along into the submission. When uploads exist but the section cannot be
+// read at all, the accounting is not possible and the submission stops.
+export async function verifyPromptAttachments(page, uploadedUrls) {
+  if (!uploadedUrls.length) return;
+  const pinned = await readSlotThumbnails(page, SLOT_HEADINGS.attach);
+  if (pinned === null) {
+    throw new CommandExecutionError(
+      'Midjourney prompt attachments could not be read before submitting',
+      'The Attach to prompt section was not found while local references were uploaded; refusing to submit unaccounted attachments. Re-run the command.',
+    );
+  }
+  if (!pinned.length) return;
+  const uploaded = new Set(uploadedUrls.map(refUrlBase));
+  const unaccounted = pinned.filter((url) => !uploaded.has(refUrlBase(url)));
+  if (unaccounted.length) {
+    throw new CommandExecutionError(
+      'Midjourney prompt attachments contain images this command did not upload',
+      `${unaccounted.length} pinned image(s) predate this command and would be submitted with the prompt. Re-run the command; it clears pinned references before uploading.`,
+    );
+  }
+}
+
+// Cross-checks the captured /api/submit-jobs payloads: every uploaded local
+// reference must appear in what was actually submitted. The interceptor array
+// is scoped: installing the submit-jobs pattern replaces any earlier pattern
+// and the caller drains it before the submit, so the captures here are only
+// this session's submit responses. Skipped when no captures exist (older
+// Browser Bridge builds); a mismatch after a submit is reported with the job
+// ids so the spent submission can be identified.
+export function verifySubmittedReferences(captures, uploadedUrls, jobIds = []) {
+  if (!uploadedUrls.length || !Array.isArray(captures) || !captures.length) return;
+  // Normalize both sides: submitted prompts embed resized `_<size>_N` variants
+  // of the uploaded storage URLs.
+  const body = JSON.stringify(captures).replace(/_\d+_N(?=\.)/gi, '').toLowerCase();
+  const missing = uploadedUrls.filter((url) => !body.includes(refUrlBase(url)));
+  if (!missing.length) return;
+  const jobs = jobIds.length ? ` Job(s) ${jobIds.join(', ')} were submitted; cancel or re-edit them in the web app.` : '';
+  throw new CommandExecutionError(
+    `Midjourney submitted without ${missing.length} of the requested local reference(s)`,
+    `The submitted request does not mention ${missing.map((url) => refUrlBase(url)).join(', ')}.${jobs}`,
+  );
+}
+
+// A freshly dropped thumbnail can take longer than one wait to render; retry
+// a short while, but only while the slot shows FEWER thumbnails than expected.
+// More than expected, a foreign image, or a missing slot fails immediately.
+export async function verifyDropSettled(page, slotHeadings, options) {
+  const deadline = Date.now() + 6000;
+  for (;;) {
+    try {
+      await verifyReferenceTarget(page, slotHeadings, options);
+      return;
+    } catch (error) {
+      const message = error instanceof CommandExecutionError ? error.message : '';
+      const shown = Number(/the slot shows (\d+)/.exec(message)?.[1] ?? Number.NaN);
+      const stillRendering = Number.isInteger(shown) && shown < options.expectedCount;
+      if (!(stillRendering && Date.now() < deadline)) throw error;
+      await page.wait(0.8);
+    }
+  }
 }
 
 export async function uploadReferenceLibrary(page, localPaths) {
@@ -1158,7 +1291,10 @@ export async function uploadReferenceLibrary(page, localPaths) {
       uploaded = true;
     } catch (error) {
       const message = errorMessage(error);
-      if (!/Unknown action|not supported|Not allowed|No element found/i.test(message)) throw error;
+      // The current panel keeps its input hidden and never raises the
+      // intercepted file chooser, so that failure must fall through to the
+      // in-page injection fallback below instead of aborting the upload.
+      if (!/Unknown action|not supported|Not allowed|No element found|fileChooserOpened|file chooser/i.test(message)) throw error;
     }
   }
   if (!uploaded) await injectImagesFallback(page, localPaths);
@@ -1222,20 +1358,24 @@ export async function uploadReferencesToSlot(page, localPaths, slot) {
     await openImagePanel(page);
   }
 
-  const label = slot === 'style'
-    ? 'Style References'
-    : slot === 'end'
-      ? 'End Frame'
-      : slot === 'image'
-        ? 'Image Prompts'
-        : 'Omni Reference';
+  const label = SLOT_HEADINGS[slot];
   if (slot === 'omni' && selected.length !== 1) throw new ArgumentError('Omni Reference accepts exactly one local image');
   if (typeof page.drag !== 'function') throw new CommandExecutionError('Browser Bridge does not support Reference drag-and-drop');
-  for (const url of selected) {
+  for (const [index, url] of selected.entries()) {
     await markReferenceTarget(page, url, label);
     await page.drag('[data-opencli-ref-source="1"]', '[data-opencli-ref-target="1"]');
     await page.wait(0.8);
-    await verifyReferenceTarget(page, label);
+    // The End Frame slot lives in the video composer, whose layout was not
+    // re-checked, so only the re-checked image slots assert thumbnails. Each
+    // successful drop adds exactly one thumbnail: counting them (and seeing
+    // this drop's image among them) fails a submission whose earlier drop
+    // silently missed — the leftover thumbnail of a prior success would
+    // otherwise verify the slot.
+    await verifyDropSettled(page, label, {
+      requireThumbnail: slot !== 'end',
+      expectedCount: slot === 'end' ? null : index + 1,
+      sourceUrl: url,
+    });
   }
   return selected;
 }
@@ -1275,11 +1415,10 @@ export async function clickVisibleControl(page, label) {
       const rect = element.getBoundingClientRect();
       return rect.width > 0 && rect.height > 0 && getComputedStyle(element).display !== 'none';
     };
-    const button = [...document.querySelectorAll('button')].find((node) => visible(node) && (
-      node.textContent?.trim().replace(/\s+/g, ' ') === wanted
-      || node.title === wanted
-      || node.getAttribute('aria-label') === wanted
-    ));
+    // The site changes label case between releases ("Add Images" became "Add images").
+    const norm = (value) => String(value || '').trim().replace(/\s+/g, ' ').toLowerCase();
+    const button = [...document.querySelectorAll('button')].find((node) => visible(node)
+      && [node.textContent, node.title, node.getAttribute('aria-label')].some((value) => norm(value) === norm(wanted)));
     if (!button || button.disabled) return null;
     const rect = button.getBoundingClientRect();
     return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
@@ -1338,8 +1477,9 @@ export async function toggleSettingsPanel(page) {
     let root = input?.parentElement;
     for (let depth = 0; depth < 4 && root; depth += 1, root = root.parentElement) {
       const buttons = [...root.querySelectorAll('button')].filter(visible);
-      const nonImage = buttons.filter((button) => button.getAttribute('aria-label') !== 'Add Images');
-      if (buttons.some((button) => button.getAttribute('aria-label') === 'Add Images') && nonImage.length) {
+      const isAddImages = (button) => String(button.getAttribute('aria-label') || '').trim().toLowerCase() === 'add images';
+      const nonImage = buttons.filter((button) => !isAddImages(button));
+      if (buttons.some(isAddImages) && nonImage.length) {
         const button = nonImage.at(-1);
         const rect = button.getBoundingClientRect();
         return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
