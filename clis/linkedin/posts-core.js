@@ -93,11 +93,11 @@ export function buildPostsScript() {
       return trailingNumber ? parseMetric(trailingNumber[1]) : 0;
     };
     const expanders = Array.from(document.querySelectorAll('button, a'))
-      .filter((el) => /\b(see more|show more|more)\b|…more/i.test(clean(el.innerText || el.textContent || el.getAttribute('aria-label') || '')));
+      .filter((el) => /\b(see more|show more|more)\b|…\s*more/i.test(clean(el.innerText || el.textContent || el.getAttribute('aria-label') || '')));
     for (const expander of expanders.slice(0, 20)) {
       try { expander.click(); } catch {}
     }
-    const cards = Array.from(document.querySelectorAll('article, [role="article"], .feed-shared-update-v2, .occludable-update'))
+    const cards = Array.from(document.querySelectorAll('[id*="FeedType_CREATOR_PROFILE_ALL_CONTENT_VIEW"]'))
       .filter((card) => clean(card.innerText || card.textContent || '').length > 60);
     const rows = [];
     const seen = new Set();
@@ -106,6 +106,7 @@ export function buildPostsScript() {
       || /^[A-Z][A-Za-z ]+\s+and\s+\d[\d,.]*\s+others$/i.test(line);
     const readBody = (root, lines) => {
       const selectors = [
+        '[data-testid="expandable-text-box"]',
         '.feed-shared-update-v2__description',
         '.update-components-text',
         '.feed-shared-text',
@@ -185,9 +186,16 @@ export function buildPostsScript() {
       const author = clean(authorLink?.innerText || authorLink?.textContent || '')
         || lines.find((line) => line && !/^feed post/i.test(line) && !/verified|you|senior|engineer|developer/i.test(line)) || '';
       const timestamp = (rawText.match(/\b\d+\s*(?:s|m|h|d|w|mo|yr|min)\b/i) || [''])[0];
-      const reactions = parseReactionText(rawText);
-      const comments = parseMetric((rawText.match(/(\d[\d,.]*\s*(?:k|m)?\s+comments?)/i) || [''])[0]);
-      const reposts = parseMetric((rawText.match(/(\d[\d,.]*\s*(?:k|m)?\s+reposts?)/i) || [''])[0]);
+      const countFrom = (label) => {
+        const button = Array.from(root.querySelectorAll('button')).find((el) => {
+          const aria = clean(el.getAttribute('aria-label') || '');
+          return aria === label || aria.startsWith(label);
+        });
+        return button ? parseMetric(clean(button.innerText || button.textContent || '')) : 0;
+      };
+      const reactions = countFrom('Reaction') || parseReactionText(rawText);
+      const comments = countFrom('Comment') || parseMetric((rawText.match(/(\d[\d,.]*\s*(?:k|m)?\s+comments?)/i) || [''])[0]);
+      const reposts = countFrom('Repost') || parseMetric((rawText.match(/(\d[\d,.]*\s*(?:k|m)?\s+reposts?)/i) || [''])[0]);
       const impressions = parseMetric((rawText.match(/(\d[\d,.]*\s*(?:k|m)?\s+impressions?)/i) || [''])[0]);
       const body = readBody(root, lines);
       const mediaData = readMedia(root);
