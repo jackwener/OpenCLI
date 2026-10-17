@@ -3,7 +3,7 @@
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { requireObjectEvaluateResult, unwrapEvaluateResult } from './utils.js';
+import { ensureWeiboPage, requireObjectEvaluateResult, unwrapEvaluateResult } from './utils.js';
 
 const WEIBO_HOST_RE = /(^|\.)weibo\.(com|cn)$/i;
 const POST_ID_RE = /^[A-Za-z0-9]{4,32}$/;
@@ -47,6 +47,8 @@ cli({
     description: 'Delete one of my Weibo posts by id',
     domain: 'weibo.com',
     strategy: Strategy.COOKIE,
+    siteSession: 'persistent',
+    navigateBefore: false,
     args: [
         {
             name: 'id',
@@ -62,8 +64,7 @@ cli({
         }
         const raw = String(kwargs.id ?? '').trim();
         const id = normalizePostId(raw);
-        await page.goto('https://weibo.com');
-        await page.wait(2);
+        await ensureWeiboPage(page);
         const result = requireObjectEvaluateResult(unwrapEvaluateResult(await page.evaluate(`
       (async () => {
         const input = ${JSON.stringify(id)};

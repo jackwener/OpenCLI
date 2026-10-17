@@ -39098,7 +39098,8 @@
     "type": "js",
     "modulePath": "weibo/comments.js",
     "sourceFile": "weibo/comments.js",
-    "navigateBefore": "https://weibo.com"
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "weibo",
@@ -39125,7 +39126,8 @@
     "type": "js",
     "modulePath": "weibo/delete.js",
     "sourceFile": "weibo/delete.js",
-    "navigateBefore": "https://weibo.com"
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "weibo",
@@ -39157,7 +39159,8 @@
     "type": "js",
     "modulePath": "weibo/favorites.js",
     "sourceFile": "weibo/favorites.js",
-    "navigateBefore": "https://weibo.com"
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "weibo",
@@ -39200,7 +39203,8 @@
     "type": "js",
     "modulePath": "weibo/feed.js",
     "sourceFile": "weibo/feed.js",
-    "navigateBefore": "https://weibo.com"
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "weibo",
@@ -39230,7 +39234,8 @@
     "type": "js",
     "modulePath": "weibo/hot.js",
     "sourceFile": "weibo/hot.js",
-    "navigateBefore": "https://weibo.com"
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "weibo",
@@ -39285,7 +39290,8 @@
     "type": "js",
     "modulePath": "weibo/me.js",
     "sourceFile": "weibo/me.js",
-    "navigateBefore": "https://weibo.com"
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "weibo",
@@ -39311,7 +39317,8 @@
     "type": "js",
     "modulePath": "weibo/post.js",
     "sourceFile": "weibo/post.js",
-    "navigateBefore": "https://weibo.com"
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "weibo",
@@ -39344,7 +39351,8 @@
     "type": "js",
     "modulePath": "weibo/publish.js",
     "sourceFile": "weibo/publish.js",
-    "navigateBefore": true
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "weibo",
@@ -39381,7 +39389,8 @@
     "type": "js",
     "modulePath": "weibo/search.js",
     "sourceFile": "weibo/search.js",
-    "navigateBefore": "https://weibo.com"
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "weibo",
@@ -39414,7 +39423,8 @@
     "type": "js",
     "modulePath": "weibo/user.js",
     "sourceFile": "weibo/user.js",
-    "navigateBefore": "https://weibo.com"
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "weibo",
@@ -39476,7 +39486,8 @@
     "type": "js",
     "modulePath": "weibo/user-posts.js",
     "sourceFile": "weibo/user-posts.js",
-    "navigateBefore": "https://weibo.com"
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "weibo",

@@ -52,10 +52,14 @@ describe('weibo auth identity probe', () => {
         expect(page.evaluate.mock.calls[1][0]).toContain('/ajax/profile/info?uid=12345');
     });
 
-    it('typed-fails malformed uid payloads instead of probing /ajax/profile/info with garbage', async () => {
+    it('rejects malformed uid payloads instead of probing /ajax/profile/info with garbage', async () => {
+        // getSelfUid only accepts non-empty strings; a malformed store payload
+        // is treated as "uid unresolved" (one reload retry, then auth error).
         const page = makePage({ evalResults: [{ uid: '12345' }] });
-        await expect(__test__.verifyWeiboIdentity(page)).rejects.toBeInstanceOf(CommandExecutionError);
-        expect(page.evaluate).toHaveBeenCalledTimes(1);
+        await expect(__test__.verifyWeiboIdentity(page)).rejects.toBeInstanceOf(AuthRequiredError);
+        for (const [script] of page.evaluate.mock.calls) {
+            expect(String(script)).not.toContain('/ajax/profile/info');
+        }
     });
 
     it('typed-fails malformed probe payloads', async () => {
