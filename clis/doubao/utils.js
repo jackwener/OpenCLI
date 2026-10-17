@@ -746,7 +746,12 @@ export async function getDoubaoTranscriptLines(page) {
 // bubble IS the message we just sent. Both skins are confirmed: silent failure
 // is just as dangerous on the conversation skin.
 const DOUBAO_SEND_VERIFY_INTERVAL_MS = 500;
-const DOUBAO_SEND_VERIFY_WINDOW_MS = 3000;
+// Live e2e evidence (2026-10-17): with a freshly loaded page the sent bubble
+// rendered AFTER this window closed — the message had landed (Doubao even
+// auto-titled a conversation from it) while the check reported a failure.
+// 10s still fails fast on the truly-not-sent paths (hidden tab keeps the
+// button disabled forever) while tolerating a slow first render.
+const DOUBAO_SEND_VERIFY_WINDOW_MS = 10000;
 // The conversation is a virtual list: how many rows are mounted changes with
 // scrolling and re-rendering, so a bubble count is not a stable signal. Live
 // evidence (2026-10-17): the rendered user-bubble count moved on a run where
@@ -758,7 +763,11 @@ const DOUBAO_SEND_VERIFY_WINDOW_MS = 3000;
 // that text is the last user bubble, so a failed duplicate send can be reported
 // as delivered. Counting is wrong far more often (every virtual-list
 // re-render); revisit only if duplicate sends turn out to matter.
-const normalizeBubbleText = (value) => String(value || '').replace(/\s+/g, ' ').trim();
+// Whitespace-insensitive on purpose: Doubao's editor inserts a space at
+// ASCII/CJK boundaries (盘古之白), so a sent "【E2E自测】" lands as
+// "【E2E 自测】". Comparing space-free keeps delivery confirmation immune
+// to that cosmetic auto-spacing.
+const normalizeBubbleText = (value) => String(value || '').replace(/\s+/g, '');
 async function getDoubaoLastUserBubbleText(page) {
     const turns = await page.evaluate(getTurnsScript());
     if (!Array.isArray(turns))
@@ -798,6 +807,28 @@ export async function sendDoubaoMessage(page, text, options = {}) {
     const verifyIntervalMs = options.verifyIntervalMs ?? DOUBAO_SEND_VERIFY_INTERVAL_MS;
     const verifyWindowMs = options.verifyWindowMs ?? DOUBAO_SEND_VERIFY_WINDOW_MS;
     await ensureDoubaoChatPage(page);
+    // Activate the adapter tab before composing: Doubao keeps the send button
+    // disabled while document.hidden is true, and the live blocker was a hidden
+    // tab (not a minimized window). CDP Page.bringToFront makes the tab the
+    // active one WITHOUT stealing OS window focus — the window may stay behind
+    // other windows. The hidden state can flip back (Windows occlusion tracking
+    // re-hides a fully covered window seconds later), so poll briefly and
+    // re-activate before giving up to the explicit error below. Best-effort:
+    // when activation cannot lift document.hidden (e.g. a minimized window,
+    // which Chrome always reports as hidden) the tabHidden error path below
+    // stays as the fallback.
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+        try {
+            if (typeof page.cdp === 'function')
+                await page.cdp('Page.bringToFront');
+        }
+        catch { /* best effort — the tabHidden fallback below still reports */ }
+        const hidden = await page.evaluate('document.hidden === true').catch(() => false);
+        if (!hidden)
+            break;
+        if (attempt < 2)
+            await page.wait(1);
+    }
     const normalizeComposerText = (value) => value.replace(/\r\n/g, '\n').trim();
     const expectedText = normalizeComposerText(text);
     const prepared = await page.evaluate(prepareDoubaoComposerScript());
