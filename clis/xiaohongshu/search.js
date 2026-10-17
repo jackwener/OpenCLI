@@ -915,6 +915,10 @@ async function collectSearchHarvest(page, limit, requestedFilters) {
     return harvest;
 }
 
+function buildDirectSearchUrl(query) {
+    return `https://www.xiaohongshu.com/search_result?keyword=${encodeURIComponent(query)}&source=web_search_result_notes`;
+}
+
 async function openSearchResults(page, query) {
     await page.goto(EXPLORE_URL);
     const result = unwrapEvaluateResult(await page.evaluate(buildInSiteSearchJs(query)));
@@ -922,6 +926,13 @@ async function openSearchResults(page, query) {
         throw new CommandExecutionError('Unexpected Xiaohongshu in-site search payload shape.');
     }
     if (result.status === 'ok') return;
+    if (result.status === 'layout' && result.detail === 'search_input_not_available') {
+        // The AI home layout hides #search-input (its visible box is the 点点 AI prompt, which
+        // must not be driven). Open the result page directly; collectSearchHarvest still
+        // detects captcha and login walls.
+        await page.goto(buildDirectSearchUrl(query));
+        return;
+    }
     if (result.status === 'auth') {
         throw new AuthRequiredError('www.xiaohongshu.com', 'Xiaohongshu search results are blocked behind a login wall');
     }
