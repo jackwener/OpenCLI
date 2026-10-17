@@ -1,6 +1,7 @@
 import { JSDOM } from 'jsdom';
 import { describe, expect, it, vi } from 'vitest';
 import { CommandExecutionError } from '@jackwener/opencli/errors';
+import { askCommand } from './ask.js';
 import {
     __test__,
     collectDoubaoTranscriptAdditions,
@@ -1022,5 +1023,184 @@ describe('doubao page state login detection (status)', () => {
             throw new Error('network down');
         });
         expect(state.isLogin).toBe(null);
+    });
+});
+// ask runs as two serial stages: confirm the message left the composer (its
+// own short verify window, independent of --timeout; a failure throws
+// immediately), then poll for the reply (a timeout here returns the System
+// line, never a throw). These tests drive the REAL ask command func through
+// the REAL utils against jsdom fixtures — the same stateful-DOM approach as
+// the send-delivery block above — so the pinned contract is exactly what
+// `opencli doubao ask` returns.
+describe('doubao ask two-stage flow', () => {
+    const ASK_PROMPT = '【#22 测试】请只回答数字 9';
+
+    // Doubao Work skin conversation with one prior turn pair, plus a composer.
+    // Geometry is per-element via data-rect like the send-delivery fixtures.
+    const askWorkSkinConversation = `
+      <main>
+        <section data-testid="message-list" class="v_list-D34x3M" data-rect="0,0,600,300">
+          <div class="scroller_content">
+            <div class="list_items">
+              <div class="v_list_row">
+                <div data-testid="union_message" class="w-full inner-item-BjaxFt">
+                  <div data-testid="message-block-container" class="w-full">
+                    <div data-testid="send_message">
+                      <div data-testid="message_text_content">旧问题</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="v_list_row">
+                <div data-testid="union_message" class="w-full inner-item-BjaxFt">
+                  <div data-testid="message-block-container" data-reply-message="true" class="w-full">
+                    <div data-testid="receive_message">
+                      <div data-testid="message_text_content">2</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+        <div data-testid="chat_input">
+          <textarea data-testid="chat_input_input" placeholder="发消息" data-rect="328,340,360,28"></textarea>
+          <button class="ring-dbx-fill-highlight-disable" data-testid="chat_input_send_button" data-rect="330,780,32,32"></button>
+        </div>
+      </main>
+    `;
+
+    const askWorkSkinRow = (role, text) => `
+      <div class="v_list_row">
+        <div data-testid="union_message" class="w-full inner-item-BjaxFt">
+          <div data-testid="message-block-container" class="w-full">
+            <div data-testid="${role}">
+              <div data-testid="message_text_content">${text}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    // Runs the real ask command func against the fixture. Every page.evaluate
+    // dispatches on the live DOM, so the bubble/reply appearing after the send
+    // click is what the two stages actually observe — no mocked call sequences.
+    async function askFromFixture(html, onSend, { text = ASK_PROMPT, timeout } = {}) {
+        const dom = new JSDOM(html, { url: 'https://www.doubao.com/chat', runScripts: 'outside-only' });
+        Object.defineProperty(dom.window.HTMLElement.prototype, 'innerText', {
+            configurable: true,
+            get() {
+                return this.textContent || '';
+            },
+        });
+        dom.window.HTMLElement.prototype.getBoundingClientRect = function () {
+            const spec = this.getAttribute('data-rect');
+            const [top, left, width, height] = spec ? spec.split(',').map(Number) : [0, 0, 100, 24];
+            return {
+                width,
+                height,
+                top,
+                left,
+                right: left + width,
+                bottom: top + height,
+                x: left,
+                y: top,
+                toJSON: () => ({}),
+            };
+        };
+        // The only click in the flow is the send submission, so onSend stands in
+        // for the live SPA rendering the bubble (and eventually the reply).
+        dom.window.document.addEventListener('click', () => onSend?.(dom), true);
+        const page = createPageMock();
+        vi.mocked(page.evaluate).mockImplementation(async (script) => (script === 'window.location.href'
+            ? 'https://www.doubao.com/chat'
+            : dom.window.eval(script)));
+        const result = await askCommand.func(page, { text, timeout });
+        return { result, dom };
+    }
+
+    it('returns the user turn and the assistant reply on the Doubao Work skin', async () => {
+        const { result } = await askFromFixture(askWorkSkinConversation, (fixture) => {
+            const list = fixture.window.document.querySelector('.list_items');
+            list.insertAdjacentHTML(
+                'beforeend',
+                askWorkSkinRow('send_message', ASK_PROMPT) + askWorkSkinRow('receive_message', '9'),
+            );
+        }, { timeout: 5 });
+        // Two-stage order is pinned here: if the reply stage ever ran before the
+        // send confirmation, no assistant turn would exist yet and ask would fall
+        // through to the System line instead of this Assistant row.
+        expect(result).toEqual([
+            { Role: 'User', Text: ASK_PROMPT },
+            { Role: 'Assistant', Text: '9' },
+        ]);
+    });
+
+    it('throws the send-confirmation error even with a large --timeout when nothing was sent', async () => {
+        // The 3s default verify window runs for real here (page.wait is mocked
+        // instant), so this test needs a generous wall-clock budget.
+        const error = await askFromFixture(askWorkSkinConversation, null, { timeout: 999 })
+            .then(() => null, (thrown) => thrown);
+        // Stage one must fail loudly — a System line from the reply stage would
+        // mean ask waited out --timeout instead of reporting the failed send.
+        expect(error).toBeInstanceOf(CommandExecutionError);
+        expect(error.message).toContain('消息未发出，输入框已被清空');
+    }, 20000);
+
+    it('keeps the System line when the send landed but no reply arrives within --timeout', async () => {
+        const { result } = await askFromFixture(askWorkSkinConversation, (fixture) => {
+            // Only the user's own bubble renders; the reply never does.
+            fixture.window.document.querySelector('.list_items')
+                .insertAdjacentHTML('beforeend', askWorkSkinRow('send_message', ASK_PROMPT));
+        }, { timeout: 1 });
+        // This also pins the no-echo guarantee: the only new content is the
+        // message ask itself sent, and it must not come back labelled as the
+        // assistant reply — neither from the turn extraction (User role is never
+        // a reply candidate) nor from the transcript fallback (prompt-echo
+        // lines are filtered).
+        expect(result).toEqual([
+            { Role: 'User', Text: ASK_PROMPT },
+            { Role: 'System', Text: 'No response within 1s. Doubao may still be generating.' },
+        ]);
+    });
+
+    it('returns the same two turns on the conversation skin', async () => {
+        // 对话形态 fixture 来自历史版本、未经现网验证（本机账号只能进入工作形态，
+        // 无法对对话形态做端到端验证）。结构取自本文件既有的 2026-05 DOM 片段：
+        // 发送按钮 button#flow-end-msg-send，用户气泡 .bg-g-send-msg-bubble，
+        // 助手回复 .flow-markdown-body。ask 的两段语义在对话形态必须一致。
+        const conversationSkinConversation = `
+          <main>
+            <section class="message-list-S2Fv2S" data-rect="0,0,600,300">
+              <div class="top-item-user">
+                <div class="inner-item-user">
+                  <div class="bg-g-send-msg-bubble">旧问题</div>
+                </div>
+              </div>
+              <div class="top-item-assistant">
+                <div class="inner-item-assistant">
+                  <div class="flow-markdown-body"><p>2</p></div>
+                </div>
+              </div>
+            </section>
+            <div data-testid="chat_input">
+              <textarea data-testid="chat_input_input" placeholder="发消息" data-rect="328,340,360,28"></textarea>
+              <button id="flow-end-msg-send" data-rect="330,780,32,32"></button>
+            </div>
+          </main>
+        `;
+        const { result } = await askFromFixture(conversationSkinConversation, (fixture) => {
+            fixture.window.document.querySelector('.message-list-S2Fv2S').insertAdjacentHTML(
+                'beforeend',
+                '<div class="top-item-user"><div class="inner-item-user">'
+                + `<div class="bg-g-send-msg-bubble">${ASK_PROMPT}</div></div></div>`
+                + '<div class="top-item-assistant"><div class="inner-item-assistant">'
+                + '<div class="flow-markdown-body"><p>9</p></div></div></div>',
+            );
+        }, { timeout: 5 });
+        expect(result).toEqual([
+            { Role: 'User', Text: ASK_PROMPT },
+            { Role: 'Assistant', Text: '9' },
+        ]);
     });
 });
