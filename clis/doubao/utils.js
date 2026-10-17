@@ -716,22 +716,38 @@ export async function getDoubaoTranscriptLines(page) {
 }
 // Delivery confirmation. `sendDoubaoMessage` used to report success as soon as
 // it had clicked something, so a cleared composer with no message sent looked
-// identical to a real send. Success now means a new user bubble showed up in the
-// conversation. Both skins are confirmed: silent failure is just as dangerous on
-// the conversation skin.
+// identical to a real send. Success now means the conversation's last user
+// bubble IS the message we just sent. Both skins are confirmed: silent failure
+// is just as dangerous on the conversation skin.
 const DOUBAO_SEND_VERIFY_INTERVAL_MS = 500;
 const DOUBAO_SEND_VERIFY_WINDOW_MS = 3000;
-// Polls the rendered conversation, not the network. If Doubao ever
-// virtualizes the newest bubble out of the DOM before it renders, raise the
-// window rather than reaching for request interception.
-async function countDoubaoUserBubbles(page) {
+// The conversation is a virtual list: how many rows are mounted changes with
+// scrolling and re-rendering, so a bubble count is not a stable signal. Live
+// evidence (2026-10-17): the rendered user-bubble count moved on a run where
+// nothing was sent, which a count-based check reported as a success that never
+// happened. Match on content instead — a re-render can add or drop unrelated
+// rows, but it cannot fabricate our exact message text.
+//
+// ponytail: a repeat send of identical text is treated as confirmed as soon as
+// that text is the last user bubble, so a failed duplicate send can be reported
+// as delivered. Counting is wrong far more often (every virtual-list
+// re-render); revisit only if duplicate sends turn out to matter.
+const normalizeBubbleText = (value) => String(value || '').replace(/\s+/g, ' ').trim();
+async function getDoubaoLastUserBubbleText(page) {
     const turns = await page.evaluate(getTurnsScript());
-    return Array.isArray(turns) ? turns.filter((turn) => turn?.Role === 'User').length : 0;
+    if (!Array.isArray(turns))
+        return '';
+    for (let i = turns.length - 1; i >= 0; i--) {
+        if (turns[i]?.Role === 'User')
+            return String(turns[i]?.Text || '');
+    }
+    return '';
 }
-async function waitForNewDoubaoUserBubble(page, beforeCount, intervalMs, windowMs) {
+async function waitForDoubaoUserBubble(page, sentText, intervalMs, windowMs) {
+    const expected = normalizeBubbleText(sentText);
     const deadline = Date.now() + windowMs;
     for (;;) {
-        if (await countDoubaoUserBubbles(page) > beforeCount)
+        if (normalizeBubbleText(await getDoubaoLastUserBubbleText(page)) === expected)
             return true;
         if (Date.now() >= deadline)
             return false;
@@ -766,7 +782,6 @@ export async function sendDoubaoMessage(page, text, options = {}) {
     if (!hasText) {
         throw new CommandExecutionError('Failed to insert text into Doubao composer');
     }
-    const bubblesBefore = await countDoubaoUserBubbles(page);
     let submittedBy = 'enter';
     const clicked = await page.evaluate(clickSendButtonScript());
     if (clicked) {
@@ -790,9 +805,17 @@ export async function sendDoubaoMessage(page, text, options = {}) {
             ? `Detected challenge signal: ${verification.reason}`
             : 'Please complete the challenge in the browser and try again.');
     }
-    const delivered = await waitForNewDoubaoUserBubble(page, bubblesBefore, verifyIntervalMs, verifyWindowMs);
+    const delivered = await waitForDoubaoUserBubble(page, text, verifyIntervalMs, verifyWindowMs);
     if (!delivered) {
-        throw new CommandExecutionError('Doubao did not send the message (消息未发出，输入框已被清空)', `No new user bubble appeared in the conversation within ${verifyWindowMs}ms. The composer was cleared, so the text is gone — reopen the conversation and retry.`);
+        // Live root cause (2026-10-17): the adapter's Chrome window was
+        // minimized, so document.hidden was true and Doubao kept the send
+        // button disabled — no click or Enter could send anything. Say so
+        // instead of leaving a generic failure behind.
+        const tabHidden = await page.evaluate('document.hidden === true').catch(() => false);
+        throw new CommandExecutionError('Doubao did not send the message (消息未发出，输入框已被清空)', `The conversation's last user bubble is not the message that was sent (waited ${verifyWindowMs}ms).`
+            + (tabHidden
+                ? ' The adapter tab is hidden right now; Doubao keeps the send button disabled while the tab is hidden, so nothing can be sent. Bring the Doubao window forward (or re-run with --window foreground) and retry.'
+                : ' The composer was cleared, so the text is gone — reopen the conversation and retry.'));
     }
     return submittedBy;
 }

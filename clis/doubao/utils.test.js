@@ -184,7 +184,6 @@ describe('doubao send strategy', () => {
             .mockResolvedValueOnce({ ok: true })
             .mockResolvedValueOnce({ hasText: true, text: '你好' })
             .mockResolvedValueOnce({ hasText: true, text: '你好' })
-            .mockResolvedValueOnce([])
             .mockResolvedValueOnce(true)
             .mockResolvedValueOnce({ detected: false })
             .mockResolvedValueOnce(NEW_USER_BUBBLE);
@@ -203,13 +202,12 @@ describe('doubao send strategy', () => {
             .mockResolvedValueOnce({ hasText: false, text: '' })
             .mockResolvedValueOnce({ hasText: false, text: '' })
             .mockResolvedValueOnce({ hasText: true, text: '你好' })
-            .mockResolvedValueOnce([])
             .mockResolvedValueOnce(true)
             .mockResolvedValueOnce({ detected: false })
             .mockResolvedValueOnce(NEW_USER_BUBBLE);
         const result = await sendDoubaoMessage(page, '你好', NO_WAIT_VERIFY);
         expect(nativeType).toHaveBeenCalledWith('你好');
-        expect(evaluate).toHaveBeenCalledTimes(9);
+        expect(evaluate).toHaveBeenCalledTimes(8);
         expect(result).toBe('button');
     });
     it('falls back to DOM insertion when native insertion text does not match the requested prompt', async () => {
@@ -220,7 +218,6 @@ describe('doubao send strategy', () => {
             .mockResolvedValueOnce({ ok: true })
             .mockResolvedValueOnce({ hasText: true, text: '你' })
             .mockResolvedValueOnce({ hasText: true, text: '你好' })
-            .mockResolvedValueOnce([])
             .mockResolvedValueOnce(true)
             .mockResolvedValueOnce({ detected: false })
             .mockResolvedValueOnce(NEW_USER_BUBBLE);
@@ -236,7 +233,6 @@ describe('doubao send strategy', () => {
             .mockResolvedValueOnce({ ok: true })
             .mockResolvedValueOnce({ hasText: true, text: '你好' })
             .mockResolvedValueOnce({ hasText: true, text: '你好' })
-            .mockResolvedValueOnce([])
             .mockResolvedValueOnce(false)
             .mockResolvedValueOnce({ detected: false })
             .mockResolvedValueOnce(NEW_USER_BUBBLE);
@@ -252,7 +248,6 @@ describe('doubao send strategy', () => {
             .mockResolvedValueOnce({ ok: true })
             .mockResolvedValueOnce({ hasText: true, text: '请解释 CAPTCHA verification 是什么' })
             .mockResolvedValueOnce({ hasText: true, text: '请解释 CAPTCHA verification 是什么' })
-            .mockResolvedValueOnce([])
             .mockResolvedValueOnce(true)
             .mockResolvedValueOnce({ detected: false, reason: '' })
             .mockResolvedValueOnce([{ Role: 'User', Text: '请解释 CAPTCHA verification 是什么' }]);
@@ -266,7 +261,6 @@ describe('doubao send strategy', () => {
             .mockResolvedValueOnce({ ok: true })
             .mockResolvedValueOnce({ hasText: true, text: '请解释人机验证和完成安全验证的区别' })
             .mockResolvedValueOnce({ hasText: true, text: '请解释人机验证和完成安全验证的区别' })
-            .mockResolvedValueOnce([])
             .mockResolvedValueOnce(true)
             .mockResolvedValueOnce({ detected: false, reason: '' })
             .mockResolvedValueOnce([{ Role: 'User', Text: '请解释人机验证和完成安全验证的区别' }]);
@@ -280,7 +274,6 @@ describe('doubao send strategy', () => {
             .mockResolvedValueOnce({ ok: true })
             .mockResolvedValueOnce({ hasText: true, text: '你好' })
             .mockResolvedValueOnce({ hasText: true, text: '你好' })
-            .mockResolvedValueOnce([])
             .mockResolvedValueOnce(true)
             .mockResolvedValueOnce({ detected: true, reason: '请完成安全验证' });
         await expect(sendDoubaoMessage(page, '你好', NO_WAIT_VERIFY)).rejects.toBeInstanceOf(CommandExecutionError);
@@ -348,6 +341,10 @@ describe('doubao send delivery confirmation', () => {
             </div>
           </div>
         `);
+    }
+
+    function appendWorkSkinTurns(dom, html) {
+        dom.window.document.querySelector('.list_items').insertAdjacentHTML('beforeend', html);
     }
 
     // Live DOM sample from a Doubao Work composer (2026-10-16): the real send
@@ -444,6 +441,84 @@ describe('doubao send delivery confirmation', () => {
         expect(error.message).toContain('消息未发出，输入框已被清空');
         // Sanity: the fixture must actually reach the submit step, otherwise this
         // test would pass for the wrong reason.
+        expect(clickedTestIds(clicked)).toContain('chat_input_send_button');
+    });
+
+    // The live conversation is a virtual list: scrolling and re-rendering change
+    // how many rows happen to be mounted, so the number of user bubbles is not a
+    // stable signal. Live evidence (2026-10-17): the rendered user-bubble count
+    // moved on a run where nothing was sent, and a count-based check reported a
+    // success that never happened. Confirmation keys on content instead.
+    const doubaoWorkSkinConversation = (body) => `
+      <main>
+        <section data-testid="message-list" class="v_list-D34x3M" data-rect="0,0,600,300">
+          <div class="scroller_content">
+            <div class="list_items">${body}</div>
+          </div>
+        </section>
+        <div data-testid="chat_input">
+          <textarea data-testid="chat_input_input" placeholder="发消息" data-rect="328,340,360,28"></textarea>
+          <button class="ring-dbx-fill-highlight-disable" data-testid="chat_input_send_button" data-rect="330,780,32,32"></button>
+        </div>
+      </main>
+    `;
+
+    const workSkinRow = (role, text) => `
+      <div class="v_list_row">
+        <div data-testid="union_message" class="w-full inner-item-BjaxFt">
+          <div data-testid="message-block-container" class="w-full">
+            <div data-testid="${role}">
+              <div data-testid="message_text_content">${text}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    it('confirms by content when the virtual list re-renders without growing the user-bubble count', async () => {
+        const { result, clicked } = await sendFromFixture(
+            doubaoWorkSkinConversation(workSkinRow('send_message', '旧问题')),
+            {
+                onReady: (fixture) => {
+                    fixture.window.document
+                        .querySelector('[data-testid="chat_input_send_button"]')
+                        .addEventListener('click', () => {
+                            // Virtual-list swap: the previously mounted row
+                            // unmounts while ours mounts, so the user-bubble
+                            // count does not move at all.
+                            fixture.window.document.querySelector('.list_items').innerHTML = workSkinRow('send_message', '你好');
+                        });
+                },
+            },
+        );
+        expect(result).toBe('button');
+        expect(clickedTestIds(clicked)).toContain('chat_input_send_button');
+    });
+
+    it('does not confirm a turn-count increase that never renders the sent text', async () => {
+        let clicked = [];
+        const error = await sendFromFixture(
+            doubaoWorkSkinConversation(workSkinRow('send_message', '旧问题')),
+            {
+                onReady: (fixture, sink) => {
+                    clicked = sink;
+                    fixture.window.document
+                        .querySelector('[data-testid="chat_input_send_button"]')
+                        .addEventListener('click', () => {
+                            // The live failure shape: the list re-renders with
+                            // extra turns, none of them the message we sent.
+                            appendWorkSkinTurns(
+                                fixture,
+                                workSkinRow('receive_message', '2') + workSkinRow('send_message', '别的消息'),
+                            );
+                        });
+                },
+            },
+        ).then(() => null, (thrown) => thrown);
+        expect(error).toBeInstanceOf(CommandExecutionError);
+        expect(error.message).toContain('消息未发出，输入框已被清空');
+        // Sanity: the fixture must reach the submit step, otherwise this test
+        // would pass for the wrong reason.
         expect(clickedTestIds(clicked)).toContain('chat_input_send_button');
     });
 
