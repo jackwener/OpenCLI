@@ -100,6 +100,21 @@ describe('evalExpr', () => {
   it('applies join filter', () => {
     expect(evalExpr('item.tags | join(,)', { item: { tags: ['a', 'b', 'c'] } })).toBe('a,b,c');
   });
+  it('applies replace filter', () => {
+    expect(evalExpr("item.x | replace('foo','bar')", { item: { x: 'foo baz' } })).toBe('bar baz');
+  });
+  it('preserves commas in the replace filter replacement value', () => {
+    expect(evalExpr("item.x | replace('a','x,y')", { item: { x: 'a' } })).toBe('x,y');
+  });
+  it('replaces all occurrences with the replace filter', () => {
+    expect(evalExpr("item.x | replace(' ','_')", { item: { x: 'a b c' } })).toBe('a_b_c');
+  });
+  it('passes non-string values through the replace filter unchanged', () => {
+    expect(evalExpr('item.x | replace(1,2)', { item: { x: 42 } })).toBe(42);
+  });
+  it('returns the value unchanged when replace has a single arg', () => {
+    expect(evalExpr("item.x | replace('a')", { item: { x: 'abc' } })).toBe('abc');
+  });
   it('applies upper filter', () => {
     expect(evalExpr('item.name | upper', { item: { name: 'hello' } })).toBe('HELLO');
   });
