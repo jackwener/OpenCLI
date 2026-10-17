@@ -95,6 +95,13 @@ export function assertOk(data, errorPrefix) {
     const prefix = errorPrefix ? `${errorPrefix}: ` : '';
     throw new CommandExecutionError(`${prefix}${data.message || 'Unknown error'} (code=${data.code})`);
 }
+function throwBossFetchError(error) {
+    if (error instanceof AuthRequiredError || error instanceof CommandExecutionError) {
+        throw error;
+    }
+    const message = error instanceof Error ? error.message : String(error);
+    throw new CommandExecutionError(`Boss API request failed: ${message}`);
+}
 /**
  * Make a credentialed XHR request via page.evaluate().
  *
@@ -132,11 +139,20 @@ export async function bossFetch(page, url, opts = {}) {
     try {
         data = await page.evaluate(script);
     } catch (error) {
-        if (error instanceof AuthRequiredError || error instanceof CommandExecutionError) {
-            throw error;
+        const detachedMidCommand = error && typeof error === 'object'
+            && error.code === 'detached_mid_command';
+        if (method === 'GET' && detachedMidCommand) {
+            // The browser bridge cannot retry a mid-command detach generically because
+            // evaluate() may contain a write. This adapter knows the request is a GET,
+            // so one fresh evaluation is safe even if the first read completed.
+            try {
+                data = await page.evaluate(script);
+            } catch (retryError) {
+                throwBossFetchError(retryError);
+            }
+        } else {
+            throwBossFetchError(error);
         }
-        const message = error instanceof Error ? error.message : String(error);
-        throw new CommandExecutionError(`Boss API request failed: ${message}`);
     }
     if (!data || typeof data !== 'object') {
         throw new CommandExecutionError('Boss API returned malformed response');
