@@ -710,6 +710,32 @@ export async function getDoubaoVisibleTurns(page) {
     await ensureDoubaoChatPage(page);
     return await page.evaluate(getTurnsScript());
 }
+// Cold-start read path (issue #23), used by `read` ONLY. DOUBAO_CHAT_URL —
+// /chat with no conversation id — is the last conversation in the conversation
+// skin but the Doubao Work「新工作任务」homepage (0 message lists), so a cold
+// start used to sit on that homepage and silently report no messages. When the
+// current page yields no turns AND the URL is the bare /chat homepage, open the
+// most recent sidebar conversation (first row of the same extraction `history`
+// uses) and read there. This must NOT live in ensureDoubaoChatPage: send/new
+// legitimately start from the bare /chat homepage — it is the new-task entry.
+const DOUBAO_BARE_CHAT_URL_PATTERN = /^https:\/\/www\.doubao\.com\/chat\/?(?:[?#].*)?$/;
+export async function getDoubaoReadTurns(page) {
+    const turns = await getDoubaoVisibleTurns(page);
+    if (turns.length > 0)
+        return turns;
+    const currentUrl = await page.evaluate('window.location.href').catch(() => '');
+    if (typeof currentUrl !== 'string' || !DOUBAO_BARE_CHAT_URL_PATTERN.test(currentUrl)) {
+        // A conversation page (/chat/<id>) that simply has no rendered turns —
+        // keep the existing no-navigation behavior.
+        return turns;
+    }
+    const conversations = await getDoubaoConversationList(page);
+    if (conversations.length === 0) {
+        throw new CommandExecutionError('Doubao has no conversation to read (侧栏中没有任何会话)', 'The adapter is on the bare Doubao /chat page (the Doubao Work homepage) with no conversation content, and the sidebar lists no conversations — there is nothing to open.');
+    }
+    await navigateToConversation(page, conversations[0].Id);
+    return await getDoubaoVisibleTurns(page);
+}
 export async function getDoubaoTranscriptLines(page) {
     await ensureDoubaoChatPage(page);
     return await page.evaluate(getTranscriptLinesScript());

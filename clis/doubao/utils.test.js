@@ -7,6 +7,7 @@ import {
     collectDoubaoTranscriptAdditions,
     getDoubaoConversationList,
     getDoubaoPageState,
+    getDoubaoReadTurns,
     mergeTranscriptSnapshots,
     parseDoubaoConversationId,
     sendDoubaoMessage,
@@ -1201,6 +1202,222 @@ describe('doubao ask two-stage flow', () => {
         expect(result).toEqual([
             { Role: 'User', Text: ASK_PROMPT },
             { Role: 'Assistant', Text: '9' },
+        ]);
+    });
+});
+// `read` cold start (issue #23). DOUBAO_CHAT_URL — /chat with no conversation
+// id — is the Doubao Work「新工作任务」homepage (0 message lists), while the
+// same URL in the conversation skin is the last conversation. When the page
+// yields no turns, read must open the most recent sidebar conversation (first
+// row of the same extraction `history` uses) instead of silently reporting no
+// messages — and must never navigate once it is on a conversation page. This
+// path belongs to `read` only: send/new legitimately start from the bare /chat
+// homepage, so it must not move into ensureDoubaoChatPage.
+describe('doubao read cold-start navigation', () => {
+    // Live-shape Doubao Work homepage fixture (2026-10-16): the sidebar exists
+    // with conversation items but the main area has NO message list at all —
+    // that is the cold-start page `read` used to get stuck on. Sidebar item
+    // shape mirrors doubaoWorkSkinSidebar: div[data-testid="conversation-list-v2-item"]
+    // with data-conversation-id, wrapped in its parent <a href="/chat/<id>">.
+    const readWorkSkinHomepage = `
+      <main>
+        <aside data-testid="flow_chat_sidebar">
+          <div data-testid="conversation-section">
+            <a href="/chat/46370507058831106">
+              <div data-testid="conversation-list-v2-item" data-conversation-id="46370507058831106">季度复盘会议纪要</div>
+            </a>
+            <a href="/chat/46370507058842882">
+              <div data-testid="conversation-list-v2-item" data-conversation-id="46370507058842882">新工作任务</div>
+            </a>
+          </div>
+        </aside>
+      </main>
+    `;
+
+    const readWorkSkinConversationRows = (userText, assistantText) => `
+      <section data-testid="message-list" class="v_list-D34x3M">
+        <div class="list_items">
+          <div class="v_list_row">
+            <div data-testid="union_message" class="w-full inner-item-BjaxFt">
+              <div data-testid="message-block-container" class="w-full">
+                <div data-testid="send_message">
+                  <div data-testid="message_text_content">${userText}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="v_list_row">
+            <div data-testid="union_message" class="w-full inner-item-BjaxFt">
+              <div data-testid="message-block-container" data-reply-message="true" class="w-full">
+                <div data-testid="receive_message">
+                  <div data-testid="message_text_content">${assistantText}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    `;
+
+    // 对话形态 fixture 来自历史版本、未经现网验证（本机账号只能进入工作形态，
+    // 无法对对话形态做端到端验证）。结构取自本文件既有的 2026-05 DOM 片段。
+    // Conversation-skin cold start lands on bare /chat already rendering the
+    // last conversation — read must read it in place and never navigate.
+    const readConversationSkinLastConversation = `
+      <main>
+        <section class="message-list-S2Fv2S">
+          <div class="top-item-user">
+            <div class="inner-item-user">
+              <div class="bg-g-send-msg-bubble">测试一下，只回复OK</div>
+            </div>
+          </div>
+          <div class="top-item-assistant">
+            <div class="inner-item-assistant">
+              <div class="flow-markdown-body"><p>OK</p></div>
+            </div>
+          </div>
+        </section>
+      </main>
+    `;
+
+    // Runs the real read path (getDoubaoReadTurns) against the fixture. Every
+    // page.evaluate dispatches on the live fixture DOM; goto stands in for the
+    // real SPA navigation — the URL changes and the conversation renders (via
+    // onNavigate), the same stand-in askFromFixture uses for the post-click
+    // bubble render.
+    async function readFromFixture(html, { url = 'https://www.doubao.com/chat', onNavigate } = {}) {
+        const dom = new JSDOM(html, { url, runScripts: 'outside-only' });
+        Object.defineProperty(dom.window.HTMLElement.prototype, 'innerText', {
+            configurable: true,
+            get() {
+                return this.textContent || '';
+            },
+        });
+        dom.window.HTMLElement.prototype.getBoundingClientRect = () => ({
+            width: 100,
+            height: 24,
+            top: 0,
+            left: 0,
+            right: 100,
+            bottom: 24,
+            x: 0,
+            y: 0,
+            toJSON: () => ({}),
+        });
+        const page = createPageMock();
+        vi.mocked(page.evaluate).mockImplementation(async (script) => (script === 'window.location.href'
+            ? dom.window.location.href
+            : dom.window.eval(script)));
+        vi.mocked(page.goto).mockImplementation(async (target) => {
+            dom.window.history.replaceState(null, '', target);
+            onNavigate?.(dom);
+        });
+        const result = await getDoubaoReadTurns(page);
+        return { result, page, dom };
+    }
+
+    it('navigates to the most recent sidebar conversation when parked on the bare /chat homepage', async () => {
+        const RECENT_USER = '【#23】最近会话的问题';
+        const RECENT_ASSISTANT = '【#23】最近会话的回答';
+        const { result, page } = await readFromFixture(readWorkSkinHomepage, {
+            onNavigate: (fixture) => {
+                // The homepage fixture itself must not render a conversation; the
+                // message list only exists after the SPA navigation lands.
+                fixture.window.document.querySelector('main')
+                    .insertAdjacentHTML('beforeend', readWorkSkinConversationRows(RECENT_USER, RECENT_ASSISTANT));
+            },
+        });
+        // The only way read can know where to go is the sidebar extraction, so a
+        // wrong target means the reuse broke. The first sidebar row is the most
+        // recent conversation.
+        expect(page.goto).toHaveBeenCalledTimes(1);
+        expect(page.goto).toHaveBeenCalledWith('https://www.doubao.com/chat/46370507058831106', expect.anything());
+        expect(result).toEqual([
+            { Role: 'User', Text: RECENT_USER },
+            { Role: 'Assistant', Text: RECENT_ASSISTANT },
+        ]);
+    });
+
+    it('does not navigate when already parked on a Doubao Work conversation page', async () => {
+        const { result, page } = await readFromFixture(readWorkSkinConversationRows('1+1 等于几？只回答一个数字。', '2'), {
+            url: 'https://www.doubao.com/chat/38447502791592450',
+        });
+        expect(page.goto).not.toHaveBeenCalled();
+        expect(result).toEqual([
+            { Role: 'User', Text: '1+1 等于几？只回答一个数字。' },
+            { Role: 'Assistant', Text: '2' },
+        ]);
+    });
+
+    it('raises an understandable error when the bare /chat homepage lists no conversations', async () => {
+        const emptyHomepage = `
+          <main>
+            <aside data-testid="flow_chat_sidebar">
+              <div data-testid="conversation-section"></div>
+            </aside>
+          </main>
+        `;
+        const error = await readFromFixture(emptyHomepage).then(() => null, (thrown) => thrown);
+        expect(error).toBeInstanceOf(CommandExecutionError);
+        expect(error.message).toContain('侧栏');
+        expect(error.message).toContain('没有任何会话');
+    });
+
+    // Cross-skin mismatch guards. Both skins share the same bare /chat URL, so
+    // the cold-start decision must trigger on the Work homepage's shape (no
+    // turns) and NOT on the conversation skin's last-conversation page.
+
+    it('does not navigate when the conversation skin already renders the last conversation on bare /chat', async () => {
+        // Guard: the fixture must not carry Doubao Work markers, otherwise this
+        // test would not exercise the cross-skin path at all.
+        expect(readConversationSkinLastConversation).not.toContain('send_message');
+        expect(readConversationSkinLastConversation).not.toContain('receive_message');
+        expect(readConversationSkinLastConversation).not.toContain('conversation-list-v2-item');
+        const { result, page } = await readFromFixture(readConversationSkinLastConversation);
+        expect(page.goto).not.toHaveBeenCalled();
+        expect(result).toEqual([
+            { Role: 'User', Text: '测试一下，只回复OK' },
+            { Role: 'Assistant', Text: 'OK' },
+        ]);
+    });
+
+    it('does not navigate away from an id-bearing conversation page even when no turns render yet', async () => {
+        // The cold-start condition is bare-/chat + no turns; an id page with no
+        // rendered turns is still a conversation page and must keep the old
+        // behavior (System fallback upstream, no navigation) even though the
+        // sidebar could offer a target.
+        const { result, page } = await readFromFixture(readWorkSkinHomepage, {
+            url: 'https://www.doubao.com/chat/38447502791592450',
+        });
+        expect(page.goto).not.toHaveBeenCalled();
+        expect(result).toEqual([]);
+    });
+
+    // 对话形态 fixture 来自历史版本、未经现网验证（本机账号只能进入工作形态，
+    // 无法对对话形态做端到端验证）。侧栏项取自本文件既有的对话形态片段：
+    // 会话项本身就是 <a data-testid="chat_list_thread_item" href="/chat/<id>">。
+    // Cold-start navigation must find the recent conversation through the
+    // conversation-skin sidebar shape too — the same shared extraction, not a
+    // Work-only path.
+    it('navigates to the most recent conversation via the conversation-skin sidebar shape as well', async () => {
+        const conversationSkinHomepage = `
+          <main>
+            <aside data-testid="flow_chat_sidebar">
+              <a data-testid="chat_list_thread_item" href="/chat/1234567890123">Weekly Sync</a>
+              <a data-testid="chat_list_thread_item" href="/chat/9876543210987">Sprint 计划</a>
+            </aside>
+          </main>
+        `;
+        const { result, page } = await readFromFixture(conversationSkinHomepage, {
+            onNavigate: (fixture) => {
+                fixture.window.document.querySelector('main').insertAdjacentHTML('beforeend', readConversationSkinLastConversation);
+            },
+        });
+        expect(page.goto).toHaveBeenCalledTimes(1);
+        expect(page.goto).toHaveBeenCalledWith('https://www.doubao.com/chat/1234567890123', expect.anything());
+        expect(result).toEqual([
+            { Role: 'User', Text: '测试一下，只回复OK' },
+            { Role: 'Assistant', Text: 'OK' },
         ]);
     });
 });

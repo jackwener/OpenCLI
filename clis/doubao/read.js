@@ -1,5 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { DOUBAO_DOMAIN, getDoubaoVisibleTurns } from './utils.js';
+import { DOUBAO_DOMAIN, getDoubaoReadTurns } from './utils.js';
 export const readCommand = cli({
     site: 'doubao',
     name: 'read',
@@ -13,7 +13,7 @@ export const readCommand = cli({
     args: [],
     columns: ['Role', 'Text'],
     func: async (page) => {
-        const turns = await getDoubaoVisibleTurns(page);
+        const turns = await getDoubaoReadTurns(page);
         if (turns.length > 0)
             return turns;
         return [{ Role: 'System', Text: 'No visible Doubao messages were found.' }];
