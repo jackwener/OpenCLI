@@ -811,24 +811,15 @@ export async function sendDoubaoMessage(page, text, options = {}) {
     // disabled while document.hidden is true, and the live blocker was a hidden
     // tab (not a minimized window). CDP Page.bringToFront makes the tab the
     // active one WITHOUT stealing OS window focus — the window may stay behind
-    // other windows. The hidden state can flip back (Windows occlusion tracking
-    // re-hides a fully covered window seconds later), so poll briefly and
-    // re-activate before giving up to the explicit error below. Best-effort:
-    // when activation cannot lift document.hidden (e.g. a minimized window,
-    // which Chrome always reports as hidden) the tabHidden error path below
-    // stays as the fallback.
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-        try {
-            if (typeof page.cdp === 'function')
-                await page.cdp('Page.bringToFront');
-        }
-        catch { /* best effort — the tabHidden fallback below still reports */ }
-        const hidden = await page.evaluate('document.hidden === true').catch(() => false);
-        if (!hidden)
-            break;
-        if (attempt < 2)
-            await page.wait(1);
+    // other windows. Best-effort single call: when activation cannot lift
+    // document.hidden (a fully occluded or minimized window, which Chrome
+    // always reports as hidden) the tabHidden error path below stays as the
+    // fallback.
+    try {
+        if (typeof page.cdp === 'function')
+            await page.cdp('Page.bringToFront');
     }
+    catch { /* best effort — the tabHidden fallback below still reports */ }
     const normalizeComposerText = (value) => value.replace(/\r\n/g, '\n').trim();
     const expectedText = normalizeComposerText(text);
     const prepared = await page.evaluate(prepareDoubaoComposerScript());
