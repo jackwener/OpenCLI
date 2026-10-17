@@ -196,5 +196,15 @@ describe('video-platform host detection', () => {
 
   it('returns false for an unparseable URL instead of throwing', () => {
     expect(requiresYtdlp('not a url')).toBe(false);
+    expect(detectContentType('not a url')).toBe('binary');
+  });
+
+  it('classifies relative and protocol-relative media URLs by extension', () => {
+    // Site JSON often returns unqualified media paths; `new URL()` rejects
+    // them, so classification has to fall back to the raw path.
+    expect(detectContentType('/media/photo.jpg')).toBe('image');
+    expect(detectContentType('//cdn.example.com/clip.mp4')).toBe('video');
+    expect(detectContentType('media/notes.md?v=2')).toBe('document');
+    expect(detectContentType('/media/photo.jpg?w=320#top')).toBe('image');
   });
 });

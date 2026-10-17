@@ -135,4 +135,35 @@ describe('stepDownload', () => {
     );
     expect(mockYtdlpDownload).toHaveBeenCalledTimes(2);
   });
+
+  it('keeps downloading the rest of a batch when one item has an unparseable URL', async () => {
+    mockHttpDownload.mockImplementation(async (url: string) => (
+      url.startsWith('http')
+        ? { success: true, size: 2 }
+        : { success: false, size: 0, error: 'Failed to parse URL' }
+    ));
+
+    const results = await stepDownload(
+      null,
+      {
+        url: '${{ item.url }}',
+        dir: path.join(os.tmpdir(), 'opencli-download-test'),
+        filename: '${{ index }}.jpg',
+        progress: false,
+        concurrency: 1,
+        skip_existing: false,
+      },
+      [
+        { url: '/media/photo.jpg' },
+        { url: 'https://a.example/photo.jpg' },
+      ],
+      {},
+    );
+
+    expect(mockHttpDownload).toHaveBeenCalledTimes(2);
+    expect(results).toMatchObject([
+      { _download: { status: 'failed' } },
+      { _download: { status: 'success' } },
+    ]);
+  });
 });

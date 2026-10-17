@@ -79,6 +79,24 @@ function isVideoPlatformUrl(url: string): boolean {
   return VIDEO_PLATFORM_DOMAINS.some((d) => host === d || host.endsWith(`.${d}`));
 }
 
+/**
+ * Path portion of a URL, for extension sniffing.
+ *
+ * `new URL()` throws on relative (`/media/a.jpg`) and protocol-relative
+ * (`//cdn.example.com/a.jpg`) values, which adapters hand us whenever a site's
+ * JSON returns unqualified media paths. Trimming the query and hash by hand
+ * keeps those classified by extension instead of throwing out of a caller that
+ * has no reason to expect it. Mirrors the tolerance `isVideoPlatformUrl`
+ * already has.
+ */
+function urlPathForExtension(url: string): string {
+  try {
+    return new URL(url).pathname;
+  } catch {
+    return url.split(/[?#]/, 1)[0];
+  }
+}
+
 const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.ico', '.bmp', '.avif']);
 const VIDEO_EXTENSIONS = new Set(['.mp4', '.webm', '.avi', '.mov', '.mkv', '.flv', '.m3u8', '.ts']);
 const DOC_EXTENSIONS = new Set(['.html', '.htm', '.json', '.xml', '.txt', '.md', '.markdown']);
@@ -93,7 +111,7 @@ export function detectContentType(url: string, contentType?: string): 'image' | 
     if (contentType.startsWith('text/') || contentType.includes('json') || contentType.includes('xml')) return 'document';
   }
 
-  const ext = path.extname(new URL(url).pathname).toLowerCase();
+  const ext = path.extname(urlPathForExtension(url)).toLowerCase();
 
   if (IMAGE_EXTENSIONS.has(ext)) return 'image';
   if (VIDEO_EXTENSIONS.has(ext)) return 'video';
