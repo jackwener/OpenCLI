@@ -1,7 +1,7 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CliError } from '@jackwener/opencli/errors';
 import { log } from '@jackwener/opencli/logger';
-import { buildWebShelfEntries, fetchPrivateApi, loadWebShelfSnapshot, } from './utils.js';
+import { buildWebShelfEntries, fetchWebApiWithCookies, loadWebShelfSnapshot, } from './utils.js';
 function normalizeShelfLimit(limit) {
     if (!Number.isFinite(limit))
         return 0;
@@ -46,7 +46,7 @@ cli({
         if (limit <= 0)
             return [];
         try {
-            const data = await fetchPrivateApi(page, '/shelf/sync', { synckey: '0', lectureSynckey: '0' });
+            const data = await fetchWebApiWithCookies(page, '/shelf/sync', { synckey: '0', lectureSynckey: '0' });
             return normalizePrivateApiRows(data, limit);
         }
         catch (error) {
