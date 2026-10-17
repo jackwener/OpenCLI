@@ -42017,6 +42017,38 @@
   },
   {
     "site": "xiaohongshu",
+    "name": "lives",
+    "description": "小红书直播列表（含可直接播放的 FLV 流地址）",
+    "access": "read",
+    "domain": "www.xiaohongshu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of live rooms to return"
+      }
+    ],
+    "columns": [
+      "rank",
+      "room_id",
+      "title",
+      "host",
+      "viewers",
+      "stream_url",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "xiaohongshu/lives.js",
+    "sourceFile": "xiaohongshu/lives.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "xiaohongshu",
     "name": "login",
     "description": "Open xiaohongshu login and wait until the browser session is authenticated",
     "access": "write",
