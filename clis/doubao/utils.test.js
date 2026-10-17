@@ -1,9 +1,13 @@
 import { JSDOM } from 'jsdom';
 import { describe, expect, it, vi } from 'vitest';
 import { CommandExecutionError } from '@jackwener/opencli/errors';
+import { askCommand } from './ask.js';
 import {
     __test__,
     collectDoubaoTranscriptAdditions,
+    getDoubaoConversationList,
+    getDoubaoPageState,
+    getDoubaoReadTurns,
     mergeTranscriptSnapshots,
     parseDoubaoConversationId,
     sendDoubaoMessage,
@@ -45,6 +49,132 @@ describe('parseDoubaoConversationId', () => {
         expect(parseDoubaoConversationId('1234567890123')).toBe('1234567890123');
     });
 });
+describe('doubao conversation list (history)', () => {
+    // Drives the real sidebar extraction script through the real
+    // getDoubaoConversationList() so the asserted shape is exactly what
+    // `opencli doubao history` prints (Id / Title / Url).
+    async function listFromHtml(html) {
+        const dom = new JSDOM(html, { url: 'https://www.doubao.com/chat', runScripts: 'outside-only' });
+        const page = createPageMock();
+        vi.mocked(page.evaluate).mockImplementation(async (script) => (script === 'window.location.href'
+            ? 'https://www.doubao.com/chat'
+            : dom.window.eval(script)));
+        return getDoubaoConversationList(page);
+    }
+
+    // 对话形态 fixture 来自历史版本、未经现网验证（本机账号只能进入工作形态，
+    // 无法对对话形态做端到端验证）。结构取自本文件既有的 2026-05 DOM 片段：
+    // 会话项本身就是 <a data-testid="chat_list_thread_item" href="/chat/<id>">。
+    const conversationSkinSidebar = `
+      <div data-testid="flow_chat_sidebar">
+        <a data-testid="chat_list_thread_item" href="/chat/1234567890123">Weekly Sync</a>
+        <a data-testid="chat_list_thread_item" href="/chat/9876543210987">Sprint 计划</a>
+      </div>
+    `;
+
+    // Live DOM sample from a Doubao Work sidebar (2026-10-16). The sidebar root
+    // [data-testid="flow_chat_sidebar"] is unchanged, but each conversation is a
+    // div[data-testid="conversation-list-v2-item"] — NOT an <a> — carrying
+    // data-conversation-id, wrapped in its own <a href="/chat/<id>"> PARENT
+    // (the anchor is an ancestor, not a descendant), while the title is the item
+    // text.
+    const doubaoWorkSkinSidebar = `
+      <div data-testid="flow_chat_sidebar">
+        <div data-testid="chat_list_wrapper">
+          <div data-testid="conversation-section">
+            <a href="/chat/46370507058831106">
+              <div data-testid="conversation-list-v2-item" data-conversation-id="46370507058831106">
+                季度复盘会议纪要季度复盘会议纪要季度复盘会议纪要
+                <button data-testid="chat_list_item_more_button"></button>
+              </div>
+            </a>
+            <a href="/chat/46370507058842882">
+              <div data-testid="conversation-list-v2-item" data-conversation-id="46370507058842882">
+                新工作任务
+                <button data-testid="chat_list_item_more_button"></button>
+              </div>
+            </a>
+          </div>
+        </div>
+      </div>
+    `;
+
+    it('keeps the Doubao Work sidebar item selector alongside the conversation-skin one', () => {
+        const listScript = __test__.getConversationListScript();
+        expect(listScript).toContain('a[data-testid="chat_list_thread_item"]');
+        expect(listScript).toContain('[data-testid="conversation-list-v2-item"]');
+        expect(listScript).toContain('[data-testid="flow_chat_sidebar"]');
+    });
+
+    it('lists conversations from the conversation-skin sidebar', async () => {
+        expect(await listFromHtml(conversationSkinSidebar)).toEqual([
+            {
+                Id: '1234567890123',
+                Title: 'Weekly Sync',
+                Url: 'https://www.doubao.com/chat/1234567890123',
+            },
+            {
+                Id: '9876543210987',
+                Title: 'Sprint 计划',
+                Url: 'https://www.doubao.com/chat/9876543210987',
+            },
+        ]);
+    });
+
+    it('lists conversations from the Doubao Work sidebar, taking the id from the item itself', async () => {
+        // Guards: the item must stay a div without the legacy testid and carry
+        // data-conversation-id, and the anchor must sit ABOVE it — otherwise this
+        // fixture would not exercise the live div/parent-anchor shape at all.
+        expect(doubaoWorkSkinSidebar).toContain('data-testid="conversation-list-v2-item"');
+        expect(doubaoWorkSkinSidebar).toContain('data-conversation-id="46370507058831106"');
+        expect(doubaoWorkSkinSidebar).not.toContain('chat_list_thread_item');
+        expect(doubaoWorkSkinSidebar).not.toContain('inner-link');
+
+        expect(await listFromHtml(doubaoWorkSkinSidebar)).toEqual([
+            {
+                Id: '46370507058831106',
+                Title: '季度复盘会议纪要',
+                Url: 'https://www.doubao.com/chat/46370507058831106',
+            },
+            {
+                Id: '46370507058842882',
+                Title: '新工作任务',
+                Url: 'https://www.doubao.com/chat/46370507058842882',
+            },
+        ]);
+    });
+
+    // Cross-skin mismatch guards. Both skins share the same URL and the same
+    // [data-testid="flow_chat_sidebar"] root, so a selector added for one skin is
+    // only safe if it cannot pick up the other skin's markup. Each fixture is run
+    // through the combined script and its rows pinned: a selector that starts
+    // matching across skins shows up as an added, dropped or duplicated row.
+
+    it('does not let the Doubao Work selector misread a conversation-skin sidebar', async () => {
+        expect(conversationSkinSidebar).not.toContain('conversation-list-v2-item');
+        expect(await listFromHtml(conversationSkinSidebar)).toHaveLength(2);
+    });
+
+    it('does not let the conversation-skin selector misread a Doubao Work sidebar', async () => {
+        expect(doubaoWorkSkinSidebar).not.toContain('chat_list_thread_item');
+        expect(await listFromHtml(doubaoWorkSkinSidebar)).toHaveLength(2);
+    });
+
+    it('returns no conversations when the sidebar holds only chrome', async () => {
+        expect(await listFromHtml(`
+          <div data-testid="flow_chat_sidebar">
+            <div data-testid="chat_list_wrapper">
+              <div data-testid="conversation-section"></div>
+            </div>
+          </div>
+        `)).toEqual([]);
+    });
+});
+// sendDoubaoMessage() now confirms delivery by polling for a new user bubble.
+// These tests inject a zero-width window so the poll never waits and the
+// sequence of page.evaluate() results stays deterministic.
+const NO_WAIT_VERIFY = { verifyIntervalMs: 0, verifyWindowMs: 0 };
+const NEW_USER_BUBBLE = [{ Role: 'User', Text: '你好' }];
 describe('doubao send strategy', () => {
     it('prefers native CDP text insertion and button submission when a send button is available', async () => {
         const page = createPageMock();
@@ -57,8 +187,9 @@ describe('doubao send strategy', () => {
             .mockResolvedValueOnce({ hasText: true, text: '你好' })
             .mockResolvedValueOnce({ hasText: true, text: '你好' })
             .mockResolvedValueOnce(true)
-            .mockResolvedValueOnce({ detected: false });
-        const result = await sendDoubaoMessage(page, '你好');
+            .mockResolvedValueOnce({ detected: false })
+            .mockResolvedValueOnce(NEW_USER_BUBBLE);
+        const result = await sendDoubaoMessage(page, '你好', NO_WAIT_VERIFY);
         expect(nativeType).toHaveBeenCalledWith('你好');
         expect(nativeKeyPress).not.toHaveBeenCalled();
         expect(result).toBe('button');
@@ -74,10 +205,11 @@ describe('doubao send strategy', () => {
             .mockResolvedValueOnce({ hasText: false, text: '' })
             .mockResolvedValueOnce({ hasText: true, text: '你好' })
             .mockResolvedValueOnce(true)
-            .mockResolvedValueOnce({ detected: false });
-        const result = await sendDoubaoMessage(page, '你好');
+            .mockResolvedValueOnce({ detected: false })
+            .mockResolvedValueOnce(NEW_USER_BUBBLE);
+        const result = await sendDoubaoMessage(page, '你好', NO_WAIT_VERIFY);
         expect(nativeType).toHaveBeenCalledWith('你好');
-        expect(evaluate).toHaveBeenCalledTimes(7);
+        expect(evaluate).toHaveBeenCalledTimes(8);
         expect(result).toBe('button');
     });
     it('falls back to DOM insertion when native insertion text does not match the requested prompt', async () => {
@@ -89,8 +221,9 @@ describe('doubao send strategy', () => {
             .mockResolvedValueOnce({ hasText: true, text: '你' })
             .mockResolvedValueOnce({ hasText: true, text: '你好' })
             .mockResolvedValueOnce(true)
-            .mockResolvedValueOnce({ detected: false });
-        const result = await sendDoubaoMessage(page, '你好');
+            .mockResolvedValueOnce({ detected: false })
+            .mockResolvedValueOnce(NEW_USER_BUBBLE);
+        const result = await sendDoubaoMessage(page, '你好', NO_WAIT_VERIFY);
         expect(result).toBe('button');
     });
     it('falls back to native Enter when no clickable submit button is found', async () => {
@@ -103,8 +236,9 @@ describe('doubao send strategy', () => {
             .mockResolvedValueOnce({ hasText: true, text: '你好' })
             .mockResolvedValueOnce({ hasText: true, text: '你好' })
             .mockResolvedValueOnce(false)
-            .mockResolvedValueOnce({ detected: false });
-        const result = await sendDoubaoMessage(page, '你好');
+            .mockResolvedValueOnce({ detected: false })
+            .mockResolvedValueOnce(NEW_USER_BUBBLE);
+        const result = await sendDoubaoMessage(page, '你好', NO_WAIT_VERIFY);
         expect(nativeKeyPress).toHaveBeenCalledWith('Enter');
         expect(result).toBe('enter');
     });
@@ -117,8 +251,9 @@ describe('doubao send strategy', () => {
             .mockResolvedValueOnce({ hasText: true, text: '请解释 CAPTCHA verification 是什么' })
             .mockResolvedValueOnce({ hasText: true, text: '请解释 CAPTCHA verification 是什么' })
             .mockResolvedValueOnce(true)
-            .mockResolvedValueOnce({ detected: false, reason: '' });
-        await expect(sendDoubaoMessage(page, '请解释 CAPTCHA verification 是什么')).resolves.toBe('button');
+            .mockResolvedValueOnce({ detected: false, reason: '' })
+            .mockResolvedValueOnce([{ Role: 'User', Text: '请解释 CAPTCHA verification 是什么' }]);
+        await expect(sendDoubaoMessage(page, '请解释 CAPTCHA verification 是什么', NO_WAIT_VERIFY)).resolves.toBe('button');
     });
     it('does not throw verification errors for ordinary chinese prompts mentioning security terms', async () => {
         const page = createPageMock();
@@ -129,8 +264,9 @@ describe('doubao send strategy', () => {
             .mockResolvedValueOnce({ hasText: true, text: '请解释人机验证和完成安全验证的区别' })
             .mockResolvedValueOnce({ hasText: true, text: '请解释人机验证和完成安全验证的区别' })
             .mockResolvedValueOnce(true)
-            .mockResolvedValueOnce({ detected: false, reason: '' });
-        await expect(sendDoubaoMessage(page, '请解释人机验证和完成安全验证的区别')).resolves.toBe('button');
+            .mockResolvedValueOnce({ detected: false, reason: '' })
+            .mockResolvedValueOnce([{ Role: 'User', Text: '请解释人机验证和完成安全验证的区别' }]);
+        await expect(sendDoubaoMessage(page, '请解释人机验证和完成安全验证的区别', NO_WAIT_VERIFY)).resolves.toBe('button');
     });
     it('throws a command error when Doubao shows a verification challenge after submit', async () => {
         const page = createPageMock();
@@ -142,7 +278,306 @@ describe('doubao send strategy', () => {
             .mockResolvedValueOnce({ hasText: true, text: '你好' })
             .mockResolvedValueOnce(true)
             .mockResolvedValueOnce({ detected: true, reason: '请完成安全验证' });
-        await expect(sendDoubaoMessage(page, '你好')).rejects.toBeInstanceOf(CommandExecutionError);
+        await expect(sendDoubaoMessage(page, '你好', NO_WAIT_VERIFY)).rejects.toBeInstanceOf(CommandExecutionError);
+    });
+});
+describe('doubao send delivery confirmation', () => {
+    // Drives the real sendDoubaoMessage() end to end against a jsdom fixture:
+    // the real composer scripts run against real DOM, the real
+    // clickSendButtonScript() resolves and clicks a real button, and the real
+    // getTurnsScript() decides whether a new user bubble appeared. Nothing in
+    // this block asserts an internal function name or call order.
+    //
+    // Geometry is per-element via data-rect="top,left,width,height" so the
+    // scoring heuristic's distance gates actually run instead of being
+    // uniformly rejected by a flat rect.
+    async function sendFromFixture(html, { onReady, text = '你好' } = {}) {
+        const dom = new JSDOM(html, { url: 'https://www.doubao.com/chat', runScripts: 'outside-only' });
+        Object.defineProperty(dom.window.HTMLElement.prototype, 'innerText', {
+            configurable: true,
+            get() {
+                return this.textContent || '';
+            },
+        });
+        dom.window.HTMLElement.prototype.getBoundingClientRect = function () {
+            const spec = this.getAttribute('data-rect');
+            const [top, left, width, height] = spec ? spec.split(',').map(Number) : [0, 0, 100, 24];
+            return {
+                width,
+                height,
+                top,
+                left,
+                right: left + width,
+                bottom: top + height,
+                x: left,
+                y: top,
+                toJSON: () => ({}),
+            };
+        };
+        const clicked = [];
+        dom.window.document.addEventListener('click', (event) => clicked.push(event.target), true);
+        onReady?.(dom, clicked);
+        const page = createPageMock();
+        vi.mocked(page.evaluate).mockImplementation(async (script) => (script === 'window.location.href'
+            ? 'https://www.doubao.com/chat'
+            : dom.window.eval(script)));
+        const result = await sendDoubaoMessage(page, text, NO_WAIT_VERIFY);
+        return { result, clicked, dom };
+    }
+
+    function clickedTestIds(clicked) {
+        return clicked.map((node) => node.getAttribute('data-testid') || node.id || '');
+    }
+
+    // Appends a Doubao Work user bubble, mimicking what the live SPA renders
+    // once the message really leaves the composer.
+    function appendWorkSkinUserBubble(dom, text) {
+        dom.window.document.querySelector('.list_items').insertAdjacentHTML('beforeend', `
+          <div class="v_list_row">
+            <div data-testid="union_message" class="w-full inner-item-BjaxFt">
+              <div data-testid="message-block-container" class="w-full">
+                <div data-testid="send_message">
+                  <div data-testid="message_text_content">${text}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        `);
+    }
+
+    function appendWorkSkinTurns(dom, html) {
+        dom.window.document.querySelector('.list_items').insertAdjacentHTML('beforeend', html);
+    }
+
+    // Live DOM sample from a Doubao Work composer (2026-10-16): the real send
+    // button is [data-testid="chat_input_send_button"] and its class is
+    // ring-dbx-fill-highlight-disable — one prefix away from the heuristic's
+    // bg-dbx-fill-highlight bonus keyword, which is exactly why the heuristic
+    // used to pick something else and clear the composer without sending.
+    //
+    // `decoy` is the button the heuristic would otherwise win with: it carries
+    // the bg-dbx-fill-highlight class and sits right next to the composer, so
+    // its score clears the 200 threshold. Without the first-class selector it
+    // gets clicked; with it, it must never be.
+    const doubaoWorkSkinComposer = (decoy) => `
+      <main>
+        <section data-testid="message-list" class="v_list-D34x3M" data-rect="0,0,600,300">
+          <div class="scroller_content">
+            <div class="list_items"></div>
+          </div>
+        </section>
+        <div data-testid="chat_input">
+          <textarea data-testid="chat_input_input" placeholder="发消息" data-rect="328,340,360,28"></textarea>
+          ${decoy
+            ? '<button class="bg-dbx-fill-highlight rounded" data-rect="330,720,32,32"></button>'
+            : ''}
+          <button class="ring-dbx-fill-highlight-disable" data-testid="chat_input_send_button" data-rect="330,780,32,32"></button>
+        </div>
+      </main>
+    `;
+
+    // 对话形态 fixture 来自历史版本、未经现网验证（本机账号只能进入工作形态，
+    // 无法对对话形态做端到端验证）。结构取自本文件既有的 2026-05 DOM 片段：
+    // 发送按钮是 button#flow-end-msg-send，用户气泡是 .bg-g-send-msg-bubble。
+    const conversationSkinComposer = `
+      <main>
+        <section class="message-list-S2Fv2S" data-rect="0,0,600,300">
+          <div class="top-item-user">
+            <div class="inner-item-user">
+              <div class="bg-g-send-msg-bubble">旧问题</div>
+            </div>
+          </div>
+        </section>
+        <div data-testid="chat_input">
+          <textarea data-testid="chat_input_input" placeholder="发消息" data-rect="328,340,360,28"></textarea>
+          <button id="flow-end-msg-send" data-rect="330,780,32,32"></button>
+        </div>
+      </main>
+    `;
+
+    it('promotes the Doubao Work send button to a first-class selector ahead of the scoring heuristic', () => {
+        const script = __test__.clickSendButtonScript();
+        expect(script).toContain('button#flow-end-msg-send');
+        expect(script).toContain('[data-testid="chat_input_send_button"]');
+        // The direct hit must be attempted before the scored fallback loop.
+        expect(script.indexOf('[data-testid="chat_input_send_button"]')).toBeLessThan(script.indexOf('bestScore'));
+    });
+
+    it('confirms delivery on the Doubao Work skin when a new user bubble appears', async () => {
+        const { result, clicked, dom } = await sendFromFixture(doubaoWorkSkinComposer(true), {
+            onReady: (fixture) => {
+                fixture.window.document
+                    .querySelector('[data-testid="chat_input_send_button"]')
+                    .addEventListener('click', () => appendWorkSkinUserBubble(fixture, '你好'));
+            },
+        });
+        expect(result).toBe('button');
+        expect(clickedTestIds(clicked)).toContain('chat_input_send_button');
+        // The bubble the SPA rendered is what the confirmation counted.
+        expect(dom.window.document.querySelectorAll('[data-testid="send_message"]')).toHaveLength(1);
+    });
+
+    it('does not click the scoring-heuristic decoy while sending on the Doubao Work skin', async () => {
+        const { clicked } = await sendFromFixture(doubaoWorkSkinComposer(true), {
+            onReady: (fixture) => {
+                fixture.window.document
+                    .querySelector('[data-testid="chat_input_send_button"]')
+                    .addEventListener('click', () => appendWorkSkinUserBubble(fixture, '你好'));
+            },
+        });
+        // Regression guard for the exact silent failure: the decoy carries the
+        // heuristic's bg-dbx-fill-highlight bonus and would outscore the real
+        // button, clearing the composer without sending.
+        const decoy = clicked.find((node) => String(node.className || '').includes('bg-dbx-fill-highlight'));
+        expect(decoy).toBeUndefined();
+    });
+
+    it('throws a command error when the Doubao Work skin clears the composer without a new bubble', async () => {
+        let clicked = [];
+        const error = await sendFromFixture(doubaoWorkSkinComposer(false), {
+            onReady: (_dom, sink) => {
+                clicked = sink;
+            },
+        }).then(() => null, (thrown) => thrown);
+        expect(error).toBeInstanceOf(CommandExecutionError);
+        expect(error.message).toContain('消息未发出，输入框已被清空');
+        // Sanity: the fixture must actually reach the submit step, otherwise this
+        // test would pass for the wrong reason.
+        expect(clickedTestIds(clicked)).toContain('chat_input_send_button');
+    });
+
+    // The live conversation is a virtual list: scrolling and re-rendering change
+    // how many rows happen to be mounted, so the number of user bubbles is not a
+    // stable signal. Live evidence (2026-10-17): the rendered user-bubble count
+    // moved on a run where nothing was sent, and a count-based check reported a
+    // success that never happened. Confirmation keys on content instead.
+    const doubaoWorkSkinConversation = (body) => `
+      <main>
+        <section data-testid="message-list" class="v_list-D34x3M" data-rect="0,0,600,300">
+          <div class="scroller_content">
+            <div class="list_items">${body}</div>
+          </div>
+        </section>
+        <div data-testid="chat_input">
+          <textarea data-testid="chat_input_input" placeholder="发消息" data-rect="328,340,360,28"></textarea>
+          <button class="ring-dbx-fill-highlight-disable" data-testid="chat_input_send_button" data-rect="330,780,32,32"></button>
+        </div>
+      </main>
+    `;
+
+    const workSkinRow = (role, text) => `
+      <div class="v_list_row">
+        <div data-testid="union_message" class="w-full inner-item-BjaxFt">
+          <div data-testid="message-block-container" class="w-full">
+            <div data-testid="${role}">
+              <div data-testid="message_text_content">${text}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    it('confirms by content when the virtual list re-renders without growing the user-bubble count', async () => {
+        const { result, clicked } = await sendFromFixture(
+            doubaoWorkSkinConversation(workSkinRow('send_message', '旧问题')),
+            {
+                onReady: (fixture) => {
+                    fixture.window.document
+                        .querySelector('[data-testid="chat_input_send_button"]')
+                        .addEventListener('click', () => {
+                            // Virtual-list swap: the previously mounted row
+                            // unmounts while ours mounts, so the user-bubble
+                            // count does not move at all.
+                            fixture.window.document.querySelector('.list_items').innerHTML = workSkinRow('send_message', '你好');
+                        });
+                },
+            },
+        );
+        expect(result).toBe('button');
+        expect(clickedTestIds(clicked)).toContain('chat_input_send_button');
+    });
+
+    it('does not confirm a turn-count increase that never renders the sent text', async () => {
+        let clicked = [];
+        const error = await sendFromFixture(
+            doubaoWorkSkinConversation(workSkinRow('send_message', '旧问题')),
+            {
+                onReady: (fixture, sink) => {
+                    clicked = sink;
+                    fixture.window.document
+                        .querySelector('[data-testid="chat_input_send_button"]')
+                        .addEventListener('click', () => {
+                            // The live failure shape: the list re-renders with
+                            // extra turns, none of them the message we sent.
+                            appendWorkSkinTurns(
+                                fixture,
+                                workSkinRow('receive_message', '2') + workSkinRow('send_message', '别的消息'),
+                            );
+                        });
+                },
+            },
+        ).then(() => null, (thrown) => thrown);
+        expect(error).toBeInstanceOf(CommandExecutionError);
+        expect(error.message).toContain('消息未发出，输入框已被清空');
+        // Sanity: the fixture must reach the submit step, otherwise this test
+        // would pass for the wrong reason.
+        expect(clickedTestIds(clicked)).toContain('chat_input_send_button');
+    });
+
+    it('confirms delivery on the conversation skin when a new user bubble appears', async () => {
+        // 对话形态 fixture 来自历史版本、未经现网验证。
+        const { result, clicked } = await sendFromFixture(conversationSkinComposer, {
+            onReady: (fixture) => {
+                fixture.window.document.querySelector('#flow-end-msg-send').addEventListener('click', () => {
+                    fixture.window.document.querySelector('.message-list-S2Fv2S').insertAdjacentHTML(
+                        'beforeend',
+                        '<div class="top-item-user"><div class="inner-item-user"><div class="bg-g-send-msg-bubble">你好</div></div></div>',
+                    );
+                });
+            },
+        });
+        expect(result).toBe('button');
+        expect(clickedTestIds(clicked)).toContain('flow-end-msg-send');
+    });
+
+    it('throws a command error when the conversation skin clears the composer without a new bubble', async () => {
+        // 对话形态 fixture 来自历史版本、未经现网验证。Silent failure is just as
+        // dangerous on this skin, so the confirmation applies here too.
+        await expect(sendFromFixture(conversationSkinComposer)).rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
+    // Cross-skin mismatch guards. Both skins share the same URL, so the only
+    // safe way to tell their send buttons apart is that neither selector can
+    // resolve the other skin's markup. Each fixture is run through the combined
+    // script and the clicked element is pinned: a selector that starts matching
+    // across skins shows up as the wrong button being clicked.
+
+    it('does not let the Doubao Work send selector resolve a conversation-skin composer', async () => {
+        // 对话形态 fixture 来自历史版本、未经现网验证（本机账号只能进入工作形态）。
+        expect(conversationSkinComposer).not.toContain('chat_input_send_button');
+        const { clicked } = await sendFromFixture(conversationSkinComposer, {
+            onReady: (fixture) => {
+                fixture.window.document.querySelector('#flow-end-msg-send').addEventListener('click', () => {
+                    fixture.window.document.querySelector('.message-list-S2Fv2S').insertAdjacentHTML(
+                        'beforeend',
+                        '<div class="top-item-user"><div class="inner-item-user"><div class="bg-g-send-msg-bubble">你好</div></div></div>',
+                    );
+                });
+            },
+        });
+        expect(clickedTestIds(clicked)).toEqual(['flow-end-msg-send']);
+    });
+
+    it('does not let the conversation-skin send selector resolve a Doubao Work composer', async () => {
+        expect(doubaoWorkSkinComposer(false)).not.toContain('flow-end-msg-send');
+        const { clicked } = await sendFromFixture(doubaoWorkSkinComposer(false), {
+            onReady: (fixture) => {
+                fixture.window.document
+                    .querySelector('[data-testid="chat_input_send_button"]')
+                    .addEventListener('click', () => appendWorkSkinUserBubble(fixture, '你好'));
+            },
+        });
+        expect(clickedTestIds(clicked)).toEqual(['chat_input_send_button']);
     });
 });
 describe('doubao receive strategy', () => {
@@ -244,6 +679,118 @@ describe('doubao receive strategy', () => {
         ]);
     });
 
+    // ---------------------------------------------------------------------
+    // Doubao Work ("豆包工作") skin.
+    //
+    // Enterprise accounts land on a page whose URL is identical to the
+    // conversation skin, so the two can only be told apart by DOM shape.
+    // Doubao Work keeps the [data-testid="message-list"] /
+    // [data-testid="union_message"] item roots, but renders bubbles as
+    // [data-testid="send_message"] / [data-testid="receive_message"] with the
+    // text in [data-testid="message_text_content"] — the same three testids
+    // getConversationDetailScript() reads.
+    // ---------------------------------------------------------------------
+
+    // Live DOM sample from a Doubao Work conversation (2026-10-16): the message
+    // list is a virtual list (v_list_*), each row wraps one union_message.
+    const doubaoWorkSkin = `
+      <main>
+        <aside>最近</aside>
+        <section data-testid="message-list" class="v_list-D34x3M">
+          <div class="scroller v_list_scroller-BxcoIX">
+            <div class="scroller_content">
+              <div class="list_items">
+                <div class="v_list_row">
+                  <div data-testid="union_message" class="w-full inner-item-BjaxFt">
+                    <div data-testid="message-block-container" class="w-full">
+                      <div data-testid="send_message">
+                        <div data-testid="message_text_content">1+1 等于几？只回答一个数字。</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="v_list_row">
+                  <div data-testid="union_message" class="w-full inner-item-BjaxFt">
+                    <div data-testid="message-block-container" data-reply-message="true" class="w-full">
+                      <div data-testid="receive_message">
+                        <div data-testid="message_text_content">2</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+    `;
+
+    // 对话形态 fixture 来自历史版本、未经现网验证（本机账号只能进入工作形态，
+    // 无法对对话形态做端到端验证）。它取自本文件既有的 2026-05 DOM 片段。
+    const conversationSkin = `
+      <main>
+        <aside>历史对话</aside>
+        <section class="message-list-S2Fv2S">
+          <div class="top-item-user">
+            <div class="inner-item-user">
+              <div class="bg-g-send-msg-bubble">测试一下，只回复OK</div>
+            </div>
+          </div>
+          <div class="top-item-assistant">
+            <div class="inner-item-assistant">
+              <div class="flow-markdown-body"><p>OK</p></div>
+            </div>
+          </div>
+        </section>
+      </main>
+    `;
+
+    it('keeps the Doubao Work bubble testids in the turns script', () => {
+        const turnsScript = __test__.getTurnsScript();
+        expect(turnsScript).toContain('[data-testid="send_message"]');
+        expect(turnsScript).toContain('[data-testid="receive_message"]');
+        expect(turnsScript).toContain('[data-testid="message_text_content"]');
+        expect(turnsScript).toContain('[data-testid="union_message"]');
+    });
+
+    it('extracts user and assistant turns from the Doubao Work skin', () => {
+        expect(runTurnsScript(doubaoWorkSkin)).toEqual([
+            { Role: 'User', Text: '1+1 等于几？只回答一个数字。' },
+            { Role: 'Assistant', Text: '2' },
+        ]);
+    });
+
+    // Cross-skin mismatch guards. Adding a second skin's selectors to a shared
+    // candidate list is only safe if neither skin's markup can be picked up by
+    // the other skin's path, so each fixture is run through the combined script
+    // and the exact turns are pinned: a selector that starts matching across
+    // skins shows up as an added, dropped, or relabelled turn.
+
+    it('does not let the Doubao Work path misread a conversation-skin fixture', () => {
+        // Guard: the fixture must not carry Doubao Work markers, otherwise this
+        // test would not exercise the cross-skin path at all.
+        expect(conversationSkin).not.toContain('send_message');
+        expect(conversationSkin).not.toContain('receive_message');
+        expect(conversationSkin).not.toContain('message_text_content');
+
+        expect(runTurnsScript(conversationSkin)).toEqual([
+            { Role: 'User', Text: '测试一下，只回复OK' },
+            { Role: 'Assistant', Text: 'OK' },
+        ]);
+    });
+
+    it('does not let the conversation-skin path misread a Doubao Work fixture', () => {
+        // Guard: the fixture must not carry conversation-skin markers.
+        expect(doubaoWorkSkin).not.toContain('bg-g-send-msg-bubble');
+        expect(doubaoWorkSkin).not.toContain('bg-g-receive-msg-bubble');
+        expect(doubaoWorkSkin).not.toContain('flow-markdown-body');
+        expect(doubaoWorkSkin).not.toContain('md-box-root');
+
+        expect(runTurnsScript(doubaoWorkSkin)).toEqual([
+            { Role: 'User', Text: '1+1 等于几？只回答一个数字。' },
+            { Role: 'Assistant', Text: '2' },
+        ]);
+    });
 });
 describe('collectDoubaoTranscriptAdditions', () => {
     it('ignores landing-page capability chips that are not assistant content', () => {
@@ -350,5 +897,484 @@ describe('mergeTranscriptSnapshots', () => {
     it('keeps both windows when a virtualized panel returns adjacent chunks without full history', () => {
         const merged = mergeTranscriptSnapshots('Alice 00:00\nHello team\nBob 00:05\nHi', 'Alice 00:10\nNext topic\nBob 00:15\nAction items');
         expect(merged).toBe('Alice 00:00\nHello team\nBob 00:05\nHi\nAlice 00:10\nNext topic\nBob 00:15\nAction items');
+    });
+});
+describe('doubao page state login detection (status)', () => {
+    // Drives the real getDoubaoPageState() scripts through jsdom, so the asserted
+    // isLogin is exactly what `opencli doubao status` renders (Yes / No / Unknown).
+    //
+    // 对话形态 fixture 来自历史版本、未经现网验证（本机账号只能进入工作形态，
+    // 无法对对话形态做端到端验证）。结构取自本文件既有的 2026-05 DOM 片段：
+    // _ROUTER_DATA.loaderData.chat_layout.userSetting.data.is_login。
+    const conversationSkinRouterData = {
+        loaderData: { chat_layout: { userSetting: { data: { is_login: true } } } },
+    };
+    // Live sample from a Doubao Work page (2026-10-16): chat_layout exists but
+    // carries no userSetting at all, so the embedded-data fast path cannot answer.
+    const doubaoWorkSkinRouterData = {
+        loaderData: { chat_layout: { accountInfo: { data: { description: '' } } } },
+    };
+    const loggedInProbe = async () => ({
+        ok: true,
+        json: async () => ({ data: { user_id_str: '1065907194174404' } }),
+    });
+
+    // Runs the fixture through the real scripts. `probe` stands in for
+    // /passport/account/info/v2/; probeCalls counts how many times the account
+    // probe was reached, which is how the "no unconditional round trip" rule is
+    // asserted.
+    async function stateFromFixture(routerData, probe) {
+        const dom = new JSDOM('<textarea data-testid="chat_input_input" placeholder="发消息"></textarea>', {
+            url: 'https://www.doubao.com/chat/',
+            runScripts: 'outside-only',
+        });
+        if (routerData !== undefined)
+            dom.window._ROUTER_DATA = routerData;
+        let probeCalls = 0;
+        dom.window.fetch = async (...args) => {
+            probeCalls += 1;
+            return probe(...args);
+        };
+        const page = createPageMock();
+        vi.mocked(page.evaluate).mockImplementation(async (script) => (script === 'window.location.href'
+            ? 'https://www.doubao.com/chat/'
+            : dom.window.eval(script)));
+        const state = await getDoubaoPageState(page);
+        return { state, probeCalls };
+    }
+
+    it('reads the login state from the page-embedded data without reaching the account probe', async () => {
+        const { state, probeCalls } = await stateFromFixture(conversationSkinRouterData, loggedInProbe);
+        expect(state.isLogin).toBe(true);
+        expect(probeCalls).toBe(0);
+    });
+
+    it('keeps the embedded-data fast path as the source of truth when it says logged out', async () => {
+        const { state, probeCalls } = await stateFromFixture({
+            loaderData: { chat_layout: { userSetting: { data: { is_login: false } } } },
+        }, loggedInProbe);
+        expect(state.isLogin).toBe(false);
+        expect(probeCalls).toBe(0);
+    });
+
+    it('falls back to the account probe when the Doubao Work page has no embedded login flag', async () => {
+        // Guard: the fixture must genuinely lack the fast path, otherwise this
+        // test would pass without ever exercising the fallback.
+        expect(doubaoWorkSkinRouterData.loaderData.chat_layout.userSetting).toBeUndefined();
+
+        const { state, probeCalls } = await stateFromFixture(doubaoWorkSkinRouterData, loggedInProbe);
+        expect(state.isLogin).toBe(true);
+        expect(probeCalls).toBe(1);
+    });
+
+    it('reports logged out when the fallback probe is rejected by the account API', async () => {
+        const { state } = await stateFromFixture(doubaoWorkSkinRouterData, async () => ({
+            ok: false,
+            status: 401,
+            json: async () => ({}),
+        }));
+        expect(state.isLogin).toBe(false);
+    });
+
+    it('stays unknown instead of guessing when the fallback probe cannot reach the account API', async () => {
+        const { state } = await stateFromFixture(doubaoWorkSkinRouterData, async () => {
+            throw new Error('network down');
+        });
+        expect(state.isLogin).toBe(null);
+    });
+});
+// ask runs as two serial stages: confirm the message left the composer (its
+// own short verify window, independent of --timeout; a failure throws
+// immediately), then poll for the reply (a timeout here returns the System
+// line, never a throw). These tests drive the REAL ask command func through
+// the REAL utils against jsdom fixtures — the same stateful-DOM approach as
+// the send-delivery block above — so the pinned contract is exactly what
+// `opencli doubao ask` returns.
+describe('doubao ask two-stage flow', () => {
+    const ASK_PROMPT = '【#22 测试】请只回答数字 9';
+
+    // Doubao Work skin conversation with one prior turn pair, plus a composer.
+    // Geometry is per-element via data-rect like the send-delivery fixtures.
+    const askWorkSkinConversation = `
+      <main>
+        <section data-testid="message-list" class="v_list-D34x3M" data-rect="0,0,600,300">
+          <div class="scroller_content">
+            <div class="list_items">
+              <div class="v_list_row">
+                <div data-testid="union_message" class="w-full inner-item-BjaxFt">
+                  <div data-testid="message-block-container" class="w-full">
+                    <div data-testid="send_message">
+                      <div data-testid="message_text_content">旧问题</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="v_list_row">
+                <div data-testid="union_message" class="w-full inner-item-BjaxFt">
+                  <div data-testid="message-block-container" data-reply-message="true" class="w-full">
+                    <div data-testid="receive_message">
+                      <div data-testid="message_text_content">2</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+        <div data-testid="chat_input">
+          <textarea data-testid="chat_input_input" placeholder="发消息" data-rect="328,340,360,28"></textarea>
+          <button class="ring-dbx-fill-highlight-disable" data-testid="chat_input_send_button" data-rect="330,780,32,32"></button>
+        </div>
+      </main>
+    `;
+
+    const askWorkSkinRow = (role, text) => `
+      <div class="v_list_row">
+        <div data-testid="union_message" class="w-full inner-item-BjaxFt">
+          <div data-testid="message-block-container" class="w-full">
+            <div data-testid="${role}">
+              <div data-testid="message_text_content">${text}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    // Runs the real ask command func against the fixture. Every page.evaluate
+    // dispatches on the live DOM, so the bubble/reply appearing after the send
+    // click is what the two stages actually observe — no mocked call sequences.
+    async function askFromFixture(html, onSend, { text = ASK_PROMPT, timeout } = {}) {
+        const dom = new JSDOM(html, { url: 'https://www.doubao.com/chat', runScripts: 'outside-only' });
+        Object.defineProperty(dom.window.HTMLElement.prototype, 'innerText', {
+            configurable: true,
+            get() {
+                return this.textContent || '';
+            },
+        });
+        dom.window.HTMLElement.prototype.getBoundingClientRect = function () {
+            const spec = this.getAttribute('data-rect');
+            const [top, left, width, height] = spec ? spec.split(',').map(Number) : [0, 0, 100, 24];
+            return {
+                width,
+                height,
+                top,
+                left,
+                right: left + width,
+                bottom: top + height,
+                x: left,
+                y: top,
+                toJSON: () => ({}),
+            };
+        };
+        // The only click in the flow is the send submission, so onSend stands in
+        // for the live SPA rendering the bubble (and eventually the reply).
+        dom.window.document.addEventListener('click', () => onSend?.(dom), true);
+        const page = createPageMock();
+        vi.mocked(page.evaluate).mockImplementation(async (script) => (script === 'window.location.href'
+            ? 'https://www.doubao.com/chat'
+            : dom.window.eval(script)));
+        const result = await askCommand.func(page, { text, timeout });
+        return { result, dom };
+    }
+
+    it('returns the user turn and the assistant reply on the Doubao Work skin', async () => {
+        const { result } = await askFromFixture(askWorkSkinConversation, (fixture) => {
+            const list = fixture.window.document.querySelector('.list_items');
+            list.insertAdjacentHTML(
+                'beforeend',
+                askWorkSkinRow('send_message', ASK_PROMPT) + askWorkSkinRow('receive_message', '9'),
+            );
+        }, { timeout: 5 });
+        // Two-stage order is pinned here: if the reply stage ever ran before the
+        // send confirmation, no assistant turn would exist yet and ask would fall
+        // through to the System line instead of this Assistant row.
+        expect(result).toEqual([
+            { Role: 'User', Text: ASK_PROMPT },
+            { Role: 'Assistant', Text: '9' },
+        ]);
+    });
+
+    it('throws the send-confirmation error even with a large --timeout when nothing was sent', async () => {
+        // The 3s default verify window runs for real here (page.wait is mocked
+        // instant), so this test needs a generous wall-clock budget.
+        const error = await askFromFixture(askWorkSkinConversation, null, { timeout: 999 })
+            .then(() => null, (thrown) => thrown);
+        // Stage one must fail loudly — a System line from the reply stage would
+        // mean ask waited out --timeout instead of reporting the failed send.
+        expect(error).toBeInstanceOf(CommandExecutionError);
+        expect(error.message).toContain('消息未发出，输入框已被清空');
+    }, 20000);
+
+    it('keeps the System line when the send landed but no reply arrives within --timeout', async () => {
+        const { result } = await askFromFixture(askWorkSkinConversation, (fixture) => {
+            // Only the user's own bubble renders; the reply never does.
+            fixture.window.document.querySelector('.list_items')
+                .insertAdjacentHTML('beforeend', askWorkSkinRow('send_message', ASK_PROMPT));
+        }, { timeout: 1 });
+        // This also pins the no-echo guarantee: the only new content is the
+        // message ask itself sent, and it must not come back labelled as the
+        // assistant reply — neither from the turn extraction (User role is never
+        // a reply candidate) nor from the transcript fallback (prompt-echo
+        // lines are filtered).
+        expect(result).toEqual([
+            { Role: 'User', Text: ASK_PROMPT },
+            { Role: 'System', Text: 'No response within 1s. Doubao may still be generating.' },
+        ]);
+    });
+
+    it('returns the same two turns on the conversation skin', async () => {
+        // 对话形态 fixture 来自历史版本、未经现网验证（本机账号只能进入工作形态，
+        // 无法对对话形态做端到端验证）。结构取自本文件既有的 2026-05 DOM 片段：
+        // 发送按钮 button#flow-end-msg-send，用户气泡 .bg-g-send-msg-bubble，
+        // 助手回复 .flow-markdown-body。ask 的两段语义在对话形态必须一致。
+        const conversationSkinConversation = `
+          <main>
+            <section class="message-list-S2Fv2S" data-rect="0,0,600,300">
+              <div class="top-item-user">
+                <div class="inner-item-user">
+                  <div class="bg-g-send-msg-bubble">旧问题</div>
+                </div>
+              </div>
+              <div class="top-item-assistant">
+                <div class="inner-item-assistant">
+                  <div class="flow-markdown-body"><p>2</p></div>
+                </div>
+              </div>
+            </section>
+            <div data-testid="chat_input">
+              <textarea data-testid="chat_input_input" placeholder="发消息" data-rect="328,340,360,28"></textarea>
+              <button id="flow-end-msg-send" data-rect="330,780,32,32"></button>
+            </div>
+          </main>
+        `;
+        const { result } = await askFromFixture(conversationSkinConversation, (fixture) => {
+            fixture.window.document.querySelector('.message-list-S2Fv2S').insertAdjacentHTML(
+                'beforeend',
+                '<div class="top-item-user"><div class="inner-item-user">'
+                + `<div class="bg-g-send-msg-bubble">${ASK_PROMPT}</div></div></div>`
+                + '<div class="top-item-assistant"><div class="inner-item-assistant">'
+                + '<div class="flow-markdown-body"><p>9</p></div></div></div>',
+            );
+        }, { timeout: 5 });
+        expect(result).toEqual([
+            { Role: 'User', Text: ASK_PROMPT },
+            { Role: 'Assistant', Text: '9' },
+        ]);
+    });
+});
+// `read` cold start (issue #23). DOUBAO_CHAT_URL — /chat with no conversation
+// id — is the Doubao Work「新工作任务」homepage (0 message lists), while the
+// same URL in the conversation skin is the last conversation. When the page
+// yields no turns, read must open the most recent sidebar conversation (first
+// row of the same extraction `history` uses) instead of silently reporting no
+// messages — and must never navigate once it is on a conversation page. This
+// path belongs to `read` only: send/new legitimately start from the bare /chat
+// homepage, so it must not move into ensureDoubaoChatPage.
+describe('doubao read cold-start navigation', () => {
+    // Live-shape Doubao Work homepage fixture (2026-10-16): the sidebar exists
+    // with conversation items but the main area has NO message list at all —
+    // that is the cold-start page `read` used to get stuck on. Sidebar item
+    // shape mirrors doubaoWorkSkinSidebar: div[data-testid="conversation-list-v2-item"]
+    // with data-conversation-id, wrapped in its parent <a href="/chat/<id>">.
+    const readWorkSkinHomepage = `
+      <main>
+        <aside data-testid="flow_chat_sidebar">
+          <div data-testid="conversation-section">
+            <a href="/chat/46370507058831106">
+              <div data-testid="conversation-list-v2-item" data-conversation-id="46370507058831106">季度复盘会议纪要</div>
+            </a>
+            <a href="/chat/46370507058842882">
+              <div data-testid="conversation-list-v2-item" data-conversation-id="46370507058842882">新工作任务</div>
+            </a>
+          </div>
+        </aside>
+      </main>
+    `;
+
+    const readWorkSkinConversationRows = (userText, assistantText) => `
+      <section data-testid="message-list" class="v_list-D34x3M">
+        <div class="list_items">
+          <div class="v_list_row">
+            <div data-testid="union_message" class="w-full inner-item-BjaxFt">
+              <div data-testid="message-block-container" class="w-full">
+                <div data-testid="send_message">
+                  <div data-testid="message_text_content">${userText}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="v_list_row">
+            <div data-testid="union_message" class="w-full inner-item-BjaxFt">
+              <div data-testid="message-block-container" data-reply-message="true" class="w-full">
+                <div data-testid="receive_message">
+                  <div data-testid="message_text_content">${assistantText}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    `;
+
+    // 对话形态 fixture 来自历史版本、未经现网验证（本机账号只能进入工作形态，
+    // 无法对对话形态做端到端验证）。结构取自本文件既有的 2026-05 DOM 片段。
+    // Conversation-skin cold start lands on bare /chat already rendering the
+    // last conversation — read must read it in place and never navigate.
+    const readConversationSkinLastConversation = `
+      <main>
+        <section class="message-list-S2Fv2S">
+          <div class="top-item-user">
+            <div class="inner-item-user">
+              <div class="bg-g-send-msg-bubble">测试一下，只回复OK</div>
+            </div>
+          </div>
+          <div class="top-item-assistant">
+            <div class="inner-item-assistant">
+              <div class="flow-markdown-body"><p>OK</p></div>
+            </div>
+          </div>
+        </section>
+      </main>
+    `;
+
+    // Runs the real read path (getDoubaoReadTurns) against the fixture. Every
+    // page.evaluate dispatches on the live fixture DOM; goto stands in for the
+    // real SPA navigation — the URL changes and the conversation renders (via
+    // onNavigate), the same stand-in askFromFixture uses for the post-click
+    // bubble render.
+    async function readFromFixture(html, { url = 'https://www.doubao.com/chat', onNavigate } = {}) {
+        const dom = new JSDOM(html, { url, runScripts: 'outside-only' });
+        Object.defineProperty(dom.window.HTMLElement.prototype, 'innerText', {
+            configurable: true,
+            get() {
+                return this.textContent || '';
+            },
+        });
+        dom.window.HTMLElement.prototype.getBoundingClientRect = () => ({
+            width: 100,
+            height: 24,
+            top: 0,
+            left: 0,
+            right: 100,
+            bottom: 24,
+            x: 0,
+            y: 0,
+            toJSON: () => ({}),
+        });
+        const page = createPageMock();
+        vi.mocked(page.evaluate).mockImplementation(async (script) => (script === 'window.location.href'
+            ? dom.window.location.href
+            : dom.window.eval(script)));
+        vi.mocked(page.goto).mockImplementation(async (target) => {
+            dom.window.history.replaceState(null, '', target);
+            onNavigate?.(dom);
+        });
+        const result = await getDoubaoReadTurns(page);
+        return { result, page, dom };
+    }
+
+    it('navigates to the most recent sidebar conversation when parked on the bare /chat homepage', async () => {
+        const RECENT_USER = '【#23】最近会话的问题';
+        const RECENT_ASSISTANT = '【#23】最近会话的回答';
+        const { result, page } = await readFromFixture(readWorkSkinHomepage, {
+            onNavigate: (fixture) => {
+                // The homepage fixture itself must not render a conversation; the
+                // message list only exists after the SPA navigation lands.
+                fixture.window.document.querySelector('main')
+                    .insertAdjacentHTML('beforeend', readWorkSkinConversationRows(RECENT_USER, RECENT_ASSISTANT));
+            },
+        });
+        // The only way read can know where to go is the sidebar extraction, so a
+        // wrong target means the reuse broke. The first sidebar row is the most
+        // recent conversation.
+        expect(page.goto).toHaveBeenCalledTimes(1);
+        expect(page.goto).toHaveBeenCalledWith('https://www.doubao.com/chat/46370507058831106', expect.anything());
+        expect(result).toEqual([
+            { Role: 'User', Text: RECENT_USER },
+            { Role: 'Assistant', Text: RECENT_ASSISTANT },
+        ]);
+    });
+
+    it('does not navigate when already parked on a Doubao Work conversation page', async () => {
+        const { result, page } = await readFromFixture(readWorkSkinConversationRows('1+1 等于几？只回答一个数字。', '2'), {
+            url: 'https://www.doubao.com/chat/38447502791592450',
+        });
+        expect(page.goto).not.toHaveBeenCalled();
+        expect(result).toEqual([
+            { Role: 'User', Text: '1+1 等于几？只回答一个数字。' },
+            { Role: 'Assistant', Text: '2' },
+        ]);
+    });
+
+    it('raises an understandable error when the bare /chat homepage lists no conversations', async () => {
+        const emptyHomepage = `
+          <main>
+            <aside data-testid="flow_chat_sidebar">
+              <div data-testid="conversation-section"></div>
+            </aside>
+          </main>
+        `;
+        const error = await readFromFixture(emptyHomepage).then(() => null, (thrown) => thrown);
+        expect(error).toBeInstanceOf(CommandExecutionError);
+        expect(error.message).toContain('侧栏');
+        expect(error.message).toContain('没有任何会话');
+    });
+
+    // Cross-skin mismatch guards. Both skins share the same bare /chat URL, so
+    // the cold-start decision must trigger on the Work homepage's shape (no
+    // turns) and NOT on the conversation skin's last-conversation page.
+
+    it('does not navigate when the conversation skin already renders the last conversation on bare /chat', async () => {
+        // Guard: the fixture must not carry Doubao Work markers, otherwise this
+        // test would not exercise the cross-skin path at all.
+        expect(readConversationSkinLastConversation).not.toContain('send_message');
+        expect(readConversationSkinLastConversation).not.toContain('receive_message');
+        expect(readConversationSkinLastConversation).not.toContain('conversation-list-v2-item');
+        const { result, page } = await readFromFixture(readConversationSkinLastConversation);
+        expect(page.goto).not.toHaveBeenCalled();
+        expect(result).toEqual([
+            { Role: 'User', Text: '测试一下，只回复OK' },
+            { Role: 'Assistant', Text: 'OK' },
+        ]);
+    });
+
+    it('does not navigate away from an id-bearing conversation page even when no turns render yet', async () => {
+        // The cold-start condition is bare-/chat + no turns; an id page with no
+        // rendered turns is still a conversation page and must keep the old
+        // behavior (System fallback upstream, no navigation) even though the
+        // sidebar could offer a target.
+        const { result, page } = await readFromFixture(readWorkSkinHomepage, {
+            url: 'https://www.doubao.com/chat/38447502791592450',
+        });
+        expect(page.goto).not.toHaveBeenCalled();
+        expect(result).toEqual([]);
+    });
+
+    // 对话形态 fixture 来自历史版本、未经现网验证（本机账号只能进入工作形态，
+    // 无法对对话形态做端到端验证）。侧栏项取自本文件既有的对话形态片段：
+    // 会话项本身就是 <a data-testid="chat_list_thread_item" href="/chat/<id>">。
+    // Cold-start navigation must find the recent conversation through the
+    // conversation-skin sidebar shape too — the same shared extraction, not a
+    // Work-only path.
+    it('navigates to the most recent conversation via the conversation-skin sidebar shape as well', async () => {
+        const conversationSkinHomepage = `
+          <main>
+            <aside data-testid="flow_chat_sidebar">
+              <a data-testid="chat_list_thread_item" href="/chat/1234567890123">Weekly Sync</a>
+              <a data-testid="chat_list_thread_item" href="/chat/9876543210987">Sprint 计划</a>
+            </aside>
+          </main>
+        `;
+        const { result, page } = await readFromFixture(conversationSkinHomepage, {
+            onNavigate: (fixture) => {
+                fixture.window.document.querySelector('main').insertAdjacentHTML('beforeend', readConversationSkinLastConversation);
+            },
+        });
+        expect(page.goto).toHaveBeenCalledTimes(1);
+        expect(page.goto).toHaveBeenCalledWith('https://www.doubao.com/chat/1234567890123', expect.anything());
+        expect(result).toEqual([
+            { Role: 'User', Text: '测试一下，只回复OK' },
+            { Role: 'Assistant', Text: 'OK' },
+        ]);
     });
 });

@@ -47,7 +47,7 @@ export default defineConfig({
             ...(process.env.OPENCLI_P0_E2E === '1' ? ['tests/e2e/browser-p0-chrome.test.ts'] : []),
             // Live sites require an authenticated browser; keep them out of offline E2E.
             //   OPENCLI_E2E=1 npx vitest run
-            ...(includeExtendedE2e ? ['tests/e2e/browser-public.test.ts', 'tests/e2e/douban.test.ts', 'tests/e2e/plugin-management.test.ts', 'tests/e2e/article-download-pipeline.test.ts'] : []),
+            ...(includeExtendedE2e ? ['tests/e2e/browser-public.test.ts', 'tests/e2e/douban.test.ts', 'tests/e2e/plugin-management.test.ts', 'tests/e2e/article-download-pipeline.test.ts', 'tests/e2e/doubao-work-skin.test.ts'] : []),
           ],
           maxWorkers: 2,
           sequence: { groupOrder: 3 },

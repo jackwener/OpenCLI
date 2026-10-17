@@ -126,6 +126,29 @@ function getStateScript() {
     })()
   `;
 }
+// Account-API login probe, used ONLY when the page-embedded fast path cannot
+// answer. The Doubao Work skin's chat_layout carries no userSetting, so
+// is_login never resolves there and `status` used to report Unknown. This is the
+// same /passport/account/info/v2/ probe `whoami` runs (see clis/doubao/auth.js),
+// which is verified working in both skins.
+// Returns true / false, or null when the probe itself could not run.
+function getLoginProbeScript() {
+    return `
+    (async () => {
+      try {
+        const response = await fetch('/passport/account/info/v2/', {
+          credentials: 'include',
+          headers: { Accept: 'application/json' },
+        });
+        if (!response.ok) return false;
+        const payload = await response.json();
+        return !!(payload?.data?.user_id_str);
+      } catch {
+        return null;
+      }
+    })()
+  `;
+}
 function getTurnsScript() {
     return `
     (() => {
@@ -475,13 +498,25 @@ function clickSendButtonScript() {
     return `
     (() => {
       ${buildDoubaoComposerLocatorScript()}
-      const directSendButton = document.querySelector('button#flow-end-msg-send');
-      if (directSendButton instanceof HTMLElement && isVisible(directSendButton)) {
-        const disabled = directSendButton.getAttribute('disabled') !== null
-          || directSendButton.getAttribute('aria-disabled') === 'true';
-        if (!disabled) {
-          directSendButton.click();
-          return true;
+      // First-class send buttons, tried before any scoring heuristic.
+      // button#flow-end-msg-send is the conversation skin. The Doubao Work skin
+      // uses [data-testid="chat_input_send_button"], whose class is
+      // ring-dbx-fill-highlight-disable — one prefix away from the heuristic's
+      // bg-dbx-fill-highlight keyword. That gap is why the heuristic used to
+      // pick some other button and clear the composer without sending anything.
+      const directSendSelectors = [
+        'button#flow-end-msg-send',
+        '[data-testid="chat_input_send_button"]',
+      ];
+      for (const directSendSelector of directSendSelectors) {
+        const directSendButton = document.querySelector(directSendSelector);
+        if (directSendButton instanceof HTMLElement && isVisible(directSendButton)) {
+          const disabled = directSendButton.getAttribute('disabled') !== null
+            || directSendButton.getAttribute('aria-disabled') === 'true';
+          if (!disabled) {
+            directSendButton.click();
+            return true;
+          }
         }
       }
 
@@ -653,7 +688,15 @@ export async function ensureDoubaoChatPage(page) {
 }
 export async function getDoubaoPageState(page) {
     await ensureDoubaoChatPage(page);
-    return await page.evaluate(getStateScript());
+    const state = await page.evaluate(getStateScript());
+    if (typeof state?.isLogin === 'boolean')
+        return state;
+    // The embedded-data fast path came up empty, so pay for exactly one account
+    // probe rather than letting `status` print Unknown. When the fast path works
+    // (the conversation skin) this branch is never reached, so `status` does not
+    // become an unconditional network round trip.
+    const probed = await page.evaluate(getLoginProbeScript()).catch(() => null);
+    return { ...state, isLogin: typeof probed === 'boolean' ? probed : null };
 }
 export async function getDoubaoTurns(page) {
     await ensureDoubaoChatPage(page);
@@ -667,12 +710,116 @@ export async function getDoubaoVisibleTurns(page) {
     await ensureDoubaoChatPage(page);
     return await page.evaluate(getTurnsScript());
 }
+// Cold-start read path (issue #23), used by `read` ONLY. DOUBAO_CHAT_URL —
+// /chat with no conversation id — is the last conversation in the conversation
+// skin but the Doubao Work「新工作任务」homepage (0 message lists), so a cold
+// start used to sit on that homepage and silently report no messages. When the
+// current page yields no turns AND the URL is the bare /chat homepage, open the
+// most recent sidebar conversation (first row of the same extraction `history`
+// uses) and read there. This must NOT live in ensureDoubaoChatPage: send/new
+// legitimately start from the bare /chat homepage — it is the new-task entry.
+const DOUBAO_BARE_CHAT_URL_PATTERN = /^https:\/\/www\.doubao\.com\/chat\/?(?:[?#].*)?$/;
+export async function getDoubaoReadTurns(page) {
+    const turns = await getDoubaoVisibleTurns(page);
+    if (turns.length > 0)
+        return turns;
+    const currentUrl = await page.evaluate('window.location.href').catch(() => '');
+    if (typeof currentUrl !== 'string' || !DOUBAO_BARE_CHAT_URL_PATTERN.test(currentUrl)) {
+        // A conversation page (/chat/<id>) that simply has no rendered turns —
+        // keep the existing no-navigation behavior.
+        return turns;
+    }
+    const conversations = await getDoubaoConversationList(page);
+    if (conversations.length === 0) {
+        throw new CommandExecutionError('Doubao has no conversation to read (侧栏中没有任何会话)', 'The adapter is on the bare Doubao /chat page (the Doubao Work homepage) with no conversation content, and the sidebar lists no conversations — there is nothing to open.');
+    }
+    await navigateToConversation(page, conversations[0].Id);
+    return await getDoubaoVisibleTurns(page);
+}
 export async function getDoubaoTranscriptLines(page) {
     await ensureDoubaoChatPage(page);
     return await page.evaluate(getTranscriptLinesScript());
 }
-export async function sendDoubaoMessage(page, text) {
+// Delivery confirmation. `sendDoubaoMessage` used to report success as soon as
+// it had clicked something, so a cleared composer with no message sent looked
+// identical to a real send. Success now means the conversation's last user
+// bubble IS the message we just sent. Both skins are confirmed: silent failure
+// is just as dangerous on the conversation skin.
+const DOUBAO_SEND_VERIFY_INTERVAL_MS = 500;
+// Live e2e evidence (2026-10-17): with a freshly loaded page the sent bubble
+// rendered AFTER this window closed — the message had landed (Doubao even
+// auto-titled a conversation from it) while the check reported a failure.
+// 10s still fails fast on the truly-not-sent paths (hidden tab keeps the
+// button disabled forever) while tolerating a slow first render.
+const DOUBAO_SEND_VERIFY_WINDOW_MS = 10000;
+// The conversation is a virtual list: how many rows are mounted changes with
+// scrolling and re-rendering, so a bubble count is not a stable signal. Live
+// evidence (2026-10-17): the rendered user-bubble count moved on a run where
+// nothing was sent, which a count-based check reported as a success that never
+// happened. Match on content instead — a re-render can add or drop unrelated
+// rows, but it cannot fabricate our exact message text.
+//
+// ponytail: a repeat send of identical text is treated as confirmed as soon as
+// that text is the last user bubble, so a failed duplicate send can be reported
+// as delivered. Counting is wrong far more often (every virtual-list
+// re-render); revisit only if duplicate sends turn out to matter.
+// Whitespace-insensitive on purpose: Doubao's editor inserts a space at
+// ASCII/CJK boundaries (盘古之白), so a sent "【E2E自测】" lands as
+// "【E2E 自测】". Comparing space-free keeps delivery confirmation immune
+// to that cosmetic auto-spacing.
+const normalizeBubbleText = (value) => String(value || '').replace(/\s+/g, '');
+async function getDoubaoLastUserBubbleText(page) {
+    const turns = await page.evaluate(getTurnsScript());
+    if (!Array.isArray(turns))
+        return '';
+    for (let i = turns.length - 1; i >= 0; i--) {
+        if (turns[i]?.Role === 'User')
+            return String(turns[i]?.Text || '');
+    }
+    return '';
+}
+async function waitForDoubaoUserBubble(page, sentText, intervalMs, windowMs) {
+    const expected = normalizeBubbleText(sentText);
+    const deadline = Date.now() + windowMs;
+    for (;;) {
+        if (normalizeBubbleText(await getDoubaoLastUserBubbleText(page)) === expected)
+            return true;
+        if (Date.now() >= deadline)
+            return false;
+        await page.wait(intervalMs / 1000);
+    }
+}
+/**
+ * Insert `text` into the Doubao composer, submit it, and confirm delivery.
+ * Delivery is confirmed by content — the conversation's last user bubble must
+ * equal `text` (whitespace-normalized) within the verification window — because
+ * the conversation is a virtualized list whose rendered bubble count changes
+ * with scrolling, so a count is not a stable signal. Throws
+ * CommandExecutionError when the message did not land.
+ *
+ * @param {{ evaluate: Function, wait: Function, nativeType?: Function, nativeKeyPress?: Function }} page
+ * @param {string} text
+ * @param {{ verifyIntervalMs?: number, verifyWindowMs?: number }} [options]
+ *     Test hook: pass 0/0 to skip the delivery wait entirely.
+ * @returns {Promise<'button'|'enter'>} how the message was submitted
+ */
+export async function sendDoubaoMessage(page, text, options = {}) {
+    const verifyIntervalMs = options.verifyIntervalMs ?? DOUBAO_SEND_VERIFY_INTERVAL_MS;
+    const verifyWindowMs = options.verifyWindowMs ?? DOUBAO_SEND_VERIFY_WINDOW_MS;
     await ensureDoubaoChatPage(page);
+    // Activate the adapter tab before composing: Doubao keeps the send button
+    // disabled while document.hidden is true, and the live blocker was a hidden
+    // tab (not a minimized window). CDP Page.bringToFront makes the tab the
+    // active one WITHOUT stealing OS window focus — the window may stay behind
+    // other windows. Best-effort single call: when activation cannot lift
+    // document.hidden (a fully occluded or minimized window, which Chrome
+    // always reports as hidden) the tabHidden error path below stays as the
+    // fallback.
+    try {
+        if (typeof page.cdp === 'function')
+            await page.cdp('Page.bringToFront');
+    }
+    catch { /* best effort — the tabHidden fallback below still reports */ }
     const normalizeComposerText = (value) => value.replace(/\r\n/g, '\n').trim();
     const expectedText = normalizeComposerText(text);
     const prepared = await page.evaluate(prepareDoubaoComposerScript());
@@ -719,6 +866,18 @@ export async function sendDoubaoMessage(page, text) {
         throw new CommandExecutionError('Doubao blocked the request with a verification challenge', verification.reason
             ? `Detected challenge signal: ${verification.reason}`
             : 'Please complete the challenge in the browser and try again.');
+    }
+    const delivered = await waitForDoubaoUserBubble(page, text, verifyIntervalMs, verifyWindowMs);
+    if (!delivered) {
+        // Live root cause (2026-10-17): the adapter's Chrome window was
+        // minimized, so document.hidden was true and Doubao kept the send
+        // button disabled — no click or Enter could send anything. Say so
+        // instead of leaving a generic failure behind.
+        const tabHidden = await page.evaluate('document.hidden === true').catch(() => false);
+        throw new CommandExecutionError('Doubao did not send the message (消息未发出，输入框已被清空)', `The conversation's last user bubble is not the message that was sent (waited ${verifyWindowMs}ms).`
+            + (tabHidden
+                ? ' The adapter tab is hidden right now; Doubao keeps the send button disabled while the tab is hidden, so nothing can be sent. Bring the Doubao window forward (or re-run with --window foreground) and retry.'
+                : ' The composer was cleared, so the text is gone — reopen the conversation and retry.'));
     }
     return submittedBy;
 }
@@ -825,18 +984,43 @@ function getConversationListScript() {
       const sidebar = document.querySelector('[data-testid="flow_chat_sidebar"]');
       if (!sidebar) return [];
 
-      const items = Array.from(
-        sidebar.querySelectorAll('a[data-testid="chat_list_thread_item"]')
+      // Doubao serves two page skins from the same URL and the same sidebar root.
+      // Conversation skin: the item IS the <a href="/chat/<id>">. Doubao Work
+      // skin: the item is a div[data-testid="conversation-list-v2-item"] that
+      // carries data-conversation-id, and its <a href="/chat/<id>"> is the
+      // PARENT (verified against the live DOM, not a descendant), while the title
+      // is the item's own text. Both selectors are kept so neither skin regresses.
+      const itemSelectors = [
+        'a[data-testid="chat_list_thread_item"]',
+        '[data-testid="conversation-list-v2-item"]',
+      ];
+
+      const items = itemSelectors.flatMap(
+        (selector) => Array.from(sidebar.querySelectorAll(selector))
       );
 
+      // Doubao Work renders the title three times inside the item (hidden copies
+      // behind its overflow effect), so textContent repeats it verbatim and the
+      // naive title came out tripled. Collapse an exact repetition of the whole
+      // string; an ordinary title has no whole-string period and passes through.
+      const collapseRepeatedText = (value) => {
+        for (let len = 1; len <= value.length / 2; len += 1) {
+          if (value.length % len !== 0) continue;
+          if (value.slice(0, len).repeat(value.length / len) === value) return value.slice(0, len);
+        }
+        return value;
+      };
+
       return items
-        .map(a => {
-          const href = a.getAttribute('href') || '';
-          const match = href.match(/\\/chat\\/(\\d{10,})/);
+        .map(item => {
+          const dataId = item.getAttribute('data-conversation-id') || '';
+          const link = item.matches('a[href]') ? item : item.closest('a[href]');
+          const href = link ? (link.getAttribute('href') || '') : '';
+          const match = dataId.match(/^(\\d{10,})$/) || href.match(/\\/chat\\/(\\d{10,})/);
           if (!match) return null;
           const id = match[1];
-          const textContent = (a.textContent || a.innerText || '').trim();
-          const title = textContent
+          const textContent = (item.textContent || item.innerText || '').trim();
+          const title = collapseRepeatedText(textContent)
             .replace(/\\s+/g, ' ')
             .substring(0, 200);
           return { id, title, href };
@@ -1140,6 +1324,7 @@ export const __test__ = {
     clickSendButtonScript,
     composerStateScript,
     detectDoubaoVerificationScript,
+    getConversationListScript,
     getTurnsScript,
     getTranscriptLinesScript,
 };
