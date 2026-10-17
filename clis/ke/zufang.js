@@ -1,5 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { gotoKe } from './utils.js';
+import { buildZufangFilterPath } from './zufang-filters.js';
 
 cli({
     site: 'ke',
@@ -10,10 +11,18 @@ cli({
     strategy: Strategy.COOKIE,
     browser: true,
     args: [
-        { name: 'city', default: 'bj', help: '城市代码，如 bj(北京), sh(上海), gz(广州), sz(深圳), zs(中山)' },
-        { name: 'district', help: '区域拼音，如 chaoyang, haidian' },
+        { name: 'city', default: 'bj', help: '城市代码，如 bj(北京), sh(上海), gz(广州), sz(深圳), zs(中山), hz(杭州)' },
+        { name: 'district', help: '区域拼音，如 chaoyang, haidian, pudong' },
         { name: 'min-price', type: 'int', help: '最低月租（元）' },
         { name: 'max-price', type: 'int', help: '最高月租（元）' },
+        { name: 'rooms', type: 'int', help: '户型居室数 (1-4)，4 表示四居及以上' },
+        { name: 'rent-type', choices: ['whole', 'shared'], help: '方式：whole(整租)/shared(合租)' },
+        { name: 'orientation', choices: ['south-north', 'south', 'east', 'north', 'west'], help: '朝向：south-north(南北)/south(南)/east(东)/north(北)/west(西)' },
+        { name: 'features', help: '特色，逗号分隔多选：near-subway,bag-in,fine,deposit-one,new,certified,anytime-view,vr,owner-rec' },
+        { name: 'lease-term', choices: ['monthly', 'yearly', 'min-1month', '1-3months', '4-6months'], help: '租期：monthly(月租)/yearly(年租)/min-1month(一个月起租)/1-3months/4-6months' },
+        { name: 'floor', choices: ['low', 'mid', 'high'], help: '楼层：low(低)/mid(中)/high(高)' },
+        { name: 'elevator', choices: ['yes', 'no'], help: '电梯：yes(有)/no(无)' },
+        { name: 'sort', choices: ['newest', 'rent-asc', 'rent-desc', 'area-asc', 'area-desc'], help: '排序：newest(最新上架)/rent-asc|desc(租金)/area-asc|desc(面积)' },
         { name: 'limit', type: 'int', default: 20, help: '返回数量' },
     ],
     columns: ['title', 'community', 'area', 'layout', 'price', 'url'],
@@ -26,14 +35,7 @@ cli({
             path = `/zufang/${kwargs.district}/`;
         }
 
-        const priceParts = [];
-        if (kwargs['min-price'] || kwargs['max-price']) {
-            const min = kwargs['min-price'] || '';
-            const max = kwargs['max-price'] || '';
-            priceParts.push(`rp${min}t${max}`);
-        }
-        const filters = priceParts.join('');
-
+        const filters = buildZufangFilterPath(kwargs);
         const baseUrl = `https://${city}.zu.ke.com`;
         const url = baseUrl + path + (filters ? filters + '/' : '');
 
