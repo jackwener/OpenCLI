@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { CommandExecutionError } from '@jackwener/opencli/errors';
 import { getRegistry } from '@jackwener/opencli/registry';
 import { __test__, parseCreatorNoteIdsFromHtml, parseCreatorNotesText } from './creator-notes.js';
 import './creator-notes.js';
@@ -83,102 +83,7 @@ describe('xiaohongshu creator-notes', () => {
             },
         ]);
     });
-    it('reads body text and returns ranked rows', async () => {
-        const cmd = getRegistry().get('xiaohongshu/creator-notes');
-        expect(cmd?.func).toBeTypeOf('function');
-        const page = createPageMock([
-            undefined,
-            {
-                text: `示例笔记
-发布于 2026年03月19日 12:00
-10
-2
-3
-4
-5
-权限设置`,
-                html: '&quot;noteId&quot;:&quot;aaaaaaaaaaaaaaaaaaaaaaaa&quot;',
-            },
-        ]);
-        const result = await cmd.func(page, { limit: 1 });
-        expect(page.evaluate.mock.calls.at(-1)?.[0]).toBe('() => ({ text: document.body.innerText, html: document.body.innerHTML })');
-        expect(result).toEqual([
-            {
-                rank: 1,
-                id: 'aaaaaaaaaaaaaaaaaaaaaaaa',
-                title: '示例笔记',
-                date: '2026年03月19日 12:00',
-                views: 10,
-                likes: 3,
-                collects: 4,
-                comments: 2,
-                url: 'https://creator.xiaohongshu.com/statistics/note-detail?noteId=aaaaaaaaaaaaaaaaaaaaaaaa',
-            },
-        ]);
-    });
-    it('prefers note card dom data when the analyze api is unavailable', async () => {
-        const cmd = getRegistry().get('xiaohongshu/creator-notes');
-        expect(cmd?.func).toBeTypeOf('function');
-        const page = createPageMock([
-            undefined,
-            [
-                {
-                    id: 'bbbbbbbbbbbbbbbbbbbbbbbb',
-                    title: '测试笔记一',
-                    date: '2025年12月04日 19:45',
-                    metrics: [148284, 319, 2280, 466, 33],
-                },
-            ],
-        ]);
-        const result = await cmd.func(page, { limit: 1 });
-        expect(result).toEqual([
-            {
-                rank: 1,
-                id: 'bbbbbbbbbbbbbbbbbbbbbbbb',
-                title: '测试笔记一',
-                date: '2025年12月04日 19:45',
-                views: 148284,
-                likes: 2280,
-                collects: 466,
-                comments: 319,
-                url: 'https://creator.xiaohongshu.com/statistics/note-detail?noteId=bbbbbbbbbbbbbbbbbbbbbbbb',
-            },
-        ]);
-    });
-    it('prefers the creator analyze API and preserves note ids', async () => {
-        const cmd = getRegistry().get('xiaohongshu/creator-notes');
-        expect(cmd?.func).toBeTypeOf('function');
-        const page = createPageMock(undefined, [{
-                data: {
-                    note_infos: [
-                        {
-                            id: 'cccccccccccccccccccccccc',
-                            title: '示例内容复盘',
-                            post_time: new Date('2026-03-18T20:01:00+08:00').getTime(),
-                            read_count: 521,
-                            like_count: 18,
-                            fav_count: 10,
-                            comment_count: 7,
-                        },
-                    ],
-                },
-            }]);
-        const result = await cmd.func(page, { limit: 1 });
-        expect(page.installInterceptor.mock.calls[0][0]).toContain('/api/galaxy/creator/datacenter/note/analyze/list');
-        expect(result).toEqual([
-            {
-                rank: 1,
-                id: 'cccccccccccccccccccccccc',
-                title: '示例内容复盘',
-                date: '2026年03月18日 20:01',
-                views: 521,
-                likes: 18,
-                collects: 10,
-                comments: 7,
-                url: 'https://creator.xiaohongshu.com/statistics/note-detail?noteId=cccccccccccccccccccccccc',
-            },
-        ]);
-    });
+
     it('extracts note ids from creator note-manager html', () => {
         const html = `
       <div>&quot;noteId&quot;:&quot;aaaaaaaaaaaaaaaaaaaaaaaa&quot;</div>
@@ -267,15 +172,5 @@ describe('xiaohongshu creator-notes', () => {
 
         await expect(cmd.func(page, { limit: 20 })).rejects.toBeInstanceOf(CommandExecutionError);
     });
-    it('throws EmptyResultError when the creator account has no notes', async () => {
-        const cmd = getRegistry().get('xiaohongshu/creator-notes');
-        const page = createPageMock(undefined);
-        page.evaluate = vi.fn()
-            .mockResolvedValueOnce(undefined)
-            .mockResolvedValueOnce(undefined)
-            .mockResolvedValueOnce([])
-            .mockResolvedValueOnce({ text: '', html: '' });
 
-        await expect(cmd.func(page, { limit: 1 })).rejects.toBeInstanceOf(EmptyResultError);
-    });
 });

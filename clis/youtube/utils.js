@@ -234,3 +234,30 @@ export async function readYoutubeSapisid(page) {
     || null
   );
 }
+
+/**
+ * Depth-first search for the first value stored under `key` anywhere inside a
+ * nested InnerTube payload (objects and arrays). Returns `undefined` when the
+ * key is absent. YouTube renames renderer wrappers often, so callers look for
+ * the leaf key instead of hard-coding the full path.
+ *
+ * Pure — safe to inject into page.evaluate() via `findKeyDeep.toString()`.
+ */
+export function findKeyDeep(value, key) {
+    const stack = [value];
+    while (stack.length) {
+        const current = stack.pop();
+        if (!current || typeof current !== 'object') continue;
+        if (!Array.isArray(current) && Object.prototype.hasOwnProperty.call(current, key)) {
+            return current[key];
+        }
+        const children = Array.isArray(current) ? current : Object.values(current);
+        for (let i = children.length - 1; i >= 0; i -= 1) stack.push(children[i]);
+    }
+    return undefined;
+}
+
+/** True when `id` has the shape of a YouTube video id (11 URL-safe chars). */
+export function isYoutubeVideoId(id) {
+    return typeof id === 'string' && /^[A-Za-z0-9_-]{11}$/.test(id);
+}

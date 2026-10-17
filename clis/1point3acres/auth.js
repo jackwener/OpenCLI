@@ -7,7 +7,7 @@ export const IDENTITY_PROBE_JS = `
         return { kind: 'auth', detail: '1point3acres bbs redirected to auth login' };
       }
       const loginLink = document.querySelector('a[href*="auth.1point3acres.com/login"], a[href*="member.php?mod=logging&action=login"]');
-      if (loginLink && /登录/.test(loginLink.innerText || '')) {
+      if (loginLink && /登录/.test(loginLink.innerText || loginLink.textContent || '')) {
         return { kind: 'auth', detail: '1point3acres bbs shows 登录 link — anonymous' };
       }
       const nameEl = document.querySelector('a[title="访问我的空间"], #um .vwmy h4 a, a.username, .vwmy a');
@@ -16,10 +16,10 @@ export const IDENTITY_PROBE_JS = `
       if (!uid && !username) {
         const hasLoggedInMenu = !!document.querySelector('#g_upmine, #extcreditmenu');
         return {
-          kind: hasLoggedInMenu ? 'shape' : 'auth',
+          kind: 'shape',
           detail: hasLoggedInMenu
             ? '1point3acres bbs rendered logged-in menus but no identity link'
-            : '1point3acres bbs rendered but no logged-in identity',
+            : '1point3acres page has no recognizable current-user identity',
         };
       }
       return { ok: true, user_id: uid, username };
@@ -36,7 +36,9 @@ async function verify1Point3AcresIdentity(page) {
   if (!await has1Point3AcresAuthCookie(page)) {
     throw new AuthRequiredError('1point3acres.com', '1point3acres Discuz *_auth cookie missing');
   }
-  await page.goto('https://www.1point3acres.com/bbs/');
+  // The forum landing page redirects to /home, which lacks Discuz identity markup.
+  // This native page preserves the user's saved forum UI preference.
+  await page.goto('https://www.1point3acres.com/bbs/home.php?mod=space');
   await page.wait(2);
   const probe = await page.evaluate(IDENTITY_PROBE_JS);
   if (probe?.kind === 'auth') throw new AuthRequiredError('1point3acres.com', probe.detail);

@@ -37,11 +37,11 @@ npx skills add jackwener/opencli --skill opencli-browser
 ```
 
 ```bash
-opencli browser work open https://example.com
-opencli browser work state
-opencli browser work extract
-opencli browser work screenshot /tmp/opencli-example.png
-opencli browser work close
+opencli browser --session work open https://example.com
+opencli browser --session work state
+opencli browser --session work extract
+opencli browser --session work screenshot /tmp/opencli-example.png
+opencli browser --session work close
 ```
 
 多次调用使用相同的 `work` session。`state` 返回 interactive elements 的数字 references；点击或填写表单时使用最新 state 中的 reference 或 CSS selector，页面变化后重新检查 state。`close` 释放 session 的 tab lease。
@@ -50,15 +50,15 @@ opencli browser work close
 
 | 操作 | agent-browser | OpenCLI |
 |------|---------------|---------|
-| 打开网页 | `agent-browser open https://example.com` | `opencli browser work open https://example.com` |
-| 检查页面 | `agent-browser snapshot` | `opencli browser work state` |
-| 点击元素 | `agent-browser click @e2` | `opencli browser work click 2` |
-| 填写输入框 | `agent-browser fill "#email" "test@example.com"` | `opencli browser work fill "#email" "test@example.com"` |
-| 按键 | `agent-browser press Enter` | `opencli browser work keys Enter` |
-| 读取内容 | `agent-browser get text body` | `opencli browser work extract` |
-| 截图 | `agent-browser screenshot page.png` | `opencli browser work screenshot page.png` |
-| 执行 JavaScript | `agent-browser eval "document.title"` | `opencli browser work eval "document.title"` |
-| 结束 session | `agent-browser close` | `opencli browser work close` |
+| 打开网页 | `agent-browser open https://example.com` | `opencli browser --session work open https://example.com` |
+| 检查页面 | `agent-browser snapshot` | `opencli browser --session work state` |
+| 点击元素 | `agent-browser click @e2` | `opencli browser --session work click 2` |
+| 填写输入框 | `agent-browser fill "#email" "test@example.com"` | `opencli browser --session work fill "#email" "test@example.com"` |
+| 按键 | `agent-browser press Enter` | `opencli browser --session work keys Enter` |
+| 读取内容 | `agent-browser get text body` | `opencli browser --session work extract` |
+| 截图 | `agent-browser screenshot page.png` | `opencli browser --session work screenshot page.png` |
+| 执行 JavaScript | `agent-browser eval "document.title"` | `opencli browser --session work eval "document.title"` |
+| 结束 session | `agent-browser close` | `opencli browser --session work close` |
 
 表中的 `@e2` 和 `2` 仅为示例，两个工具的 references 不能互换，也不保证指向同一个元素。使用 `opencli browser --help` 和 subcommand 的 `--help` 检查当前参数。
 

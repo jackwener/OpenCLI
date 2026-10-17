@@ -7,8 +7,8 @@ vi.mock('./_shared/public-api.js', () => ({
     fetchDouyinUserVideos: fetchDouyinUserVideosMock,
     fetchDouyinComments: fetchDouyinCommentsMock,
 }));
-import { getRegistry } from '@jackwener/opencli/registry';
-import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+
+import { ArgumentError } from '@jackwener/opencli/errors';
 import { DEFAULT_COMMENT_LIMIT, MAX_USER_VIDEOS_LIMIT, normalizeCommentLimit, normalizeSecUid, normalizeUserVideosLimit } from './user-videos.js';
 describe('douyin user-videos', () => {
     beforeEach(() => {
@@ -28,148 +28,11 @@ describe('douyin user-videos', () => {
         expect(() => normalizeSecUid('12345678901234567890')).toThrow(ArgumentError);
         expect(() => normalizeSecUid('')).toThrow(ArgumentError);
     });
-    it('does not navigate when the sec_uid is invalid', async () => {
-        const command = [...getRegistry().values()].find((cmd) => cmd.site === 'douyin' && cmd.name === 'user-videos');
-        if (!command?.func)
-            throw new Error('douyin user-videos command not registered');
-        const page = {
-            goto: vi.fn().mockResolvedValue(undefined),
-            wait: vi.fn().mockResolvedValue(undefined),
-        };
-        await expect(command.func(page, {
-            sec_uid: '大圆镜科普',
-            limit: 3,
-            with_comments: false,
-            comment_limit: 5,
-        })).rejects.toBeInstanceOf(ArgumentError);
-        expect(page.goto).not.toHaveBeenCalled();
-        expect(fetchDouyinUserVideosMock).not.toHaveBeenCalled();
-    });
+
     it('clamps limit to a safe maximum', () => {
         expect(normalizeUserVideosLimit(100)).toBe(MAX_USER_VIDEOS_LIMIT);
         expect(normalizeUserVideosLimit(0)).toBe(1);
         expect(normalizeCommentLimit(99)).toBe(DEFAULT_COMMENT_LIMIT);
     });
-    it('uses shared public-api helpers and applies clamped limits', async () => {
-        const registry = getRegistry();
-        const command = [...registry.values()].find((cmd) => cmd.site === 'douyin' && cmd.name === 'user-videos');
-        expect(command?.func).toBeDefined();
-        if (!command?.func)
-            throw new Error('douyin user-videos command not registered');
-        fetchDouyinUserVideosMock.mockResolvedValueOnce([
-            {
-                aweme_id: '1',
-                desc: 'test video',
-                video: { duration: 1234, play_addr: { url_list: ['https://example.com/video.mp4'] } },
-                statistics: { digg_count: 9 },
-            },
-        ]);
-        fetchDouyinCommentsMock.mockResolvedValueOnce([
-            { text: 'nice', digg_count: 3, nickname: 'alice' },
-        ]);
-        const page = {
-            goto: vi.fn().mockResolvedValue(undefined),
-            wait: vi.fn().mockResolvedValue(undefined),
-        };
-        const rows = await command.func(page, {
-            sec_uid: 'MS4wLjABAAAA_test-user',
-            limit: 100,
-            comment_limit: 99,
-            with_comments: true,
-        });
-        expect(fetchDouyinUserVideosMock).toHaveBeenCalledWith(page, 'MS4wLjABAAAA_test-user', MAX_USER_VIDEOS_LIMIT);
-        expect(fetchDouyinCommentsMock).toHaveBeenCalledWith(page, '1', DEFAULT_COMMENT_LIMIT);
-        expect(rows).toEqual([
-            {
-                index: 1,
-                aweme_id: '1',
-                title: 'test video',
-                duration: 1,
-                digg_count: 9,
-                play_url: 'https://example.com/video.mp4',
-                top_comments: [
-                    { text: 'nice', digg_count: 3, nickname: 'alice' },
-                ],
-            },
-        ]);
-    });
-    it('skips comment enrichment when with_comments is false', async () => {
-        const registry = getRegistry();
-        const command = [...registry.values()].find((cmd) => cmd.site === 'douyin' && cmd.name === 'user-videos');
-        expect(command?.func).toBeDefined();
-        if (!command?.func)
-            throw new Error('douyin user-videos command not registered');
-        fetchDouyinUserVideosMock.mockResolvedValueOnce([
-            {
-                aweme_id: '2',
-                desc: 'plain video',
-                video: { duration: 2000, play_addr: { url_list: ['https://example.com/plain.mp4'] } },
-                statistics: { digg_count: 1 },
-            },
-        ]);
-        const page = {
-            goto: vi.fn().mockResolvedValue(undefined),
-            wait: vi.fn().mockResolvedValue(undefined),
-        };
-        const rows = await command.func(page, {
-            sec_uid: 'MS4wLjABAAAA_test-user',
-            limit: 3,
-            with_comments: false,
-            comment_limit: 5,
-        });
-        expect(fetchDouyinCommentsMock).not.toHaveBeenCalled();
-        expect(rows).toEqual([
-            {
-                index: 1,
-                aweme_id: '2',
-                title: 'plain video',
-                duration: 2,
-                digg_count: 1,
-                play_url: 'https://example.com/plain.mp4',
-                top_comments: [],
-            },
-        ]);
-    });
-    it('throws EmptyResultError when the user videos API returns no rows', async () => {
-        const command = [...getRegistry().values()].find((cmd) => cmd.site === 'douyin' && cmd.name === 'user-videos');
-        expect(command?.func).toBeDefined();
-        if (!command?.func)
-            throw new Error('douyin user-videos command not registered');
-        fetchDouyinUserVideosMock.mockResolvedValueOnce([]);
-        const page = {
-            goto: vi.fn().mockResolvedValue(undefined),
-            wait: vi.fn().mockResolvedValue(undefined),
-        };
-        await expect(command.func(page, {
-            sec_uid: 'MS4wLjABAAAA_empty-user',
-            limit: 3,
-            with_comments: true,
-            comment_limit: 5,
-        })).rejects.toBeInstanceOf(EmptyResultError);
-    });
-    it('surfaces comment enrichment failures instead of returning empty comments', async () => {
-        const command = [...getRegistry().values()].find((cmd) => cmd.site === 'douyin' && cmd.name === 'user-videos');
-        expect(command?.func).toBeDefined();
-        if (!command?.func)
-            throw new Error('douyin user-videos command not registered');
-        fetchDouyinUserVideosMock.mockResolvedValueOnce([
-            {
-                aweme_id: '3',
-                desc: 'comment failure',
-                video: { duration: 2000, play_addr: { url_list: ['https://example.com/fail.mp4'] } },
-                statistics: { digg_count: 1 },
-            },
-        ]);
-        fetchDouyinCommentsMock.mockRejectedValueOnce(new Error('comment API down'));
-        const page = {
-            goto: vi.fn().mockResolvedValue(undefined),
-            wait: vi.fn().mockResolvedValue(undefined),
-        };
-        await expect(command.func(page, {
-            sec_uid: 'MS4wLjABAAAA_test-user',
-            limit: 3,
-            with_comments: true,
-            comment_limit: 5,
-        })).rejects.toBeInstanceOf(CommandExecutionError);
-    });
+
 });

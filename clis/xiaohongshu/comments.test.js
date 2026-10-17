@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { JSDOM } from 'jsdom';
 import { getRegistry } from '@jackwener/opencli/registry';
-import { buildCommentsExtractJs, buildXhsProfileUrl, parseXhsLikeCountText, parseXhsProfileHref } from './comments.js';
+import { assertCommentsLoaded, buildCommentsExtractJs, buildXhsProfileUrl, parseXhsCommentTotal, parseXhsLikeCountText, parseXhsProfileHref } from './comments.js';
 function createPageMock(evaluateResult) {
     return {
         goto: vi.fn().mockResolvedValue(undefined),
@@ -27,8 +27,11 @@ function createPageMock(evaluateResult) {
     };
 }
 
-async function runCommentsExtract(html, withReplies = false) {
+async function runCommentsExtract(html, withReplies = false, setup = () => {}, limit = 1) {
     const dom = new JSDOM(html, { url: 'https://www.xiaohongshu.com/search_result/abc123?xsec_token=tok' });
+    // JSDOM has no innerText; the extractor reads body.innerText for page-state text.
+    Object.defineProperty(dom.window.HTMLElement.prototype, 'innerText', { get() { return this.textContent; }, configurable: true });
+    setup(dom);
     const hadDocument = Object.hasOwn(globalThis, 'document');
     const hadLocation = Object.hasOwn(globalThis, 'location');
     const hadWindow = Object.hasOwn(globalThis, 'window');
@@ -45,7 +48,7 @@ async function runCommentsExtract(html, withReplies = false) {
         // limit=1 so the scroll-loading loop's initial "already have enough"
         // check short-circuits instead of burning through stall retries — the
         // JSDOM fixtures below are fully static, there's nothing more to load.
-        return await eval(buildCommentsExtractJs(withReplies, 1));
+        return await eval(buildCommentsExtractJs(withReplies, limit));
     } finally {
         if (hadDocument) globalThis.document = previousDocument;
         else delete globalThis.document;
@@ -58,6 +61,28 @@ async function runCommentsExtract(html, withReplies = false) {
         dom.window.close();
     }
 }
+
+describe('parseXhsCommentTotal', () => {
+    it('prefers the comments header total and falls back to the interaction bar count', () => {
+        expect(parseXhsCommentTotal('共 3528 条评论', '3528')).toBe(3528);
+        expect(parseXhsCommentTotal('共 1,024 条评论', '')).toBe(1024);
+        expect(parseXhsCommentTotal('', '1.2万')).toBe(12000);
+        expect(parseXhsCommentTotal('', '2328')).toBe(2328);
+    });
+    it('reads the known zero placeholders as zero', () => {
+        expect(parseXhsCommentTotal('', '评论')).toBe(0);
+        expect(parseXhsCommentTotal('共 0 条评论', '')).toBe(0);
+        expect(parseXhsCommentTotal('暂无评论', '')).toBe(0);
+    });
+    it('reads anything unrecognised as unknown (null), never as zero', () => {
+        expect(parseXhsCommentTotal('', '')).toBeNull();
+        expect(parseXhsCommentTotal('', '抢首评')).toBeNull();
+        expect(parseXhsCommentTotal('', 'Comments')).toBeNull();
+        expect(parseXhsCommentTotal('', 'likes 12')).toBeNull();
+        for (const malformed of ['1.2', '1,2', '.']) expect(parseXhsCommentTotal('', malformed)).toBeNull();
+        expect(parseXhsCommentTotal('共 . 条评论', '')).toBeNull();
+    });
+});
 
 describe('parseXhsLikeCountText', () => {
     it('parses exact integer and shortform like counts', () => {
@@ -189,6 +214,57 @@ describe('xiaohongshu comments', () => {
             limit: 5,
         })).resolves.toEqual([]);
     });
+    it('returns empty array when the page itself reports zero comments', async () => {
+        const page = createPageMock({ loginWall: false, notFound: false, commentTotal: 0, results: [] });
+        await expect(command.func(page, {
+            'note-id': 'https://www.xiaohongshu.com/search_result/abc123?xsec_token=tok',
+            limit: 5,
+        })).resolves.toEqual([]);
+    });
+    it('fails typed instead of returning [] when the page reports comments but none loaded', async () => {
+        const page = createPageMock({ loginWall: false, notFound: false, commentTotal: 3528, results: [] });
+        await expect(command.func(page, {
+            'note-id': 'https://www.xiaohongshu.com/search_result/abc123?xsec_token=tok',
+            limit: 5,
+        })).rejects.toMatchObject({
+            code: 'COMMENTS_NOT_LOADED',
+            message: expect.stringContaining('3528'),
+        });
+    });
+    it('returns [] when the only comments are image or sticker only (skipped for no text)', async () => {
+        const page = createPageMock({ loginWall: false, notFound: false, commentTotal: 1, skippedEmpty: 1, results: [] });
+        await expect(command.func(page, {
+            'note-id': 'https://www.xiaohongshu.com/search_result/abc123?xsec_token=tok',
+            limit: 5,
+        })).resolves.toEqual([]);
+    });
+    it('keeps extracted rows even when the unavailable flag is set', async () => {
+        const page = createPageMock({
+            loginWall: false,
+            notFound: true,
+            commentTotal: 1,
+            results: [{ author: 'Bob', text: 'still here', likes: 0, time: '', is_reply: false, reply_to: '' }],
+        });
+        const rows = await command.func(page, {
+            'note-id': 'https://www.xiaohongshu.com/search_result/abc123?xsec_token=tok',
+            limit: 5,
+        });
+        expect(rows).toHaveLength(1);
+    });
+    it('returns [] when the comment total is unknown (no page signal to contradict it)', async () => {
+        const page = createPageMock({ loginWall: false, notFound: false, commentTotal: null, results: [] });
+        await expect(command.func(page, {
+            'note-id': 'https://www.xiaohongshu.com/search_result/abc123?xsec_token=tok',
+            limit: 5,
+        })).resolves.toEqual([]);
+    });
+    it('throws EmptyResultError when the note page says the note is unavailable', async () => {
+        const page = createPageMock({ loginWall: false, notFound: true, commentTotal: 0, results: [] });
+        await expect(command.func(page, {
+            'note-id': 'https://www.xiaohongshu.com/search_result/abc123?xsec_token=tok',
+            limit: 5,
+        })).rejects.toMatchObject({ code: 'EMPTY_RESULT' });
+    });
     it('fails typed for malformed comments payloads instead of returning success-shaped output', async () => {
         const page = createPageMock({ loginWall: false, results: { rows: [] } });
         await expect(command.func(page, {
@@ -251,7 +327,7 @@ describe('xiaohongshu comments', () => {
         const script = page.evaluate.mock.calls[0][0];
         expect(script).toContain("const beforeCount = document.querySelectorAll('.parent-comment').length");
         expect(script).toContain("const afterCount = document.querySelectorAll('.parent-comment').length");
-        expect(script).toContain('if (beforeCount >= targetCount) break');
+        expect(script).toContain('if (loadedEnough(beforeCount)) break');
         expect(script).toContain('if (stall >= 6) break');
     });
 
@@ -274,8 +350,70 @@ describe('xiaohongshu comments', () => {
             limit: 50,
         });
         const script = page.evaluate.mock.calls[0][0];
-        expect(script).toContain('const targetCount = 50');
-        expect(script).toContain('for (let i = 0; i < 60; i++)');
+        expect(script).toContain('const limitCount = 50');
+        expect(script).toContain('for (let i = 0; i < 60 && !skipScroll; i++)');
+    });
+    it('reports the page comment total alongside the extracted rows', async () => {
+        const data = await runCommentsExtract(`
+          <main>
+            <div class="interact-container"><span class="chat-wrapper"><span class="count">1.2万</span></span></div>
+            <div class="comments-container"><div class="total">共 3528 条评论</div></div>
+            <section class="parent-comment"><div class="comment-item"><span class="name">Alice</span><div class="content">Hi</div></div></section>
+          </main>
+        `);
+        expect(data).toMatchObject({ commentTotal: 3528, notFound: false });
+        expect(data.results).toHaveLength(1);
+    });
+    it('does not scroll at all when the page reports zero comments', async () => {
+        let scrolls = 0;
+        const data = await runCommentsExtract(`
+          <main><div class="interact-container"><span class="chat-wrapper"><span class="count">评论</span></span></div></main>
+        `, false, (dom) => { dom.window.scrollTo = () => { scrolls++; }; });
+        expect(data).toMatchObject({ commentTotal: 0, results: [] });
+        expect(scrolls).toBe(0);
+    });
+    it('stops scrolling once every stated comment is loaded, even below --limit', async () => {
+        let scrolls = 0;
+        const data = await runCommentsExtract(`
+          <main>
+            <div class="comments-container"><div class="total">共 2 条评论</div></div>
+            <section class="parent-comment"><div class="comment-item"><span class="name">A</span><div class="content">one</div></div></section>
+            <section class="parent-comment"><div class="comment-item"><span class="name">B</span><div class="content">two</div></div></section>
+          </main>
+        `, false, (dom) => { dom.window.scrollTo = () => { scrolls++; }; }, 20);
+        expect(data.results).toHaveLength(2);
+        expect(scrolls).toBe(0);
+    });
+    it('flags an unavailable-note page', async () => {
+        const data = await runCommentsExtract(`<main><p>当前笔记暂时无法浏览</p></main>`);
+        expect(data.notFound).toBe(true);
+    });
+    it('does not flag a real note whose comments contain the unavailable-page words', async () => {
+        const data = await runCommentsExtract(`
+          <main><div id="noteContainer">
+            <section class="parent-comment"><div class="comment-item"><span class="name">Bob</span><div class="content">这个链接无法浏览</div></div></section>
+          </div></main>
+        `);
+        expect(data.notFound).toBe(false);
+        expect(data.results).toHaveLength(1);
+    });
+    it('counts comments skipped for having no text (image or sticker only)', async () => {
+        const data = await runCommentsExtract(`
+          <main>
+            <section class="parent-comment"><div class="comment-item"><span class="name">Bob</span><div class="content"><img src="https://fixture.invalid/sticker.png"></div></div></section>
+          </main>
+        `);
+        expect(data).toMatchObject({ skippedEmpty: 1, results: [] });
+    });
+    it('does not let empty skeletons disguise comments that failed to load', async () => {
+        const data = await runCommentsExtract(`
+          <main>
+            <div class="comments-container"><div class="total">共 10 条评论</div></div>
+            <section class="parent-comment"><div class="comment-item"><div class="content"></div></div></section>
+          </main>
+        `);
+        expect(data).toMatchObject({ commentTotal: 10, skippedEmpty: 0, results: [] });
+        expect(() => assertCommentsLoaded(data, 0, 'xiaohongshu/comments')).toThrow('none loaded');
     });
     it('extracts shortform like counts from the shared xiaohongshu/rednote DOM script', async () => {
         const data = await runCommentsExtract(`

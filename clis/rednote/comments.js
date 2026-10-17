@@ -4,7 +4,7 @@
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { buildCommentsExtractJs, normalizeCommentRows } from '../xiaohongshu/comments.js';
+import { assertCommentsLoaded, buildCommentsExtractJs, normalizeCommentRows } from '../xiaohongshu/comments.js';
 import { buildNoteUrl, parseNoteId } from '../xiaohongshu/note-helpers.js';
 
 const REDNOTE_SIGNED_URL_HINT = 'Pass a full rednote.com note URL with xsec_token from search results or user/profile context.';
@@ -59,6 +59,7 @@ cli({
         }
         void noteId;
         const all = normalizeCommentRows(data.results, 'rednote/comments');
+        assertCommentsLoaded(data, all.length, 'rednote/comments');
         const toRow = (c, i) => ({
             rank: i + 1,
             author: c.author,

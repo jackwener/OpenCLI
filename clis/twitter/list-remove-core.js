@@ -135,9 +135,8 @@ export async function listRemoveUser(page, kwargs) {
                 const caret = await waitFor(() => findOne('[data-testid="userActions"]'));
                 if (!caret) return { ok: false, message: 'Could not find user actions (…) button' };
                 caret.click();
-                await sleep(600);
-                const menuItems = Array.from(document.querySelectorAll('[role="menuitem"]'));
-                const addToListItem = menuItems.find(el => /add\\/remove|从列表|列表|add to list|add or remove/i.test(el.innerText));
+                // Wait for the requested row even when other menu rows arrive first.
+                const addToListItem = await waitFor(() => Array.from(document.querySelectorAll('[role="menuitem"]')).find(el => /add\\/remove|从列表|列表|add to list|add or remove/i.test(el.innerText)));
                 if (!addToListItem) return { ok: false, message: 'Could not find "Add/remove from Lists" menu item' };
                 addToListItem.click();
                 await sleep(1200);

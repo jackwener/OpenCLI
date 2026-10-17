@@ -1,3 +1,4 @@
+import { assertTaobaoPageUsable } from './page-state.js';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { normalizeNumericId } from '../_shared/common.js';
 cli({
@@ -18,6 +19,7 @@ cli({
         await page.wait(2);
         await page.evaluate(`location.href = ${JSON.stringify(`https://item.taobao.com/item.htm?id=${itemId}`)}`);
         await page.wait(6);
+        await assertTaobaoPageUsable(page);
         const data = await page.evaluate(`
       (() => {
         const normalize = v => (v || '').replace(/\\s+/g, ' ').trim();

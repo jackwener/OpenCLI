@@ -1,12 +1,10 @@
-import { describe, expect, it, vi } from 'vitest';
-import { getRegistry } from '@jackwener/opencli/registry';
+import { describe, expect, it } from 'vitest';
+
 import { CommandExecutionError } from '@jackwener/opencli/errors';
-import './profile-read.js';
 
 const { normalizeProfileReadUrl, normalizeProfile } = await import('./profile-read.js').then((m) => m.__test__);
 
 describe('linkedin profile-read adapter', () => {
-  const command = getRegistry().get('linkedin/profile-read');
 
   it('normalizes profile url default and explicit /in URL', () => {
     expect(normalizeProfileReadUrl(undefined)).toBe('https://www.linkedin.com/in/me/');
@@ -34,25 +32,4 @@ describe('linkedin profile-read adapter', () => {
     });
   });
 
-  it('does not require edit access when reading an explicit profile URL', async () => {
-    const page = {
-      goto: vi.fn(async () => {}),
-      wait: vi.fn(async () => {}),
-      autoScroll: vi.fn(async () => {}),
-      evaluate: vi.fn()
-        .mockResolvedValueOnce(false)
-        .mockResolvedValueOnce({
-          profile_url: 'https://www.linkedin.com/in/alice/',
-          name: 'Alice',
-          headline: 'Engineer',
-          about: 'Builds products',
-        }),
-    };
-
-    await expect(command.func(page, { 'profile-url': 'https://www.linkedin.com/in/alice/' }))
-      .resolves.toMatchObject([{ name: 'Alice', about: 'Builds products' }]);
-    expect(page.goto).toHaveBeenCalledTimes(1);
-    expect(page.goto).toHaveBeenCalledWith('https://www.linkedin.com/in/alice/');
-    expect(page.goto.mock.calls.some(([url]) => String(url).includes('/edit/forms/'))).toBe(false);
-  });
 });

@@ -3,6 +3,7 @@ import * as path from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
+    ensureOnChatGPT: vi.fn(),
     getChatGPTVisibleImageUrls: vi.fn(),
     clearChatGPTDraft: vi.fn(),
     prepareChatGPTImagePaths: vi.fn(),
@@ -15,6 +16,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('./utils.js', () => ({
+    ensureOnChatGPT: mocks.ensureOnChatGPT,
     clearChatGPTDraft: mocks.clearChatGPTDraft,
     getChatGPTVisibleImageUrls: mocks.getChatGPTVisibleImageUrls,
     navigateToProject: mocks.navigateToProject,
@@ -53,6 +55,7 @@ function createPage() {
 
 beforeEach(() => {
     vi.restoreAllMocks();
+    mocks.ensureOnChatGPT.mockReset().mockResolvedValue(false);
     mocks.clearChatGPTDraft.mockReset().mockResolvedValue(undefined);
     mocks.prepareChatGPTImagePaths.mockReset().mockImplementation(async (paths) => ({ ok: true, paths }));
     mocks.getChatGPTVisibleImageUrls.mockReset().mockResolvedValue([]);
@@ -66,6 +69,14 @@ beforeEach(() => {
         mimeType: 'image/png',
     }]);
     mocks.saveBase64ToFile.mockReset().mockResolvedValue(undefined);
+});
+
+it('activates the owned session before navigating or sending an image prompt', async () => {
+    const page = createPage();
+    await imageCommand.func(page, { prompt: 'Synthetic icon', timeout: 10, sd: true });
+    expect(mocks.ensureOnChatGPT).toHaveBeenCalledWith(page);
+    expect(mocks.ensureOnChatGPT.mock.invocationCallOrder[0]).toBeLessThan(page.goto.mock.invocationCallOrder[0]);
+    expect(page.goto.mock.invocationCallOrder[0]).toBeLessThan(mocks.sendChatGPTMessage.mock.invocationCallOrder[0]);
 });
 
 describe('chatgpt image output paths', () => {
@@ -161,6 +172,13 @@ describe('chatgpt image upload flow', () => {
 });
 
 describe('chatgpt image failure contracts', () => {
+    it('returns the persisted URL after image rendering replaces a local draft ID', async () => {
+        const page = createPage();
+        page.evaluate.mockResolvedValueOnce('https://chatgpt.com/c/local-chatgpt%3Asynthetic').mockResolvedValue('https://chatgpt.com/c/persisted-image-test');
+        const rows = await imageCommand.func(page, { prompt: 'synthetic image', sd: true, timeout: 30 });
+        expect(rows[0].link).toBe('🔗 https://chatgpt.com/c/persisted-image-test');
+    });
+
     it('fails fast when the image prompt cannot be sent', async () => {
         mocks.sendChatGPTMessage.mockResolvedValue(false);
 

@@ -61,7 +61,7 @@ agent 每跑一次相关 adapter 就可以自动写/读：
   notes.md               — 累积笔记（时间戳 + 写入人 + 发现）
   endpoints.json         — 已验证的 endpoint 目录
   field-map.json         — 字段代号 → 含义（key 为字段代号，value 为 {meaning, verified_at, source}）
-  verify/                — `opencli browser verify` 期望值（值级校验锚点，每个 adapter 一份）
+  verify/                — `opencli adapter test` 期望值（值级校验锚点，每个 adapter 一份）
     <cmd>.json
   fixtures/              — 公开/合成/已完成脱敏的响应样本（给字段对比 / 离线 replay；高敏私人响应不落盘）
     <cmd>-<ts>.json
@@ -121,7 +121,7 @@ key = 字段代号（`f237` / `f152`），value 三件套：
 
 ### `verify/<cmd>.json` 格式（schema 锁死）
 
-每个 adapter 一份，`opencli browser verify <site>/<cmd>` 会自动读。**没有这份 = verify 只能证"能跑"，证不出数据对**——所以是必填产物。
+每个 adapter 一份，`opencli adapter test <site>/<cmd>` 会自动读。**没有这份 = verify 只能证"能跑"，证不出数据对**——可按任务需要维护 fixture。
 
 ```json
 {

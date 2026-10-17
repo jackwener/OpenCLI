@@ -137,3 +137,31 @@ describe('twitter list-remove registration', () => {
             .rejects.toBeInstanceOf(CommandExecutionError);
     });
 });
+
+it('waits for Add/remove from Lists after unrelated menu rows', async () => {
+    const { JSDOM } = await import('jsdom');
+    const page = buildRemovePage(buildListsPayload('456', 1));
+    // Capture the generated script without entering the native mutation path.
+    page.nativeClick = undefined;
+    await getRegistry().get('twitter/list-remove').func(page, { listId: '123', username: 'alice' }).catch(() => {});
+    const script = page.evaluate.mock.calls[4][0];
+    const dom = new JSDOM('<button data-testid="userActions">More</button>', { runScripts: 'outside-only', url: 'https://x.com/alice' });
+    const doc = dom.window.document;
+    let elapsed = 0;
+    let clicked = false;
+    dom.window.fetch = async () => { throw new Error('Unexpected network request'); };
+    dom.window.Date.now = () => elapsed;
+    doc.querySelector('button').onclick = () => doc.body.insertAdjacentHTML('beforeend', '<div role="menuitem">Share</div>');
+    dom.window.setTimeout = (handler, ms) => {
+        elapsed += ms;
+        if (elapsed >= 1000 && !doc.querySelector('#action')) {
+            const item = doc.createElement('div'); item.id = 'action'; item.setAttribute('role', 'menuitem'); item.innerText = 'Add/remove from Lists';
+            item.onclick = () => { clicked = true; };
+            doc.body.append(item);
+        }
+        handler(); return 0;
+    };
+    const result = await dom.window.eval(script);
+    expect(clicked).toBe(true);
+    expect(result.message).toBe('List selection dialog did not open');
+});

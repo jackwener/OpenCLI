@@ -1,10 +1,22 @@
 # API Discovery
 
-**Layer 2：这个站的目标数据 endpoint 是什么？** 已经分完类（`site-recon.md`）再进来。
+**寻找目标数据 endpoint。** 按当前证据选择需要的调查手段。
 
-五种手段。按优先级降级用；命中只代表“进入验证”，不代表可以直接写 adapter。复杂/私有/写入候选还要过 [`deep-recon.md`](./deep-recon.md) 的 contract gate。
+下面提供五种调查手段。候选需要结合真实业务结果判断；复杂协议可以参考 [`deep-recon.md`](./deep-recon.md)，无需固定流程。
 
 ---
+
+## Evidence from loaded scripts and network requests
+
+```bash
+opencli browser --session research open https://example.com
+opencli browser --session research network --static
+opencli browser --session research network --detail '<returned request key>'
+```
+
+`network --static` combines captured requests with AST candidates from `fetch`, axios, XHR and related calls. It reports method, URL, parameter names, script/line and request key. `network+static` means both sources support the same route; `static` alone is an unexecuted candidate. `EXPR` marks unresolved expressions. Check `scripts[].error`, `omittedScripts`, and cache provenance (`networkSource`, `networkSavedAt`). The bounded scan covers current document scripts, without following imports or proving authentication/pagination behavior.
+
+Use the evidence to choose the next investigation. Write or edit the normal JS adapter in place and run it through the existing CLI to inspect real business results; no draft directory or activation step is required.
 
 ## §0 进入 §1 之前：先看两条红线
 
@@ -12,7 +24,7 @@
 
 ### 0.1 反爬厂商 → 决定 fetch 能不能从 Node 走
 
-`opencli browser analyze <url>` 的 `anti_bot` 字段给答案；手查看 cookies 也行：
+`opencli browser state --diagnostics --session research` 的 `anti_bot` 字段给答案；手查看 cookies 也行：
 
 | cookie / body 信号 | 厂商 | 裸 Node fetch / curl 结果 | 策略 |
 |------------------|------|-----|-----|
@@ -30,7 +42,7 @@
 判断：
 
 ```bash
-opencli browser eval "fetch('https://<target-subdomain>/api/...', {credentials:'include'}).then(r=>r.status).catch(e=>'cors:'+e.message)"
+opencli browser --session research eval "fetch('https://<target-subdomain>/api/...', {credentials:'include'}).then(r=>r.status).catch(e=>'cors:'+e.message)"
 ```
 
 - 返回 status 数字 → CORS 通，继续
@@ -39,7 +51,7 @@ opencli browser eval "fetch('https://<target-subdomain>/api/...', {credentials:'
 **挡住时**：不要把 `credentials:'include'` 当万能药——这只解决"带 cookie"，不解决"跨 origin"。降级路径：
 
 1. 换同 origin 的 endpoint（同一个 subdomain 下的 API 往往更宽松）
-2. 用 `opencli browser open https://<target-subdomain>/`，让页面在目标 subdomain 本身打开，再 fetch 相对路径
+2. 用 `opencli browser --session research open https://<target-subdomain>/`，让页面在目标 subdomain 本身打开，再 fetch 相对路径
 3. 真跨域且无替代 → 走 `§5 intercept`，从页面自身发的请求里抓响应
 
 ---
@@ -49,7 +61,7 @@ opencli browser eval "fetch('https://<target-subdomain>/api/...', {credentials:'
 ### 拿候选
 
 ```bash
-opencli browser network
+opencli browser --session research network
 ```
 
 默认输出是 JSON，每个候选都带：
@@ -59,7 +71,7 @@ opencli browser network
 
 静态资源 / 埋点 / 追踪默认已过滤。默认会保留 JSON / XML / plain text / `text/javascript`，也会识别 `text/x-component` 与明确的 `/rsc-action/` React Server Component 流。如果你确定浏览器 DevTools 里有目标请求但这里缺失，用 `--all` 查一遍是否被其他 content-type 或 URL 噪音过滤挡掉。capture queue 是破坏性读取；Core 会先缓存本批原始条目再做展示过滤，所以紧接着的空 `--all` 仍可复用该 session 的 raw cache，而不是永久丢掉被隐藏的条目。
 
-如果是冷启动，先看 `opencli browser analyze <url>` 里的 `api_candidates`：
+如果是冷启动，先看 `opencli browser state --diagnostics --session research` 里的 `api_candidates`：
 
 - `verdict: "likely_data"`：优先 replay 这条，拿 status / content-type / sample shape 填 strategy note
 - `verdict: "maybe_data"`：可以试，但必须人工核对字段是否是目标业务数据
@@ -81,7 +93,7 @@ opencli browser network
 已经知道目标 body 该含哪些字段就直接让 CLI 把列表筛到只剩候选，不用自己 scroll 翻 shape：
 
 ```bash
-opencli browser network --filter author,text,likes
+opencli browser --session research network --filter author,text,likes
 ```
 
 - 字段以英文逗号分隔；AND 语义，必须每个字段都作为 shape 路径的**任意一段**出现才保留（`$.data.items[0].author` 命中 `author`、`items`、`data` 都算）
@@ -97,7 +109,7 @@ opencli browser network --filter author,text,likes
 候选定了再拉完整 body（by key，不是 index — 数组顺序会随每次 capture 变）：
 
 ```bash
-opencli browser network --detail <key>
+opencli browser --session research network --detail <key>
 ```
 
 capture 会持久化到 `~/.opencli/cache/browser-network/<session>.json`（默认 TTL 24h），所以 `--detail` 即使跨多条其他命令也还在。
@@ -124,14 +136,14 @@ capture 会持久化到 `~/.opencli/cache/browser-network/<session>.json`（默�
 
 ```bash
 # 滚到底（虚拟列表）
-opencli browser eval "window.scrollTo(0, document.body.scrollHeight)"
-opencli browser wait time 2
-opencli browser network
+opencli browser --session research eval "window.scrollTo(0, document.body.scrollHeight)"
+opencli browser --session research wait time 2
+opencli browser --session research network
 
 # 点某个按钮
-opencli browser click <N>
-opencli browser wait time 2
-opencli browser network
+opencli browser --session research click <N>
+opencli browser --session research wait time 2
+opencli browser --session research network
 ```
 
 ---
@@ -141,7 +153,7 @@ opencli browser network
 首屏数据常挂在这几个全局变量上：
 
 ```bash
-opencli browser eval "Object.keys(window).filter(k=>k.startsWith('__'))"
+opencli browser --session research eval "Object.keys(window).filter(k=>k.startsWith('__'))"
 ```
 
 命中的常见名：
@@ -157,7 +169,7 @@ opencli browser eval "Object.keys(window).filter(k=>k.startsWith('__'))"
 取数据：
 
 ```bash
-opencli browser eval "JSON.stringify(window.__NEXT_DATA__).slice(0, 3000)"
+opencli browser --session research eval "JSON.stringify(window.__NEXT_DATA__).slice(0, 3000)"
 ```
 
 **关键**：inline state 只覆盖首屏的一部分（通常是 SEO 相关字段）。分页 / 评论 / 懒加载还是得回 §1 抓 API。
@@ -171,7 +183,7 @@ opencli browser eval "JSON.stringify(window.__NEXT_DATA__).slice(0, 3000)"
 ### 扫 script src
 
 ```bash
-opencli browser eval "[...document.querySelectorAll('script[src]')].map(s=>s.src).filter(s=>!/\\.(css|png|jpg|svg|woff|mp4)$/.test(s)&&!/googletagmanager|crazyegg|sentry|doubleclick|amazon-adsystem|cloudflare/.test(s))"
+opencli browser --session research eval "[...document.querySelectorAll('script[src]')].map(s=>s.src).filter(s=>!/\\.(css|png|jpg|svg|woff|mp4)$/.test(s)&&!/googletagmanager|crazyegg|sentry|doubleclick|amazon-adsystem|cloudflare/.test(s))"
 ```
 
 看结果里的 hostname：
@@ -182,7 +194,7 @@ opencli browser eval "[...document.querySelectorAll('script[src]')].map(s=>s.src
 ### 搜 bundle 里的 baseURL
 
 ```bash
-opencli browser eval "(async()=>{const s=[...document.querySelectorAll('script[src]')].map(e=>e.src).find(s=>/main|app|index|bundle|chunk/.test(s));if(!s)return'no bundle';const t=await fetch(s).then(r=>r.text());const patterns=['baseURL','baseUrl','BASE_URL','apiHost','apiBase','API_HOST','API_BASE'];const hits=[];for(const p of patterns){let i=-1;while((i=t.indexOf(p,i+1))>-1&&hits.length<5)hits.push(t.slice(Math.max(0,i-5),i+80));}return hits})()"
+opencli browser --session research eval "(async()=>{const s=[...document.querySelectorAll('script[src]')].map(e=>e.src).find(s=>/main|app|index|bundle|chunk/.test(s));if(!s)return'no bundle';const t=await fetch(s).then(r=>r.text());const patterns=['baseURL','baseUrl','BASE_URL','apiHost','apiBase','API_HOST','API_BASE'];const hits=[];for(const p of patterns){let i=-1;while((i=t.indexOf(p,i+1))>-1&&hits.length<5)hits.push(t.slice(Math.max(0,i-5),i+80));}return hits})()"
 ```
 
 命中 `baseURL:"https://api.foo.com"` 直接拿 host 拼 endpoint。
@@ -205,7 +217,7 @@ jsluice urls < /tmp/example-bundle.js
 像 eastmoney 这种经验 endpoint 可以直接喂：
 
 ```bash
-opencli browser eval "fetch('https://push2.eastmoney.com/api/qt/clist/get?fs=m:1+t:2&pn=1&pz=5&fltt=2&fid=f3&po=1&fields=f2,f3,f12,f14').then(r=>r.json())"
+opencli browser --session research eval "fetch('https://push2.eastmoney.com/api/qt/clist/get?fs=m:1+t:2&pn=1&pz=5&fltt=2&fid=f3&po=1&fields=f2,f3,f12,f14').then(r=>r.json())"
 ```
 
 200 只是 transport 成功。至少换一个输入再试，并核 content-type、目标 identity、非空 shape、分页和可见页面值；写入或复杂私有协议转 `deep-recon.md`，不能“数据看起来像”就认。
@@ -219,7 +231,7 @@ opencli browser eval "fetch('https://push2.eastmoney.com/api/qt/clist/get?fs=m:1
 
 ```bash
 # 当前页加 .json 试
-opencli browser eval "fetch(location.pathname.replace(/\\/$/,'')+'.json').then(r=>r.ok?r.json():'no')"
+opencli browser --session research eval "fetch(location.pathname.replace(/\\/$/,'')+'.json').then(r=>r.ok?r.json():'no')"
 ```
 
 ---
@@ -231,7 +243,7 @@ opencli browser eval "fetch(location.pathname.replace(/\\/$/,'')+'.json').then(r
 ### Cookie 里
 
 ```bash
-opencli browser eval "document.cookie.split('; ').map(x=>x.slice(0,x.indexOf('='))).filter(Boolean)"
+opencli browser --session research eval "document.cookie.split('; ').map(x=>x.slice(0,x.indexOf('='))).filter(Boolean)"
 ```
 
 常见 token cookie 名：`ct0`（Twitter CSRF）、`xq_a_token`（雪球）、`SESSDATA`（B 站）、`_csrf / csrfToken`（通用）。
@@ -243,7 +255,7 @@ opencli browser eval "document.cookie.split('; ').map(x=>x.slice(0,x.indexOf('='
 ### localStorage / sessionStorage 里
 
 ```bash
-opencli browser eval "Object.keys(localStorage).filter(k=>/token|auth|jwt|bearer|csrf/i.test(k))"
+opencli browser --session research eval "Object.keys(localStorage).filter(k=>/token|auth|jwt|bearer|csrf/i.test(k))"
 ```
 
 先只列 key 名，找 `token / auth / jwt / bearer / csrf`。只有选定 production auth source 后才在页面内使用对应值；不要把值打印进聊天、trace、shell history 或 site memory。
@@ -253,7 +265,7 @@ opencli browser eval "Object.keys(localStorage).filter(k=>/token|auth|jwt|bearer
 有些站的 Bearer 是全站一个常量（Twitter 的匿名 Bearer）。在 bundle 里搜：
 
 ```bash
-opencli browser eval "(async()=>{const s=[...document.querySelectorAll('script[src]')].map(e=>e.src).find(s=>/main|app|bundle/.test(s));const t=await fetch(s).then(r=>r.text());const m=[...t.matchAll(/Bearer\\s+[\\w-]{20,}/g)];return {count:m.length,positions:m.slice(0,3).map(x=>x.index)}})()"
+opencli browser --session research eval "(async()=>{const s=[...document.querySelectorAll('script[src]')].map(e=>e.src).find(s=>/main|app|bundle/.test(s));const t=await fetch(s).then(r=>r.text());const m=[...t.matchAll(/Bearer\\s+[\\w-]{20,}/g)];return {count:m.length,positions:m.slice(0,3).map(x=>x.index)}})()"
 ```
 
 只返回数量/位置，不返回 token 原值。即使 bundle 中是公共匿名 Bearer，也先确认它是否是预期公开合同；不要复制未知 credential-shaped string。
@@ -264,10 +276,10 @@ Vue + Pinia / Redux / React Context 有时能调用页面自己的只读 store m
 
 ```bash
 # Pinia
-opencli browser eval "typeof __pinia !== 'undefined' ? Object.keys(__pinia.state.value) : 'no pinia'"
+opencli browser --session research eval "typeof __pinia !== 'undefined' ? Object.keys(__pinia.state.value) : 'no pinia'"
 
 # 只调用已证明是 read-only 的 store action（每个站点具体 action 名要查）
-opencli browser eval "window.__pinia.state.value.someStore.someMethod({...})"
+opencli browser --session research eval "window.__pinia.state.value.someStore.someMethod({...})"
 ```
 
 这不是“绕签名”，也不是 direct API contract：它仍依赖页面 controller/runtime，production strategy 通常是 `INTERCEPT`。只有动作语义被可见 UI 和动态请求证明为 read-only 才能在侦察中调用。未知 effect 或 write action 禁止自动调用；写入只观察用户明确授权的一次自然操作，按 `deep-recon.md` 处理。

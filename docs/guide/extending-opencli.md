@@ -30,9 +30,9 @@ This is the recommended path for custom commands you own long-term.
 Use a user adapter when you want the fastest local adapter loop and do not need a separate project directory.
 
 ```bash
-opencli browser init cnn/top
+opencli adapter init cnn/top
 # edit ~/.opencli/clis/cnn/top.js
-opencli browser verify cnn/top
+opencli adapter test cnn/top
 opencli cnn top
 ```
 
@@ -47,11 +47,11 @@ This path is convenient for quick local automation. For code you want to version
 If the command takes required positional args and no fixture exists yet, seed the first verify run explicitly:
 
 ```bash
-opencli browser verify instagram/collection-create --write-fixture --seed-args opencli-verify
-opencli browser verify example/detail --write-fixture --seed-args '["https://example.com/item/1", "--limit", 3]'
+opencli adapter test instagram/collection-create --write-fixture --args opencli-verify
+opencli adapter test example/detail --write-fixture --args '["https://example.com/item/1", "--limit", 3]'
 ```
 
-`--seed-args` is only used when the fixture has no `args`. Once the fixture is written, `opencli browser verify` reads args from `~/.opencli/sites/<site>/verify/<command>.json`.
+`--args` is only used when the fixture has no `args`. Once the fixture is written, `opencli adapter test` reads args from `~/.opencli/sites/<site>/verify/<command>.json`.
 
 `browser verify` also enforces row shape before fixture checks: each row should
 stay compact (at most 12 top-level keys), avoid nesting deeper than one level,
@@ -67,7 +67,7 @@ opencli adapter eject twitter
 opencli adapter reset twitter
 ```
 
-Files in `~/.opencli/clis/<site>/<command>.js` override packaged adapters with the same `site/command` on this machine. `opencli browser verify <site>/<command>` also runs the local override, so a passing local verify does not prove that the packaged adapter was changed.
+Files in `~/.opencli/clis/<site>/<command>.js` override packaged adapters with the same `site/command` on this machine. `opencli adapter test <site>/<command>` also runs the local override, so a passing local verify does not prove that the packaged adapter was changed.
 
 The packaged `cli-manifest.json` only describes bundled adapters. User adapters are discovered at runtime and do not need manifest entries.
 

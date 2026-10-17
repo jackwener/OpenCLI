@@ -75,3 +75,5 @@ Use `opencli 1point3acres forums` to see the full list.
 - Public endpoints serve rendered HTML, so heavy bot traffic may hit Discuz challenge / login gates — fall back to a logged-in session if `hot` / `latest` start returning empty rows
 - Listing `--limit` values are validated upfront and rejected with `ArgumentError` if non-positive or above 50 (the page yields ~50 rows max) — no silent clamp
 - `thread --page`, `thread --limit`, `thread --contentLimit`, and `notifications --limit` also reject invalid values explicitly instead of silently flooring them
+
+`whoami` verifies the current-user panel on the Discuz-native `/bbs/home.php?mod=space` page, without changing the saved forum UI preference. Missing cookies or an explicit login wall report `AUTH_REQUIRED`; a page without recognizable self identity reports `COMMAND_EXEC` instead of guessing from other users’ avatars.

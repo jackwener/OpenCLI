@@ -82,21 +82,32 @@ export async function ensureOnGrok(page) {
     await page.wait(2);
 }
 
-export async function isLoggedIn(page) {
+// Seconds to wait for grok.com to paint the composer before treating the
+// session as signed out. A busy or background tab can take well over a second.
+const LOGIN_PROBE_TIMEOUT_SECONDS = 20;
+
+async function probeLoginState(page) {
     // Composer presence is the most reliable signed-in marker — when the user
     // is signed out, grok.com renders a sign-in CTA in place of the chat
     // composer rather than the TipTap editor.
-    const result = await page.evaluate(`(() => {
+    return page.evaluate(`(() => {
     ${IS_VISIBLE_JS}
+    const signInCta = Array.from(document.querySelectorAll('button, a'))
+      .some((node) => isVisible(node) && /^(sign in|log in)$/i.test((node.textContent || '').trim()));
+    if (signInCta) return 'out';
     const composer = document.querySelector('.ProseMirror[contenteditable="true"]');
-    if (composer && isVisible(composer)) {
-      const signInCta = Array.from(document.querySelectorAll('button, a'))
-        .some((node) => isVisible(node) && /^(sign in|log in)$/i.test((node.textContent || '').trim()));
-      return !signInCta;
-    }
-    return false;
+    return composer && isVisible(composer) ? 'in' : 'pending';
   })()`);
-    return Boolean(result);
+}
+
+export async function isLoggedIn(page, timeoutSeconds = LOGIN_PROBE_TIMEOUT_SECONDS) {
+    for (let waited = 0; ; waited += 1) {
+        const state = await probeLoginState(page);
+        if (state === 'in') return true;
+        // A visible sign-in CTA is a definite answer; only a missing composer is worth waiting for.
+        if (state === 'out' || waited >= timeoutSeconds) return false;
+        await page.wait(1);
+    }
 }
 
 export async function getCurrentSessionId(page) {
@@ -492,12 +503,18 @@ export async function sendMessage(page, prompt) {
     const promptText = normalize(${promptJson});
     const beforeTurns = userTurns();
     const beforeKeys = new Set(beforeTurns.map((turn) => turn.id + '\\n' + turn.text));
+    // Grok renders markdown in the user bubble (code fences lose their backticks,
+    // lists become elements), so a formatted prompt never equals its rendered
+    // text. Compare the complete prompt with markdown backticks removed.
+    const comparable = (value) => value.replace(/\\x60/g, '').replace(/\\s+/g, ' ').trim();
+    const comparablePrompt = comparable(promptText);
+    const matchesPrompt = (text) => text === promptText || (comparablePrompt.length > 0 && comparable(text) === comparablePrompt);
     const waitForSubmittedUserTurn = async () => {
-      for (let attempt = 0; attempt < 20; attempt += 1) {
+      for (let attempt = 0; attempt < 60; attempt += 1) {
         const turns = userTurns();
         const latest = turns[turns.length - 1];
-        const hasNewMatchingTurn = turns.some((turn) => turn.text === promptText && !beforeKeys.has(turn.id + '\\n' + turn.text));
-        const appendedMatchingTurn = turns.length > beforeTurns.length && latest?.text === promptText;
+        const hasNewMatchingTurn = turns.some((turn) => matchesPrompt(turn.text) && !beforeKeys.has(turn.id + '\\n' + turn.text));
+        const appendedMatchingTurn = turns.length > beforeTurns.length && latest && matchesPrompt(latest.text);
         if (hasNewMatchingTurn || appendedMatchingTurn) return true;
         await waitFor(250);
       }
@@ -599,6 +616,22 @@ function stripNoise(text) {
         .trim();
 }
 
+// A response is still being generated while its action bar (copy, regenerate,
+// …) is rendered but empty; the buttons only appear once the model is done.
+// The reasoning summary ("Working for 14s") can sit unchanged for several
+// seconds before the answer streams, so text stability alone is not enough.
+// Without a recognizable action bar (markup change, positional ids) this
+// returns false and the caller falls back to text stability.
+export async function isAssistantTurnGenerating(page, bubbleId) {
+    const idJson = JSON.stringify(String(bubbleId || '').replace(/-assistant$/, ''));
+    const result = await page.evaluate(`(() => {
+    const turn = document.getElementById('response-' + ${idJson});
+    const bar = turn && turn.querySelector('.action-buttons');
+    return !!bar && bar.querySelectorAll('button').length === 0;
+  })()`);
+    return result === true;
+}
+
 export async function waitForAnswer(page, prompt, timeoutSeconds, baselineLastAssistantId) {
     const startTime = Date.now();
     let previousText = '';
@@ -618,7 +651,8 @@ export async function waitForAnswer(page, prompt, timeoutSeconds, baselineLastAs
         const waitedLongEnough = Date.now() - startTime >= MIN_WAIT_MS;
         if (text === previousText) {
             stableCount += 1;
-            if (waitedLongEnough && stableCount >= STABLE_POLLS_REQUIRED) {
+            if (waitedLongEnough && stableCount >= STABLE_POLLS_REQUIRED
+                && !(await isAssistantTurnGenerating(page, lastAssistant.id))) {
                 return { status: 'ok', assistant: lastAssistant };
             }
         } else {

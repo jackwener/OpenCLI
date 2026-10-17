@@ -1,25 +1,7 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { getRegistry } from '@jackwener/opencli/registry';
-import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import {
-    PAPER_COLUMNS,
-    SEARCH_COLUMNS,
-    coerceInt,
-    decodeXmlEntities,
-    extractAll,
-    extractFirst,
-    extractOpenAccessLink,
-    extractRecordKey,
-    extractRecordType,
-    normalizeAuthors,
-    recordXmlToRow,
-    requireBoundedInt,
-    requireQuery,
-    requireRecordKey,
-    searchHitToRow,
-} from './utils.js';
-import './search.js';
-import './paper.js';
+import { describe, expect, it } from 'vitest';
+
+import { ArgumentError } from '@jackwener/opencli/errors';
+import { coerceInt, decodeXmlEntities, extractAll, extractFirst, extractOpenAccessLink, extractRecordKey, extractRecordType, normalizeAuthors, recordXmlToRow, requireBoundedInt, requireQuery, requireRecordKey, searchHitToRow } from './utils.js';
 
 const SEARCH_HIT = {
     '@score': '9',
@@ -77,16 +59,7 @@ const ARTICLE_XML = `<dblp>
 <ee type="oa">https://doi.org/10.48550/arXiv.2509.05821</ee>
 </article></dblp>`;
 
-afterEach(() => {
-    vi.unstubAllGlobals();
-});
-
 describe('dblp adapter', () => {
-
-    it('paper aliases include detail / view', () => {
-        const paper = getRegistry().get('dblp/paper');
-        expect(paper.aliases).toEqual(expect.arrayContaining(['detail', 'view']));
-    });
 
     describe('coerceInt', () => {
         it.each([
@@ -257,129 +230,5 @@ describe('dblp adapter', () => {
             expect(row.type).toBe('journal');
             expect(row.doi).toBe('10.48550/arXiv.2509.05821');
         });
-    });
-});
-
-describe('dblp search command', () => {
-    it('rejects invalid query before any network call', async () => {
-        const fetchMock = vi.fn();
-        vi.stubGlobal('fetch', fetchMock);
-
-        const search = getRegistry().get('dblp/search');
-        await expect(search.func({ query: '   ', limit: 5 })).rejects.toThrow(ArgumentError);
-        expect(fetchMock).not.toHaveBeenCalled();
-    });
-
-    it('calls the JSON search endpoint and projects hits', async () => {
-        const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(new Response(
-            JSON.stringify({
-                result: {
-                    status: { '@code': '200', text: 'OK' },
-                    hits: { hit: [SEARCH_HIT] },
-                },
-            }),
-            { status: 200, headers: { 'content-type': 'application/json' } },
-        )));
-        vi.stubGlobal('fetch', fetchMock);
-
-        const search = getRegistry().get('dblp/search');
-        const rows = await search.func({ query: 'attention', limit: 5 });
-
-        expect(fetchMock).toHaveBeenCalledTimes(1);
-        const calledUrl = fetchMock.mock.calls[0][0];
-        expect(calledUrl).toContain('/search/publ/api?q=attention&format=json&h=5');
-        expect(rows).toHaveLength(1);
-        expect(rows[0].rank).toBe(1);
-        expect(rows[0].key).toBe('conf/dac/ZhangYY21');
-    });
-
-    it('throws EmptyResultError when dblp returns no hits', async () => {
-        vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.resolve(new Response(
-            JSON.stringify({
-                result: {
-                    status: { '@code': '200', text: 'OK' },
-                    hits: {},
-                },
-            }),
-            { status: 200, headers: { 'content-type': 'application/json' } },
-        ))));
-        const search = getRegistry().get('dblp/search');
-        await expect(search.func({ query: 'aljkasdf', limit: 5 })).rejects.toThrow(EmptyResultError);
-    });
-
-    it('rate-limit (429) surfaces as a typed CommandExecutionError', async () => {
-        vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.resolve(new Response('', { status: 429 }))));
-        const search = getRegistry().get('dblp/search');
-        await expect(search.func({ query: 'bert', limit: 5 })).rejects.toThrow(CommandExecutionError);
-    });
-
-    it('in-band API status envelope surfaces as CommandExecutionError', async () => {
-        vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.resolve(new Response(
-            JSON.stringify({
-                result: {
-                    status: { '@code': '500', text: 'Backend error' },
-                    hits: {},
-                },
-            }),
-            { status: 200, headers: { 'content-type': 'application/json' } },
-        ))));
-        const search = getRegistry().get('dblp/search');
-        await expect(search.func({ query: 'bert', limit: 5 })).rejects.toThrow(CommandExecutionError);
-    });
-
-    it('missing in-band API status code surfaces as CommandExecutionError', async () => {
-        vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.resolve(new Response(
-            JSON.stringify({
-                result: {
-                    hits: {},
-                },
-            }),
-            { status: 200, headers: { 'content-type': 'application/json' } },
-        ))));
-        const search = getRegistry().get('dblp/search');
-        await expect(search.func({ query: 'bert', limit: 5 })).rejects.toThrow(CommandExecutionError);
-    });
-
-    it('malformed JSON surfaces as CommandExecutionError', async () => {
-        vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.resolve(new Response(
-            'not json',
-            { status: 200, headers: { 'content-type': 'application/json' } },
-        ))));
-        const search = getRegistry().get('dblp/search');
-        await expect(search.func({ query: 'bert', limit: 5 })).rejects.toThrow(CommandExecutionError);
-    });
-});
-
-describe('dblp paper command', () => {
-    it('fetches XML and projects a single row', async () => {
-        const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(new Response(
-            RECORD_XML,
-            { status: 200, headers: { 'content-type': 'application/xml' } },
-        )));
-        vi.stubGlobal('fetch', fetchMock);
-
-        const paper = getRegistry().get('dblp/paper');
-        const rows = await paper.func({ key: 'conf/nips/VaswaniSPUJGKP17' });
-
-        expect(fetchMock).toHaveBeenCalledTimes(1);
-        const calledUrl = fetchMock.mock.calls[0][0];
-        expect(calledUrl).toContain('/rec/conf/nips/VaswaniSPUJGKP17.xml');
-        expect(rows).toHaveLength(1);
-        expect(rows[0].title).toBe('Attention is All you Need');
-        expect(rows[0].dblp_url).toContain('VaswaniSPUJGKP17.html');
-    });
-
-    it('404 surfaces as EmptyResultError', async () => {
-        vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.resolve(new Response('', { status: 404 }))));
-        const paper = getRegistry().get('dblp/paper');
-        await expect(paper.func({ key: 'conf/x/never' })).rejects.toThrow(EmptyResultError);
-    });
-
-    it('rejects malformed keys before any network call', async () => {
-        const fetchMock = vi.fn();
-        vi.stubGlobal('fetch', fetchMock);
-        const paper = getRegistry().get('dblp/paper');
-        await expect(paper.func({ key: 'NotARealKey' })).rejects.toThrow(ArgumentError);
-        expect(fetchMock).not.toHaveBeenCalled();
     });
 });

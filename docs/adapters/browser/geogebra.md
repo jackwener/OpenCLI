@@ -39,7 +39,7 @@ Important:
 Use this when a human or another agent already has the right `geogebra.org` tab open and you want to draw in that exact tab.
 
 ```bash
-opencli browser bind --workspace bound:geogebra --domain www.geogebra.org
+opencli browser --session research bind --workspace bound:geogebra --domain www.geogebra.org
 opencli browser --workspace bound:geogebra get url
 opencli browser --workspace bound:geogebra eval "(() => {
   const cmds = [

@@ -102,7 +102,7 @@ Usernames are normalized to lowercase and matched against `^[a-zA-Z0-9_-]{3,25}$
 
 `game` uses `/callback/{live\|daily}/game/{id}` on `www.chess.com` (the same JSON the Chess.com web client hits when rendering a game page). The public REST surface at `api.chess.com/pub` has no single-game endpoint; the callback path is the cleanest way to honour "PGN for specific game" without DOM scraping.
 
-`analyze` is a thin wrapper around `page.goto('/analysis/game/<kind>/<id>')`. Requires a bound browser session; if you only need to open a URL, `opencli browser <session> open <url>` is the more general primitive.
+`analyze` is a thin wrapper around `page.goto('/analysis/game/<kind>/<id>')`. Requires a bound browser session; if you only need to open a URL, `opencli browser --session <session> open <url>` is the more general primitive.
 
 ## Out of Scope
 

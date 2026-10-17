@@ -1,4 +1,5 @@
-import { AuthRequiredError } from '@jackwener/opencli/errors';
+import { assertTaobaoPageUsable } from './page-state.js';
+import { addTaobaoCartOnce } from './cart-action.js';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { normalizeNumericId } from '../_shared/common.js';
 cli({
@@ -23,6 +24,7 @@ cli({
         await page.wait(2);
         await page.evaluate(`location.href = ${JSON.stringify(`https://item.taobao.com/item.htm?id=${itemId}`)}`);
         await page.wait(6);
+        await assertTaobaoPageUsable(page);
         const info = await page.evaluate(`
       (() => {
         const normalize = v => (v || '').replace(/\\s+/g, ' ').trim();
@@ -98,46 +100,8 @@ cli({
       })()
     `);
         await page.wait(1);
-        await page.evaluate(`
-      (() => {
-        const all = document.querySelectorAll('button, [role="button"], a, div, span');
-        for (const el of all) {
-          const t = (el.textContent || '').trim();
-          if ((t === '加入购物车' || t === '加入 购物车') && el.children.length < 5) {
-            el.click();
-            return 'clicked';
-          }
-        }
-        return 'btn_not_found';
-      })()
-    `);
-        const result = await page.evaluate(`
-      (async () => {
-        for (let i = 0; i < 10; i++) {
-          await new Promise(r => setTimeout(r, 500));
-          const text = document.body?.innerText || '';
-          if (text.includes('已加入购物车') || text.includes('商品已成功') || text.includes('去购物车结算') || text.includes('去购物车')) {
-            return 'success';
-          }
-          if (text.includes('请选择') || text.includes('请先选择')) {
-            return 'need_spec';
-          }
-          if (text.includes('请登录')) {
-            return 'login_required';
-          }
-        }
-        if (location.href.includes('cart')) return 'success';
-        return 'unknown';
-      })()
-    `);
-        if (result === 'login_required') {
-            throw new AuthRequiredError('taobao add-cart requires a logged-in Taobao session');
-        }
-        let status = '? 未确认';
-        if (result === 'success')
-            status = '✓ 已加入购物车';
-        else if (result === 'need_spec')
-            status = '✗ 需要选择更多规格';
+        await addTaobaoCartOnce(page);
+        const status = '✓ 已加入购物车';
         const selectedSpec = Array.isArray(selectResult) ? selectResult.join(' | ') : '';
         return [{
                 status,

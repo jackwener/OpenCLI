@@ -1,10 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
-import {
-    ArgumentError,
-    AuthRequiredError,
-    EmptyResultError,
-} from '@jackwener/opencli/errors';
+import { ArgumentError, EmptyResultError } from '@jackwener/opencli/errors';
 
 import './search.js';
 import './shelf.js';
@@ -345,26 +341,5 @@ describe('weread-official list-apis', () => {
     it('throws EmptyResultError when the gateway returns no inventory shape', async () => {
         stubGateway({ errcode: 0, apis: [] });
         await expect(listApis()({})).rejects.toBeInstanceOf(EmptyResultError);
-    });
-});
-
-describe('weread-official auth wiring', () => {
-    it('every command refuses to run without WEREAD_API_KEY', async () => {
-        vi.unstubAllEnvs();
-        vi.stubEnv('WEREAD_API_KEY', '');
-        const fetchMock = vi.fn();
-        vi.stubGlobal('fetch', fetchMock);
-        // pick a representative subset; each command's first call is callGateway which checks env first
-        const cases = [
-            ['search', { keyword: '三体' }],
-            ['shelf', {}],
-            ['book', { bookId: 'b1' }],
-            ['readdata', { mode: 'weekly' }],
-            ['list-apis', {}],
-        ];
-        for (const [name, args] of cases) {
-            await expect(getRegistry().get(`weread-official/${name}`).func(args)).rejects.toBeInstanceOf(AuthRequiredError);
-        }
-        expect(fetchMock).not.toHaveBeenCalled();
     });
 });

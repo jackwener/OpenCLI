@@ -25,22 +25,22 @@ opencli doctor            # 检查扩展 + 守护进程连接
 
 ## 多 Tab 定位
 
-浏览器命令必须紧跟一个 `<session>` 位置参数。同一个多步骤流程使用同一个 session；并行任务使用不同 session 隔离。
+浏览器命令通过 `--session <name>` 指定页面 session。同一个多步骤流程使用同一个 session；并行任务使用不同 session 隔离。
 
 ```bash
-opencli browser baidu open https://www.baidu.com/
-opencli browser baidu tab list
-opencli browser baidu tab new https://www.baidu.com/
-opencli browser baidu eval --tab <targetId> 'document.title'
-opencli browser baidu tab select <targetId>
-opencli browser baidu get title
-opencli browser baidu tab close <targetId>
+opencli browser --session baidu open https://www.baidu.com/
+opencli browser --session baidu tab list
+opencli browser --session baidu tab new https://www.baidu.com/
+opencli browser --session baidu eval --tab <targetId> 'document.title'
+opencli browser --session baidu tab select <targetId>
+opencli browser --session baidu get title
+opencli browser --session baidu tab close <targetId>
 ```
 
 规则如下：
 
-- `opencli browser <session> open <url>` 和 `opencli browser <session> tab new [url]` 都会返回 `targetId`。
-- `opencli browser <session> tab list` 会打印当前已存在 tab 的 `targetId`。
+- `opencli browser --session <session> open <url>` 和 `opencli browser --session <session> tab new [url]` 都会返回 `targetId`。
+- `opencli browser --session <session> tab list` 会打印当前已存在 tab 的 `targetId`。
 - `--tab <targetId>` 会把单条 browser 命令路由到对应 tab。
 - `tab new` 只会新建 tab，不会改变默认浏览器目标。
 - `tab select <targetId>` 会把该 tab 设为后续未显式指定 target 的 `opencli browser ...` 命令默认目标。
@@ -51,18 +51,18 @@ opencli browser baidu tab close <targetId>
 如果你希望多条 `opencli browser` 命令持续操作同一个页面，请使用稳定的 session 名称：
 
 ```bash
-opencli browser my-session open https://example.com
-opencli browser my-session state
-opencli browser my-session extract "main"
+opencli browser --session my-session open https://example.com
+opencli browser --session my-session state
+opencli browser --session my-session extract "main"
 ```
 
 OpenCLI 拥有的 browser session 使用交互式 tab lease，默认空闲超时为 10 分钟。完成后可以显式释放：
 
 ```bash
-opencli browser my-session close
+opencli browser --session my-session close
 ```
 
-如果要把 OpenCLI 绑定到你已经手动打开的 Chrome tab，请使用 `opencli browser <session> bind`。绑定 session 没有 owned session 的 idle close 计时器，会一直保持到 `unbind`、tab 关闭、窗口关闭或 daemon 重启。对于 OpenCLI 自己创建的 owned session，使用 `--window foreground` 可以在可见自动化窗口里观察 OpenCLI 操作；使用 `--window background` 可以让这个自动化窗口留在后台。
+如果要把 OpenCLI 绑定到你已经手动打开的 Chrome tab，请使用 `opencli browser --session <session> bind`。绑定 session 没有 owned session 的 idle close 计时器，会一直保持到 `unbind`、tab 关闭、窗口关闭或 daemon 重启。对于 OpenCLI 自己创建的 owned session，使用 `--window foreground` 可以在可见自动化窗口里观察 OpenCLI 操作；使用 `--window background` 可以让这个自动化窗口留在后台。
 
 `OpenCLI Browser` 和 `OpenCLI Adapter` tab group 是扩展管理的自动化容器；请不要把自己的长期 tab 放进去，也不要重命名。
 

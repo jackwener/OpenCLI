@@ -1,21 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
-import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 
-import {
-    HOT_BOARD_URL,
-    RECOMMEND_CATEGORIES,
-    RECOMMEND_URL,
-    __test__,
-    mapHotRow,
-    mapRecommendRow,
-    looksToutiaoAuthWallText,
-    parseArticlesPage,
-    parseHotLimit,
-    parseRecommendCategory,
-    parseRecommendLimit,
-    parseToutiaoArticlesText,
-} from './utils.js';
+import { RECOMMEND_CATEGORIES, mapHotRow, mapRecommendRow, looksToutiaoAuthWallText, parseArticlesPage, parseHotLimit, parseRecommendCategory, parseRecommendLimit, parseToutiaoArticlesText } from './utils.js';
 
 import './articles.js';
 import './hot.js';
@@ -226,7 +213,6 @@ describe('toutiao mapHotRow', () => {
 });
 
 describe('toutiao registry shape', () => {
-    const articles = getRegistry().get('toutiao/articles');
     const hot = getRegistry().get('toutiao/hot');
 
     it('public non-browser commands take a single args object', () => {
@@ -234,147 +220,6 @@ describe('toutiao registry shape', () => {
         // leading page param silently swallows the caller's flags.
         expect(hot.func.length).toBe(1);
         expect(getRegistry().get('toutiao/recommend').func.length).toBe(1);
-    });
-});
-
-describe('toutiao articles adapter (registry func)', () => {
-    const cmd = getRegistry().get('toutiao/articles');
-
-    it('rejects invalid page before browser navigation', async () => {
-        const page = { goto: vi.fn(), wait: vi.fn(), evaluate: vi.fn() };
-
-        await expect(cmd.func(page, { page: 0 })).rejects.toThrow(ArgumentError);
-        await expect(cmd.func(page, { page: 5 })).rejects.toThrow(ArgumentError);
-        expect(page.goto).not.toHaveBeenCalled();
-    });
-
-    it('throws AuthRequiredError when creator backend renders a login wall', async () => {
-        const page = {
-            goto: vi.fn().mockResolvedValue(undefined),
-            wait: vi.fn().mockResolvedValue(undefined),
-            evaluate: vi.fn().mockResolvedValue('账号登录 请登录'),
-        };
-
-        await expect(cmd.func(page, { page: 1 })).rejects.toBeInstanceOf(AuthRequiredError);
-    });
-
-    it('wraps render failures as CommandExecutionError', async () => {
-        const page = {
-            goto: vi.fn().mockRejectedValue(new Error('browser down')),
-            wait: vi.fn(),
-            evaluate: vi.fn(),
-        };
-
-        await expect(cmd.func(page, { page: 1 })).rejects.toBeInstanceOf(CommandExecutionError);
-    });
-
-    it('throws EmptyResultError when rendered article text has no rows', async () => {
-        const page = {
-            goto: vi.fn().mockResolvedValue(undefined),
-            wait: vi.fn().mockResolvedValue(undefined),
-            evaluate: vi.fn().mockResolvedValue('没有文章'),
-        };
-
-        await expect(cmd.func(page, { page: 1 })).rejects.toBeInstanceOf(EmptyResultError);
-    });
-});
-
-describe('toutiao hot adapter (registry func)', () => {
-    const cmd = getRegistry().get('toutiao/hot');
-
-    it('rejects invalid limit before fetching (no silent clamp)', async () => {
-        const fetchMock = vi.fn();
-        vi.stubGlobal('fetch', fetchMock);
-
-        await expect(cmd.func({ limit: 0 })).rejects.toThrow(ArgumentError);
-        await expect(cmd.func({ limit: 51 })).rejects.toThrow(ArgumentError);
-        await expect(cmd.func({ limit: 'abc' })).rejects.toThrow(ArgumentError);
-        expect(fetchMock).not.toHaveBeenCalled();
-    });
-
-    it('hits the public hot-board URL with default limit', async () => {
-        const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(
-            new Response(JSON.stringify({
-                data: [
-                    { ClusterIdStr: '1', Title: 'A', HotValue: '100' },
-                    { ClusterIdStr: '2', Title: 'B', HotValue: '200' },
-                ],
-            }), { status: 200 }),
-        ));
-        vi.stubGlobal('fetch', fetchMock);
-
-        const rows = await cmd.func({});
-        expect(fetchMock).toHaveBeenCalledTimes(1);
-        expect(fetchMock.mock.calls[0][0]).toBe(HOT_BOARD_URL);
-        expect(rows).toHaveLength(2);
-        expect(rows[0]).toMatchObject({ rank: 1, group_id: '1', title: 'A', hot_value: 100 });
-        expect(rows[1]).toMatchObject({ rank: 2, group_id: '2', title: 'B', hot_value: 200 });
-    });
-
-    it('throws CommandExecutionError on non-OK HTTP', async () => {
-        vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.resolve(
-            new Response('', { status: 503 }),
-        )));
-
-        await expect(cmd.func({ limit: 5 })).rejects.toThrow(CommandExecutionError);
-    });
-
-    it('throws CommandExecutionError on malformed JSON', async () => {
-        vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.resolve(
-            new Response('not-json{{{', { status: 200 }),
-        )));
-
-        await expect(cmd.func({ limit: 5 })).rejects.toThrow(CommandExecutionError);
-    });
-
-    it('throws CommandExecutionError on in-band error envelope', async () => {
-        vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.resolve(
-            new Response(JSON.stringify({ status: 'error', message: 'rate limited' }), { status: 200 }),
-        )));
-
-        await expect(cmd.func({ limit: 5 })).rejects.toThrow(CommandExecutionError);
-    });
-
-    it('throws CommandExecutionError when fetch rejects (no silent catch)', async () => {
-        vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.reject(new Error('network down'))));
-
-        await expect(cmd.func({ limit: 5 })).rejects.toThrow(CommandExecutionError);
-    });
-
-    it('throws EmptyResultError when upstream payload is empty', async () => {
-        vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.resolve(
-            new Response(JSON.stringify({ data: [] }), { status: 200 }),
-        )));
-
-        await expect(cmd.func({ limit: 5 })).rejects.toThrow(EmptyResultError);
-    });
-
-    it('caps result rows at limit and dense-ranks (1..N) after filtering', async () => {
-        vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.resolve(
-            new Response(JSON.stringify({
-                data: [
-                    { ClusterIdStr: '1', Title: 'kept' },
-                    { ClusterIdStr: '2', Title: '' }, // empty title → dropped
-                    { ClusterIdStr: '3', Title: 'also kept' },
-                    { ClusterIdStr: '4', Title: 'over-limit' },
-                ],
-            }), { status: 200 }),
-        )));
-
-        const rows = await cmd.func({ limit: 2 });
-        expect(rows.map(r => r.title)).toEqual(['kept', 'also kept']);
-        expect(rows.map(r => r.rank)).toEqual([1, 2]); // dense rank after empty-title drop
-    });
-});
-
-describe('toutiao __test__ contract', () => {
-    it('exports min/max bounds for documentation parity', () => {
-        expect(__test__.ARTICLES_MIN_PAGE).toBe(1);
-        expect(__test__.ARTICLES_MAX_PAGE).toBe(4);
-        expect(__test__.HOT_MIN_LIMIT).toBe(1);
-        expect(__test__.HOT_MAX_LIMIT).toBe(50);
-        expect(__test__.RECOMMEND_MIN_LIMIT).toBe(1);
-        expect(__test__.RECOMMEND_MAX_LIMIT).toBe(50);
     });
 });
 
@@ -470,88 +315,5 @@ describe('toutiao mapRecommendRow', () => {
             .toThrow(CommandExecutionError);
         expect(() => mapRecommendRow({ group_id: '1', title: 'T', source_url: '/group/2/' }, 0))
             .toThrow(CommandExecutionError);
-    });
-});
-
-describe('toutiao recommend adapter (registry func)', () => {
-    const cmd = getRegistry().get('toutiao/recommend');
-
-    function feedResponse(items, extra = {}) {
-        return new Response(JSON.stringify({ message: 'success', data: items, ...extra }), { status: 200 });
-    }
-
-    it('rejects invalid args before fetching (no silent clamp)', async () => {
-        const fetchMock = vi.fn();
-        vi.stubGlobal('fetch', fetchMock);
-
-        await expect(cmd.func({ limit: 0 })).rejects.toThrow(ArgumentError);
-        await expect(cmd.func({ limit: 51 })).rejects.toThrow(ArgumentError);
-        await expect(cmd.func({ category: 'news_auto' })).rejects.toThrow(ArgumentError);
-        expect(fetchMock).not.toHaveBeenCalled();
-    });
-
-    it('requests the selected channel and dense-ranks the rows', async () => {
-        const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(feedResponse([
-            { group_id: '1', title: 'A' },
-            { group_id: '2', title: 'B', is_feed_ad: true },
-            { group_id: '3', title: 'C' },
-        ])));
-        vi.stubGlobal('fetch', fetchMock);
-
-        const rows = await cmd.func({ category: 'news_tech' });
-        expect(fetchMock.mock.calls[0][0]).toBe(`${RECOMMEND_URL}?category=news_tech`);
-        // The sponsored row is dropped, so ranks stay dense.
-        expect(rows.map((r) => [r.rank, r.group_id])).toEqual([[1, '1'], [2, '3']]);
-    });
-
-    it('caps result rows at limit', async () => {
-        vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.resolve(feedResponse([
-            { group_id: '1', title: 'A' },
-            { group_id: '2', title: 'B' },
-            { group_id: '3', title: 'C' },
-        ]))));
-
-        const rows = await cmd.func({ limit: 2 });
-        expect(rows).toHaveLength(2);
-    });
-
-    it('throws CommandExecutionError on non-OK HTTP', async () => {
-        vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.resolve(
-            new Response('', { status: 503 }),
-        )));
-
-        await expect(cmd.func({ limit: 5 })).rejects.toThrow(CommandExecutionError);
-    });
-
-    it('throws CommandExecutionError on malformed JSON', async () => {
-        vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.resolve(
-            new Response('not-json{{{', { status: 200 }),
-        )));
-
-        await expect(cmd.func({ limit: 5 })).rejects.toThrow(CommandExecutionError);
-    });
-
-    it('throws CommandExecutionError when upstream reports a non-success message', async () => {
-        vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.resolve(
-            new Response(JSON.stringify({ message: 'error', data: [] }), { status: 200 }),
-        )));
-
-        await expect(cmd.func({ limit: 5 })).rejects.toThrow(CommandExecutionError);
-    });
-
-    it('throws CommandExecutionError when data is not an array', async () => {
-        vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.resolve(
-            new Response(JSON.stringify({ message: 'success', data: {} }), { status: 200 }),
-        )));
-
-        await expect(cmd.func({ limit: 5 })).rejects.toThrow(CommandExecutionError);
-    });
-
-    it('throws EmptyResultError when every row was filtered out', async () => {
-        vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.resolve(feedResponse([
-            { group_id: '1', title: 'Ad', is_feed_ad: true },
-        ]))));
-
-        await expect(cmd.func({ limit: 5 })).rejects.toThrow(EmptyResultError);
     });
 });

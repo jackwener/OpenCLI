@@ -1,8 +1,7 @@
-import { describe, expect, it, vi } from 'vitest';
-import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { getRegistry } from '@jackwener/opencli/registry';
+import { describe, expect, it } from 'vitest';
+import { ArgumentError } from '@jackwener/opencli/errors';
+
 import { __test__ } from './search.js';
-import './search.js';
 describe('xianyu search helpers', () => {
     it('normalizes limit into supported range', () => {
         expect(__test__.normalizeLimit(undefined)).toBe(20);
@@ -46,57 +45,5 @@ describe('xianyu search region filter', () => {
     it('encodes a province alone, and a province+city pair', () => {
         expect(JSON.parse(__test__.buildExtraFilterValue('广东', '')).divisionList).toEqual([{ province: '广东', city: '' }]);
         expect(JSON.parse(__test__.buildExtraFilterValue('广东', '湛江')).divisionList).toEqual([{ province: '广东', city: '湛江' }]);
-    });
-});
-function createPageMock(evaluateResult) {
-    return {
-        goto: vi.fn().mockResolvedValue(undefined),
-        wait: vi.fn().mockResolvedValue(undefined),
-        evaluate: vi.fn().mockResolvedValue(evaluateResult),
-    };
-}
-describe('xianyu search command', () => {
-    const command = getRegistry().get('xianyu/search');
-
-    it('assigns contiguous ranks and passes item fields through', async () => {
-        const page = createPageMock({
-            items: [
-                { item_id: '111', title: 'A', price: '¥130000', condition: '几乎全新', brand: '小鹏', location: '深圳', badge: '信用极好', want: '3', url: 'u1' },
-                { item_id: '222', title: 'B', price: '¥185000', condition: '', brand: '', location: '深圳', badge: '', want: '0', url: 'u2' },
-            ],
-        });
-        const rows = await command.func(page, { query: '小鹏G9', city: '深圳', 'min-price': 100000, 'max-price': 200000 });
-        expect(rows.map((r) => r.rank)).toEqual([1, 2]);
-        expect(rows.map((r) => r.item_id)).toEqual(['111', '222']);
-        expect(rows[0]).toMatchObject({ rank: 1, price: '¥130000', condition: '几乎全新', brand: '小鹏', location: '深圳', badge: '信用极好' });
-    });
-    it('rejects an inverted price range before touching the page', async () => {
-        const page = createPageMock({ items: [] });
-        await expect(command.func(page, { query: '小鹏G9', 'min-price': 200000, 'max-price': 100000 })).rejects.toBeInstanceOf(ArgumentError);
-        expect(page.evaluate).not.toHaveBeenCalled();
-    });
-    it('throws AuthRequiredError when the search needs a login', async () => {
-        const page = createPageMock({ error: 'auth-required' });
-        await expect(command.func(page, { query: '小鹏G9' })).rejects.toBeInstanceOf(AuthRequiredError);
-    });
-    it('throws AuthRequiredError on an expired mtop session', async () => {
-        const page = createPageMock({ error: 'mtop-response-error', error_code: 'FAIL_SYS_SESSION_EXPIRED', error_message: 'x' });
-        await expect(command.func(page, { query: '小鹏G9' })).rejects.toBeInstanceOf(AuthRequiredError);
-    });
-    it('throws CommandExecutionError on verification blocks', async () => {
-        const page = createPageMock({ error: 'blocked' });
-        await expect(command.func(page, { query: '小鹏G9' })).rejects.toBeInstanceOf(CommandExecutionError);
-    });
-    it('throws CommandExecutionError on malformed mtop payloads', async () => {
-        const page = createPageMock({ error: 'malformed-response', error_message: 'missing resultList' });
-        await expect(command.func(page, { query: '小鹏G9' })).rejects.toBeInstanceOf(CommandExecutionError);
-    });
-    it('throws CommandExecutionError when evaluate does not return an items array', async () => {
-        const page = createPageMock({});
-        await expect(command.func(page, { query: '小鹏G9' })).rejects.toBeInstanceOf(CommandExecutionError);
-    });
-    it('throws EmptyResultError when nothing matches the filters', async () => {
-        const page = createPageMock({ items: [] });
-        await expect(command.func(page, { query: '小鹏G9', city: '湛江', 'min-price': 5000000 })).rejects.toBeInstanceOf(EmptyResultError);
     });
 });

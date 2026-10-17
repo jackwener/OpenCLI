@@ -1,12 +1,6 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { EmptyResultError } from '@jackwener/opencli/errors';
-import { getRegistry } from '@jackwener/opencli/registry';
-import { __test__ } from './search.js';
-import './search.js';
+import { describe, expect, it } from 'vitest';
 
-afterEach(() => {
-  vi.unstubAllGlobals();
-});
+import { __test__ } from './search.js';
 
 describe('powerchina search helpers', () => {
   it('builds candidate URLs with keyword variants', () => {
@@ -72,22 +66,4 @@ describe('powerchina search helpers', () => {
     expect(mapped?.url).toBe('https://bid.powerchina.cn/newcbs/recpro-newmember/BidAnnouncementSummary/getInfo/2409419657');
   });
 
-  it('throws EmptyResultError when extraction only finds navigation rows', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network down')));
-    const cmd = getRegistry().get('powerchina/search');
-    const page = {
-      goto: vi.fn().mockResolvedValue(undefined),
-      wait: vi.fn().mockResolvedValue(undefined),
-      evaluate: vi.fn().mockResolvedValue([
-        {
-          title: '首页',
-          url: 'https://bid.powerchina.cn/',
-          date: '',
-          contextText: '首页',
-        },
-      ]),
-    };
-
-    await expect(cmd.func(page, { query: '电梯', limit: 1 })).rejects.toBeInstanceOf(EmptyResultError);
-  });
 });

@@ -1,3 +1,4 @@
+import { assertTaobaoPageUsable } from './page-state.js';
 import { AuthRequiredError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { clampInt, requireNonEmptyQuery } from '../_shared/common.js';
@@ -24,6 +25,7 @@ cli({
         await page.wait(2);
         await page.evaluate(`location.href = ${JSON.stringify(`https://s.taobao.com/search?q=${encodeURIComponent(query)}${sortParam}`)}`);
         await page.wait(8);
+        await assertTaobaoPageUsable(page);
         await page.autoScroll({ times: 3, delayMs: 2000 });
         const data = await page.evaluate(`
       (async () => {

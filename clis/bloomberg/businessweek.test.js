@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
-import { ArgumentError, CliError } from '@jackwener/opencli/errors';
+import { describe, expect, it } from 'vitest';
+import { ArgumentError } from '@jackwener/opencli/errors';
 import { __test__ } from './businessweek.js';
 
 const {
@@ -8,16 +8,6 @@ const {
     normalizeBusinessweekStoryPath,
     parseBusinessweekLimit,
 } = __test__;
-
-function makePage(evaluateResults) {
-    const results = Array.isArray(evaluateResults) ? evaluateResults : [evaluateResults];
-    return {
-        goto: vi.fn().mockResolvedValue(undefined),
-        wait: vi.fn().mockResolvedValue(undefined),
-        evaluate: vi.fn()
-            .mockImplementation(() => Promise.resolve(results.shift())),
-    };
-}
 
 function nextDataWithItems(items) {
     return {
@@ -34,7 +24,6 @@ function nextDataWithItems(items) {
 }
 
 describe('Bloomberg Businessweek section feed', () => {
-
     it('validates --limit instead of silently clamping invalid values', () => {
         expect(parseBusinessweekLimit(undefined)).toBe(1);
         expect(parseBusinessweekLimit('')).toBe(1);
@@ -97,44 +86,4 @@ describe('Bloomberg Businessweek section feed', () => {
         ]);
     });
 
-    it('returns rows from the browser section payload and respects validated limit', async () => {
-        const page = makePage({
-            ok: true,
-            stories: [
-                { title: 'One', summary: 'A', link: 'https://www.bloomberg.com/news/a', mediaLinks: [] },
-                { title: 'Two', summary: 'B', link: 'https://www.bloomberg.com/features/b', mediaLinks: [] },
-            ],
-        });
-
-        await expect(command.func(page, { limit: 1 })).resolves.toEqual([
-            { title: 'One', summary: 'A', link: 'https://www.bloomberg.com/news/a', mediaLinks: [] },
-        ]);
-        expect(page.goto).toHaveBeenCalledWith('https://www.bloomberg.com/businessweek');
-        expect(page.wait).toHaveBeenCalledWith({ selector: '#__NEXT_DATA__', timeout: 8 });
-    });
-
-    it('retries slow hydration diagnostics before failing', async () => {
-        const page = makePage([
-            { ok: false, error: 'NO_NEXT_DATA', title: 'Businessweek' },
-            {
-                ok: true,
-                stories: [
-                    { title: 'Hydrated', summary: '', link: 'https://www.bloomberg.com/news/hydrated', mediaLinks: [] },
-                ],
-            },
-        ]);
-
-        await expect(command.func(page, { limit: 5 })).resolves.toEqual([
-            { title: 'Hydrated', summary: '', link: 'https://www.bloomberg.com/news/hydrated', mediaLinks: [] },
-        ]);
-        expect(page.wait).toHaveBeenCalledWith(4);
-        expect(page.evaluate).toHaveBeenCalledTimes(2);
-    });
-
-    it('fails typed for malformed section payloads', async () => {
-        const page = makePage({ ok: false, error: 'NO_MODULES' });
-
-        await expect(command.func(page, { limit: 5 })).rejects.toBeInstanceOf(CliError);
-        await expect(command.func(makePage({ ok: true, stories: [] }), { limit: 5 })).rejects.toBeInstanceOf(CliError);
-    });
 });

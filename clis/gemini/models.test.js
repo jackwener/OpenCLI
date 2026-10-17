@@ -185,14 +185,6 @@ describe('gemini models', () => {
     });
 });
 
-describe('gemini models command registration', () => {
-    it('is registered with site=gemini and name=models', () => {
-        expect(modelsCommand.site).toBe('gemini');
-        expect(modelsCommand.name).toBe('models');
-    });
-
-});
-
 // ── DOM fixture tests (jsdom) ──────────────────────────────────────────────
 // These tests run the actual discoverModelsScript() against pre-built DOM
 // fixtures that simulate the Gemini web UI model picker and menu.

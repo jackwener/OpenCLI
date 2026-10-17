@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
-import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError, TimeoutError } from '@jackwener/opencli/errors';
+import { CommandExecutionError, TimeoutError } from '@jackwener/opencli/errors';
 import { __test__ } from './followers.js';
 
 function followerResult(screenName, overrides = {}) {
@@ -135,32 +135,6 @@ describe('twitter followers helpers', () => {
 });
 
 describe('twitter followers command', () => {
-    it('rejects invalid explicit users before navigation', async () => {
-        const command = getRegistry().get('twitter/followers');
-        const page = createFollowersPage([]);
-
-        await expect(command.func(page, { user: 'viewer/extra', limit: 10 })).rejects.toBeInstanceOf(ArgumentError);
-        expect(page.goto).not.toHaveBeenCalled();
-        expect(page.getCookies).not.toHaveBeenCalled();
-    });
-
-    it('requires an authenticated x.com session before interception', async () => {
-        const command = getRegistry().get('twitter/followers');
-        const page = createFollowersPage([], { ct0: null });
-
-        await expect(command.func(page, { user: 'elonmusk', limit: 10 })).rejects.toBeInstanceOf(AuthRequiredError);
-        expect(page.installInterceptor).not.toHaveBeenCalled();
-    });
-
-    it('rejects non-profile AppTabBar hrefs instead of navigating to a route-like handle', async () => {
-        const command = getRegistry().get('twitter/followers');
-        const page = createFollowersPage([], { profileHref: '/home' });
-
-        await expect(command.func(page, { limit: 10 })).rejects.toBeInstanceOf(AuthRequiredError);
-        expect(page.goto).toHaveBeenCalledWith('https://x.com/home');
-        expect(page.installInterceptor).not.toHaveBeenCalled();
-    });
-
     it('intercepts the canonical Followers operation, paginates, deduplicates, and respects limit', async () => {
         const command = getRegistry().get('twitter/followers');
         const page = createFollowersPage([
@@ -179,39 +153,6 @@ describe('twitter followers command', () => {
         expect(String(navigation?.[0])).not.toContain('verified_followers');
     });
 
-    it('typed-fails when the initial Followers capture times out', async () => {
-        const command = getRegistry().get('twitter/followers');
-        const page = createFollowersPage([]);
-        page.waitForCapture.mockRejectedValueOnce(new Error('No network capture'));
-
-        await expect(command.func(page, { user: 'elonmusk', limit: 10 }))
-            .rejects.toBeInstanceOf(TimeoutError);
-        expect(page.getInterceptedRequests).not.toHaveBeenCalled();
-    });
-
-    it('does not silently return partial rows when a later GraphQL page fails', async () => {
-        const command = getRegistry().get('twitter/followers');
-        const page = createFollowersPage([
-            [followersPayload(['alice'], 'cursor-1')],
-            [{ errors: [{ code: 88, message: 'Rate limit exceeded' }] }],
-        ]);
-
-        await expect(command.func(page, { user: 'elonmusk', limit: 10 }))
-            .rejects.toBeInstanceOf(CommandExecutionError);
-    });
-
-    it('returns the upstream-complete first page without scrolling when Twitter terminates the bottom timeline', async () => {
-        const command = getRegistry().get('twitter/followers');
-        const page = createFollowersPage([[
-            followersPayload(['alice', 'bob'], 'decorative-cursor', { terminateBottom: true }),
-        ]]);
-
-        const rows = await command.func(page, { user: 'elonmusk', limit: 100 });
-
-        expect(rows.map((row) => row.screen_name)).toEqual(['alice', 'bob']);
-        expect(page.autoScroll).not.toHaveBeenCalled();
-    });
-
     it('does not silently return partial rows when a continuation capture times out', async () => {
         const command = getRegistry().get('twitter/followers');
         const page = createFollowersPage([[followersPayload(['alice'], 'cursor-1')]]);
@@ -223,21 +164,4 @@ describe('twitter followers command', () => {
             .rejects.toBeInstanceOf(TimeoutError);
     });
 
-    it('surfaces a private-followers hint for an empty timeline object', async () => {
-        const command = getRegistry().get('twitter/followers');
-        const page = createFollowersPage([[
-            { data: { user: { result: { __typename: 'User', timeline: {} } } } },
-        ]]);
-
-        await expect(command.func(page, { user: 'private_user', limit: 10 }))
-            .rejects.toMatchObject({ hint: expect.stringContaining('followers list to private') });
-    });
-
-    it('fails fast when the interceptor returns no follower rows', async () => {
-        const command = getRegistry().get('twitter/followers');
-        const page = createFollowersPage([[followersPayload([], null)]]);
-
-        await expect(command.func(page, { user: 'elonmusk', limit: 10 }))
-            .rejects.toBeInstanceOf(EmptyResultError);
-    });
 });

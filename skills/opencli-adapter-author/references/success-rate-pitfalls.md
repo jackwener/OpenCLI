@@ -90,9 +90,8 @@
 **根因**：`wait time N` 是盲等。不同站点 JS 执行速度差很多。
 
 **防御**：
-- 数据是异步加载时**不用 `wait time`**，用 `opencli browser wait xhr '/api/path-fragment'`，等具体 XHR 到场再 `network`
+- 数据是异步加载时**不用 `wait time`**，用 `opencli browser --session research wait xhr '/api/path-fragment'`，等具体 XHR 到场再 `network`
 - 不确定 endpoint 路径时：先 `wait time 2 && network`，看到候选路径再转 `wait xhr` 确认
-- 首诊断用 `opencli browser analyze <url>` 一步拿 `json_responses` 数量——=0 时才真的是 Pattern C
 
 ---
 

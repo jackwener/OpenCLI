@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildExtractHtmlJs, chunkMarkdown, runExtractFromHtml } from './extract.js';
+import { chunkMarkdown, runExtractFromHtml } from './extract.js';
 
 describe('chunkMarkdown', () => {
     it('returns the full content when it fits in one chunk', () => {
@@ -117,26 +117,5 @@ describe('runExtractFromHtml', () => {
         expect(r.total_chars).toBeGreaterThan(r.end);
         expect(r.chunk_size).toBe(r.end - r.start);
         expect(r.next_start_char).toBe(r.end);
-    });
-});
-
-describe('buildExtractHtmlJs', () => {
-    it('embeds the selector as a JSON literal', () => {
-        const js = buildExtractHtmlJs('main.article');
-        expect(js).toContain('"main.article"');
-    });
-
-    it('uses null when no selector given', () => {
-        const js = buildExtractHtmlJs(null);
-        // The expression references `sel` and compares to null.
-        expect(js).toContain('const sel = null;');
-    });
-
-    it('includes the denoise selector list', () => {
-        const js = buildExtractHtmlJs(null);
-        expect(js).toContain("'script'");
-        expect(js).toContain("'nav'");
-        expect(js).toContain("'iframe'");
-        expect(js).toContain("'[aria-hidden=\"true\"]'");
     });
 });

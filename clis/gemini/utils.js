@@ -22,6 +22,9 @@ const GEMINI_RESPONSE_NOISE_PATTERNS = [
     /Google Terms/gi,
     /Google Privacy Policy/gi,
     /Opens in a new window/gi,
+    /Gemini es una IA y puede cometer errores,? incluso sobre personas\.?/gi,
+    /Tu privacidad y Gemini/gi,
+    /Se abre en una ventana nueva/gi,
 ];
 const GEMINI_TRANSCRIPT_CHROME_MARKERS = ['gemini', '我的内容', '对话', 'google terms', 'google privacy policy'];
 const GEMINI_COMPOSER_SELECTORS = [
@@ -305,6 +308,8 @@ function isGeneratingExpression() {
         const aria = (node.getAttribute('aria-label') || '').trim().toLowerCase();
         return text === 'stop response'
           || aria === 'stop response'
+          || text === 'detener respuesta'
+          || aria === 'detener respuesta'
           || text === '停止回答'
           || aria === '停止回答';
       })`;
@@ -399,6 +404,7 @@ function getTranscriptLinesScript() {
         /^Google Terms$/,
         /^Google Privacy Policy$/,
         /^Gemini is AI and can make mistakes\.?$/,
+        /^Gemini es una IA y puede cometer errores/,
         /^and the$/,
         /^apply\.$/,
         /^Opens in a new window$/,
@@ -476,7 +482,7 @@ function getTurnsScript() {
     })()
   `;
 }
-function prepareComposerScript() {
+function prepareComposerScript(native = false) {
     return `
     (() => {
       ${buildGeminiComposerLocatorScript()}
@@ -491,11 +497,13 @@ function prepareComposerScript() {
         const selection = window.getSelection();
         const range = document.createRange();
         range.selectNodeContents(composer);
-        range.collapse(false);
+        // Native insertText replaces the selection without destroying Quill's
+        // paragraph nodes or desynchronizing its internal document state.
+        ${native ? '' : `range.collapse(false);`}
         selection?.removeAllRanges();
         selection?.addRange(range);
-        composer.textContent = '';
-        composer.dispatchEvent(new InputEvent('input', { bubbles: true, data: '', inputType: 'deleteContentBackward' }));
+        ${native ? '' : `composer.textContent = '';
+        composer.dispatchEvent(new InputEvent('input', { bubbles: true, data: '', inputType: 'deleteContentBackward' }));`}
       } catch (error) {
         return {
           ok: false,
@@ -597,8 +605,8 @@ function submitComposerScript() {
         });
       }
 
-      const excludedPattern = /main menu|主菜单|microphone|麦克风|upload|上传|mode|模式|tools|工具|settings|临时对话|new chat|新对话/i;
-      const submitPattern = /send|发送|傳送|submit|提交/i;
+      const excludedPattern = /main menu|主菜单|microphone|麦克风|upload|上传|mode|模式|tools|工具|settings|临时对话|new chat|新对话|dictar|dictate|micrófono|subidas|herramientas|modo|ajustes|conversación temporal|temporary chat|nueva conversación/i;
+      const submitPattern = /send|发送|傳送|submit|提交|enviar/i;
       let bestButton = null;
       let bestScore = -1;
 
@@ -1091,6 +1099,22 @@ export async function ensureGeminiPage(page) {
         await page.goto(GEMINI_APP_URL, { waitUntil: 'load', settleMs: 2500 });
         await page.wait(1);
     }
+    // Reused adapter tabs can be inactive after another site ran. Gemini's
+    // response animation then stays pending even when the model has finished.
+    // tabs() is session-scoped; only activate this session's Gemini target.
+    if (typeof page.tabs === 'function' && typeof page.selectTab === 'function') {
+        const tabs = await page.tabs();
+        const candidates = Array.isArray(tabs) ? tabs.filter((tab) => {
+            try { return new URL(tab.url).hostname === GEMINI_DOMAIN; }
+            catch { return false; }
+        }) : [];
+        const targetId = page.getActivePage?.();
+        const target = candidates.find((tab) => tab.page === targetId)
+            ?? (candidates.length === 1 ? candidates[0] : null);
+        if (target?.active === false && typeof target.page === 'string') {
+            await page.selectTab(target.page);
+        }
+    }
 }
 export async function getCurrentGeminiUrl(page) {
     await ensureGeminiPage(page);
@@ -1250,7 +1274,9 @@ export async function waitForGeminiSubmission(page, before, timeoutSeconds) {
     const preSendAssistantCount = before.turns.filter((turn) => turn.Role === 'Assistant').length;
     const maxPolls = Math.max(1, Math.ceil(timeoutSeconds));
     for (let index = 0; index < maxPolls; index += 1) {
-        await page.wait(index === 0 ? 0.5 : 1);
+        // Numeric wait() settles the DOM and may return after only 500ms.
+        // Explicit time waits preserve the caller's timeout during quiet reasoning.
+        await page.wait({ time: Math.min(1, timeoutSeconds - index) });
         const current = await readGeminiSnapshot(page);
         const structuredAppend = diffTrustedStructuredTurns(before, current);
         const transcriptDelta = diffTranscriptLines(before, current);
@@ -1290,7 +1316,7 @@ export async function sendGeminiMessage(page, text) {
     await ensureGeminiPage(page);
     let prepared;
     for (let attempt = 0; attempt < GEMINI_COMPOSER_PREPARE_ATTEMPTS; attempt += 1) {
-        prepared = await page.evaluate(prepareComposerScript());
+        prepared = await page.evaluate(prepareComposerScript(typeof page.nativeType === 'function'));
         if (prepared?.ok)
             break;
         if (attempt < GEMINI_COMPOSER_PREPARE_ATTEMPTS - 1)
@@ -2552,7 +2578,8 @@ export async function waitForGeminiResponse(page, baseline, promptText, timeoutS
     let transcriptStableCount = 0;
     let transcriptMissCount = 0;
     for (let index = 0; index < maxPolls; index += 1) {
-        await page.wait(index === 0 ? 1 : 2);
+        // Do not count a DOM-stability wait as two seconds of response time.
+        await page.wait({ time: Math.min(2, timeoutSeconds - index * 2) });
         const current = await readGeminiSnapshot(page);
         const structuredCandidate = pickStructuredReplyCandidate(current);
         if (structuredCandidate) {

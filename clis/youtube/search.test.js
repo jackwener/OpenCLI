@@ -63,18 +63,23 @@ function video(id, {
     duration = '10:00',
     published = '1 day ago',
     url = `/watch?v=${id}`,
+    avatars = null,
 } = {}) {
-    return {
-        videoRenderer: {
-            videoId: id,
-            title: text(title),
-            ownerText: text(channel),
-            viewCountText: { simpleText: views },
-            lengthText: { simpleText: duration },
-            publishedTimeText: { simpleText: published },
-            navigationEndpoint: { commandMetadata: { webCommandMetadata: { url } } },
-        },
+    const renderer = {
+        videoId: id,
+        title: text(title),
+        ownerText: text(channel),
+        viewCountText: { simpleText: views },
+        lengthText: { simpleText: duration },
+        publishedTimeText: { simpleText: published },
+        navigationEndpoint: { commandMetadata: { webCommandMetadata: { url } } },
     };
+    if (avatars) {
+        renderer.channelThumbnailSupportedRenderers = {
+            channelThumbnailWithLinkRenderer: { thumbnail: { thumbnails: avatars } },
+        };
+    }
+    return { videoRenderer: renderer };
 }
 
 function channel(id = 'channel-id') {
@@ -157,7 +162,7 @@ afterEach(() => {
 });
 
 describe('youtube search', () => {
-    it('paginates authenticated continuations and preserves the seven-column contract', async () => {
+    it('paginates authenticated continuations and preserves the column contract', async () => {
         const page = makePage({
             initialData: payload([
                 video('first', { url: '/watch?v=first&t=1s' }),
@@ -183,6 +188,8 @@ describe('youtube search', () => {
                 rank: 1,
                 title: 'First video',
                 channel: 'First channel',
+                channel_avatar: '',
+                video_id: 'first',
                 views: '1K views',
                 duration: '10:00',
                 published: '1 day ago',
@@ -192,6 +199,8 @@ describe('youtube search', () => {
                 rank: 2,
                 title: 'Second video',
                 channel: 'Second channel',
+                channel_avatar: '',
+                video_id: 'second',
                 views: '2K views',
                 duration: '11:00',
                 published: '2 days ago',
@@ -279,6 +288,20 @@ describe('youtube search', () => {
         );
     });
 
+    it('exposes the channel avatar (largest thumbnail) and video_id from videoRenderer', async () => {
+        const page = makePage({
+            initialData: payload([video('first', {
+                avatars: [
+                    { url: 'https://yt3.ggpht.com/small=s48', width: 48, height: 48 },
+                    { url: 'https://yt3.ggpht.com/large=s68', width: 68, height: 68 },
+                ],
+            })]),
+        });
+        const [row] = await getRegistry().get('youtube/search').func(page, { query: 'test', limit: 1 });
+        expect(row.channel_avatar).toBe('https://yt3.ggpht.com/large=s68');
+        expect(row.video_id).toBe('first');
+    });
+
     it('normalizes current channel renderer results', async () => {
         const page = makePage({ initialData: payload([channel()]) });
         await expect(getRegistry().get('youtube/search').func(page, {
@@ -287,6 +310,8 @@ describe('youtube search', () => {
             rank: 1,
             title: 'OpenAI',
             channel: '@OpenAI',
+            channel_avatar: '',
+            video_id: '',
             views: '2M subscribers',
             duration: 'CHANNEL',
             published: '',
@@ -302,6 +327,8 @@ describe('youtube search', () => {
             rank: 1,
             title: 'OpenAI for Business',
             channel: 'OpenAI',
+            channel_avatar: '',
+            video_id: '',
             views: '',
             duration: 'PLAYLIST',
             published: '',
@@ -317,6 +344,8 @@ describe('youtube search', () => {
             rank: 1,
             title: 'OpenAI short',
             channel: '',
+            channel_avatar: '',
+            video_id: 'short-id',
             views: '1.1K views',
             duration: 'SHORT',
             published: '',
@@ -408,4 +437,28 @@ describe('youtube search', () => {
         await expect(getRegistry().get('youtube/search').func(page, { query: 'nothing', limit: 1 }))
             .rejects.toBeInstanceOf(EmptyResultError);
     });
+});
+
+it('does not substitute a video cover for the channel avatar', async () => {
+    const item = video('first');
+    item.videoRenderer.thumbnail = { thumbnails: [{ url: 'https://i.ytimg.com/vi/first/hqdefault.jpg' }] };
+    const page = makePage({ initialData: payload([item]) });
+    const [row] = await getRegistry().get('youtube/search').func(page, { query: 'test', limit: 1 });
+    expect(row.channel_avatar).toBe('');
+});
+
+it('does not substitute a reel cover for the channel avatar', async () => {
+    const item = { reelItemRenderer: { videoId: 'short-id', headline: text('Short'), thumbnail: { thumbnails: [{ url: 'https://i.ytimg.com/vi/short-id/hqdefault.jpg' }] } } };
+    const page = makePage({ initialData: payload([item]) });
+    const [row] = await getRegistry().get('youtube/search').func(page, { query: 'test', type: 'shorts', limit: 1 });
+    expect(row.channel_avatar).toBe('');
+    expect(row.video_id).toBe('short-id');
+});
+
+it('uses the channel renderer thumbnail as its own avatar', async () => {
+    const item = channel();
+    item.channelRenderer.thumbnail = { thumbnails: [{ url: 'https://yt3.ggpht.com/channel=s48' }, { url: 'https://yt3.ggpht.com/channel=s88' }] };
+    const page = makePage({ initialData: payload([item]) });
+    const [row] = await getRegistry().get('youtube/search').func(page, { query: 'test', type: 'channel', limit: 1 });
+    expect(row.channel_avatar).toBe('https://yt3.ggpht.com/channel=s88');
 });

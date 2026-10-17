@@ -6,33 +6,17 @@
 
 ---
 
-## 一步诊断（推荐）
+## 页面与请求事实
 
 ```bash
-opencli browser analyze <url>
+opencli browser open <url> --session research
+opencli browser state --diagnostics --session research
+opencli browser network --static --session research
 ```
 
-返回一份 JSON：
-
-```json
-{
-  "pattern": { "pattern": "A", "reason": "3 JSON XHR responses observed", "json_responses": 3, "auth_failures": 0 },
-  "anti_bot": { "detected": false, "vendor": null, "evidence": [], "implication": "No known anti-bot signatures. Node-side fetch may work; try COOKIE first, fall back to browser-context fetch if blocked." },
-  "initial_state": { "__INITIAL_STATE__": false, "__NUXT__": false, "__NEXT_DATA__": false, "__APOLLO_STATE__": false },
-  "nearest_adapter": { "site": "xueqiu", "example_commands": ["xueqiu search", "xueqiu hot"], "reason": "2 existing adapters target this site — reuse strategy/cookie config" },
-  "recommended_next_step": "Pick the most specific JSON endpoint from `opencli browser network` and try a bare Node fetch with cookies; escalate to browser-context fetch only if blocked."
-}
-```
-
-`analyze` 一步把 Pattern 分类 / 反爬厂商识别 / 最近 adapter 匹配 / 下一步建议给完。直接按 `recommended_next_step` 走，多数情况不用手跑三步诊断。
-
-## 手动三步诊断（analyze 给不出明确结论时）
-
-```bash
-opencli browser open <url>
-opencli browser wait time 2
-opencli browser network
-```
+读取 success envelope 的 `data`。`state --diagnostics` 返回页面与可用 state globals；
+`network --static` 返回捕获请求和脚本候选。由 agent 判断最适合的数据源，CLI 不再给出
+Pattern 分类或 `recommended_next_step`。下面的分类仅作为分析参考。
 
 看 `network` 输出判：
 
@@ -46,7 +30,7 @@ opencli browser network
 
 分不清时参考下面五节的其他信号。
 
-**数据是 SPA / 异步加载时，`wait time 2` 可能不够**。改用 `opencli browser wait xhr '/api/path-fragment'` 直接等具体接口到场，比盲 `wait time 5` 更稳。
+**数据是 SPA / 异步加载时，`wait time 2` 可能不够**。改用 `opencli browser --session research wait xhr '/api/path-fragment'` 直接等具体接口到场，比盲 `wait time 5` 更稳。
 
 ---
 
@@ -62,7 +46,7 @@ opencli browser network
 **下一步**：`api-discovery.md` §1（network 精读）
 
 **注意 — Pattern A 命中不等于 strategy 选 `PAGE_FETCH`**：
-- 先看 `opencli browser analyze` 输出的 `api_candidates[]`：`verdict=likely_data` 的条目才是真候选；`verdict=noise`（analytics / beacon / personalization）不能算 API 信号
+- 检查 network response shape 与业务目标是否一致；analytics / beacon / personalization 不能单独证明目标 API 可用。
 - booking #1680 反例：17 个 JSON XHR 看起来像 Pattern A，但全是 analytics side-channel，最终走 `DOM_STATE` / `UI_SELECTOR`
 - replay 候选 endpoint 后，按 `strategy-selection.md` 的契约模型选 strategy；`PUBLIC_API` / `COOKIE_API` 都不通才考虑 `PAGE_FETCH`
 

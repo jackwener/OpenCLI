@@ -2,7 +2,7 @@
  * YouTube channel — get channel info and recent videos via InnerTube API.
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 
 export function extractSelectedRichGridContents(browseData) {
     const tabs = browseData?.contents?.twoColumnBrowseResultsRenderer?.tabs || [];
@@ -72,12 +72,16 @@ cli({
     domain: 'www.youtube.com',
     strategy: Strategy.COOKIE,
     args: [
-        { name: 'id', required: true, positional: true, help: 'Channel ID (UCxxxx) or handle (@name)' },
+        { name: 'id', required: true, positional: true, help: 'Channel ID (UCxxxx) or handle (@name or name)' },
         { name: 'limit', type: 'int', default: 10, help: 'Max recent videos (max 30)' },
     ],
     columns: ['field', 'value'],
     func: async (page, kwargs) => {
-        const channelId = String(kwargs.id);
+        const input = String(kwargs.id ?? '').trim();
+        if (!input || !/^@?[^\s/@?#:\\]+$/.test(input)) {
+            throw new ArgumentError('Expected a YouTube channel ID or handle (with or without @)');
+        }
+        const channelId = /^UC[A-Za-z0-9_-]{22}$/.test(input) ? input : '@' + input.replace(/^@/, '');
         const limit = Math.min(kwargs.limit || 10, 30);
         await page.goto('https://www.youtube.com');
         await page.wait(2);
@@ -98,11 +102,13 @@ cli({
           const resolveResp = await fetch('/youtubei/v1/navigation/resolve_url?key=' + apiKey + '&prettyPrint=false', {
             method: 'POST', credentials: 'include',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({context, url: 'https://www.youtube.com/' + channelId})
+            body: JSON.stringify({context, url: 'https://www.youtube.com/@' + encodeURIComponent(channelId.slice(1))})
           });
-          if (resolveResp.ok) {
-            const resolveData = await resolveResp.json();
-            browseId = resolveData.endpoint?.browseEndpoint?.browseId || channelId;
+          if (!resolveResp.ok) return {error: 'Channel handle resolution returned HTTP ' + resolveResp.status};
+          const resolveData = await resolveResp.json();
+          browseId = resolveData.endpoint?.browseEndpoint?.browseId;
+          if (typeof browseId !== 'string' || !/^UC[A-Za-z0-9_-]{22}$/.test(browseId)) {
+            return {error: 'Could not resolve YouTube handle to a channel ID'};
           }
         }
 
@@ -191,6 +197,8 @@ cli({
           name: metadata.title || '',
           channelId: metadata.externalId || browseId,
           handle: metadata.vanityChannelUrl?.split('/').pop() || '',
+          // Channel avatar (thumbnails are smallest-first; take the largest).
+          avatar: metadata.avatar?.thumbnails?.slice(-1)?.[0]?.url || '',
           description: (metadata.description || '').substring(0, 500),
           subscribers: subscriberCount,
           url: metadata.channelUrl || 'https://www.youtube.com/channel/' + browseId,

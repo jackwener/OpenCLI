@@ -451,14 +451,6 @@ describe('ctrip hotel-search command (registry-level)', () => {
         roomInfo: [{ priceInfo: { price: 548, currency: 'RMB' } }],
     };
 
-    it('declares Strategy.COOKIE + browser:true + navigateBefore:false + access:read', () => {
-        expect(cmd.access).toBe('read');
-        expect(cmd.browser).toBe(true);
-        expect(String(cmd.strategy)).toContain('cookie');
-        expect(cmd.navigateBefore).toBe(false);
-        expect(cmd.domain).toBe('hotels.ctrip.com');
-    });
-
     it('rejects invalid city / date / limit before browser navigation', async () => {
         const page = createPageMock([]);
         await expect(cmd.func(page, { city: 'shanghai', checkin: '2026-06-15', checkout: '2026-06-17', limit: 5 }))
@@ -584,14 +576,6 @@ describe('ctrip flight command (registry-level)', () => {
             ...overrides,
         };
     }
-
-    it('declares Strategy.INTERCEPT + browser:true + navigateBefore:false + access:read', () => {
-        expect(cmd.access).toBe('read');
-        expect(cmd.browser).toBe(true);
-        expect(String(cmd.strategy)).toContain('intercept');
-        expect(cmd.navigateBefore).toBe(false);
-        expect(cmd.domain).toBe('flights.ctrip.com');
-    });
 
     it('rejects invalid IATA / date / from==to / limit before browser navigation', async () => {
         const page = createPageMock([]);
@@ -887,14 +871,6 @@ describe('ctrip flight-round command (registry-level)', () => {
         cabin: null,
     };
 
-    it('declares Strategy.COOKIE + browser:true + navigateBefore:false + access:read', () => {
-        expect(cmd.access).toBe('read');
-        expect(cmd.browser).toBe(true);
-        expect(String(cmd.strategy)).toContain('cookie');
-        expect(cmd.navigateBefore).toBe(false);
-        expect(cmd.domain).toBe('flights.ctrip.com');
-    });
-
     it('rejects invalid IATA / date / from==to / return-before-depart / limit before navigation', async () => {
         const page = createPageMock([]);
         await expect(cmd.func(page, { from: 'PE', to: 'SHA', depart: '2026-08-15', return: '2026-08-22', limit: 5 }))
@@ -1016,14 +992,6 @@ describe('ctrip train command (registry-level)', () => {
         fromPrice: 626,
         seats: ['二等座有票', '一等座(抢)', '商务座(抢)'],
     };
-
-    it('declares Strategy.COOKIE + browser:true + navigateBefore:false + access:read', () => {
-        expect(cmd.access).toBe('read');
-        expect(cmd.browser).toBe(true);
-        expect(String(cmd.strategy)).toContain('cookie');
-        expect(cmd.navigateBefore).toBe(false);
-        expect(cmd.domain).toBe('trains.ctrip.com');
-    });
 
     it('rejects invalid station / date / from==to / limit before browser navigation', async () => {
         const page = createPageMock([]);
@@ -1220,14 +1188,6 @@ describe('ctrip buildHotelDetailUrl', () => {
 describe('ctrip hotel command (registry-level)', () => {
     const cmd = getRegistry().get('ctrip/hotel');
 
-    it('declares Strategy.COOKIE + browser:true + navigateBefore:false + access:read', () => {
-        expect(cmd.access).toBe('read');
-        expect(cmd.browser).toBe(true);
-        expect(String(cmd.strategy)).toContain('cookie');
-        expect(cmd.navigateBefore).toBe(false);
-        expect(cmd.domain).toBe('hotels.ctrip.com');
-    });
-
     it('rejects a non-numeric / zero id before browser navigation', async () => {
         const page = createPageMock([]);
         await expect(cmd.func(page, { id: 'shanghai' }))
@@ -1340,14 +1300,6 @@ describe('ctrip buildBusListUrl', () => {
 
 describe('ctrip bus command (registry-level)', () => {
     const cmd = getRegistry().get('ctrip/bus');
-
-    it('declares Strategy.COOKIE + browser:true + navigateBefore:false + access:read', () => {
-        expect(cmd.access).toBe('read');
-        expect(cmd.browser).toBe(true);
-        expect(String(cmd.strategy)).toContain('cookie');
-        expect(cmd.navigateBefore).toBe(false);
-        expect(cmd.domain).toBe('bus.ctrip.com');
-    });
 
     it('rejects invalid city / date / from==to / limit before browser navigation', async () => {
         const page = createPageMock([]);
@@ -1474,14 +1426,6 @@ describe('ctrip buildFerryListUrl', () => {
 
 describe('ctrip ferry command (registry-level)', () => {
     const cmd = getRegistry().get('ctrip/ferry');
-
-    it('declares Strategy.COOKIE + browser:true + navigateBefore:false + access:read', () => {
-        expect(cmd.access).toBe('read');
-        expect(cmd.browser).toBe(true);
-        expect(String(cmd.strategy)).toContain('cookie');
-        expect(cmd.navigateBefore).toBe(false);
-        expect(cmd.domain).toBe('ship.ctrip.com');
-    });
 
     it('rejects invalid city / date / from==to / limit before browser navigation', async () => {
         const page = createPageMock([]);
@@ -1618,14 +1562,6 @@ describe('ctrip buildCruisePortLookupJs (JSDOM)', () => {
 describe('ctrip cruise command (registry-level)', () => {
     const cmd = getRegistry().get('ctrip/cruise');
 
-    it('declares Strategy.COOKIE + browser:true + navigateBefore:false + access:read', () => {
-        expect(cmd.access).toBe('read');
-        expect(cmd.browser).toBe(true);
-        expect(String(cmd.strategy)).toContain('cookie');
-        expect(cmd.navigateBefore).toBe(false);
-        expect(cmd.domain).toBe('cruise.ctrip.com');
-    });
-
     it('rejects a blank / over-long port and invalid limit before navigation', async () => {
         const page = createPageMock([]);
         await expect(cmd.func(page, { port: '', limit: 5 }))
@@ -1742,14 +1678,6 @@ describe('ctrip buildTourListUrl', () => {
 describe('ctrip tour command (registry-level)', () => {
     const cmd = getRegistry().get('ctrip/tour');
 
-    it('declares Strategy.COOKIE + browser:true + navigateBefore:false + access:read', () => {
-        expect(cmd.access).toBe('read');
-        expect(cmd.browser).toBe(true);
-        expect(String(cmd.strategy)).toContain('cookie');
-        expect(cmd.navigateBefore).toBe(false);
-        expect(cmd.domain).toBe('vacations.ctrip.com');
-    });
-
     it('rejects a blank destination and invalid limit before navigation', async () => {
         const page = createPageMock([]);
         await expect(cmd.func(page, { destination: '', limit: 5 }))
@@ -1833,14 +1761,6 @@ describe('ctrip buildPackageListUrl', () => {
 describe('ctrip package command (registry-level)', () => {
     const cmd = getRegistry().get('ctrip/package');
 
-    it('declares Strategy.COOKIE + browser:true + navigateBefore:false + access:read', () => {
-        expect(cmd.access).toBe('read');
-        expect(cmd.browser).toBe(true);
-        expect(String(cmd.strategy)).toContain('cookie');
-        expect(cmd.navigateBefore).toBe(false);
-        expect(cmd.domain).toBe('vacations.ctrip.com');
-    });
-
     it('rejects a blank destination and invalid limit before navigation', async () => {
         const page = createPageMock([]);
         await expect(cmd.func(page, { destination: '', limit: 5 }))
@@ -1900,14 +1820,6 @@ describe('ctrip buildAttractionPlaceUrl', () => {
 
 describe('ctrip attraction command (registry-level)', () => {
     const cmd = getRegistry().get('ctrip/attraction');
-
-    it('declares Strategy.COOKIE + browser:true + navigateBefore:false + access:read', () => {
-        expect(cmd.access).toBe('read');
-        expect(cmd.browser).toBe(true);
-        expect(String(cmd.strategy)).toContain('cookie');
-        expect(cmd.navigateBefore).toBe(false);
-        expect(cmd.domain).toBe('you.ctrip.com');
-    });
 
     it('rejects a non-numeric city and invalid limit before navigation', async () => {
         const page = createPageMock([]);
@@ -1999,4 +1911,12 @@ describe('ctrip buildWaitForAttractionsJs (JSDOM)', () => {
         await expect(dom.window.Function(`return (${buildWaitForAttractionsJs('1')})`)())
             .resolves.toBe('content');
     });
+});
+
+it('keeps browser commands read-only and lets adapters control navigation', () => {
+    for (const name of ['hotel-search', 'flight', 'flight-round', 'train', 'hotel', 'bus', 'ferry', 'cruise', 'tour', 'package', 'attraction']) {
+        expect(getRegistry().get(`ctrip/${name}`), name).toMatchObject({
+            access: 'read', browser: true, navigateBefore: false,
+        });
+    }
 });

@@ -43,7 +43,8 @@ export default defineConfig({
             'tests/e2e/auth-contract.test.ts',
             'tests/e2e/local-commands.test.ts',
             'tests/e2e/management.test.ts',
-            ...(includeAxChromeE2e ? ['tests/e2e/browser-ax-chrome.test.ts'] : []),
+            ...(includeAxChromeE2e ? ['tests/e2e/browser-ax-chrome.test.ts', 'tests/e2e/site-slots-chrome.test.ts'] : []),
+            ...(process.env.OPENCLI_P0_E2E === '1' ? ['tests/e2e/browser-p0-chrome.test.ts'] : []),
             // Live sites require an authenticated browser; keep them out of offline E2E.
             //   OPENCLI_E2E=1 npx vitest run
             ...(includeExtendedE2e ? ['tests/e2e/browser-public.test.ts', 'tests/e2e/douban.test.ts', 'tests/e2e/plugin-management.test.ts', 'tests/e2e/article-download-pipeline.test.ts'] : []),

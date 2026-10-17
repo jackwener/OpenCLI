@@ -13,9 +13,11 @@ import * as path from 'node:path';
 import { execSync, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { PLUGINS_DIR } from './discovery.js';
+import { managedPluginPath } from './plugin-path.js';
 import { getErrorMessage, PluginError } from './errors.js';
 import { log } from './logger.js';
 import { isRecord } from './utils.js';
+import { linkHostOpencli, resolveHostOpencliRoot } from './plugin-runtime.js';
 import {
   readPluginManifest,
   isMonorepo,
@@ -438,9 +440,9 @@ function readLockFileWithWriter(
   try {
     const raw = fs.readFileSync(getLockFilePath(), 'utf-8');
     const parsed = JSON.parse(raw) as unknown;
-    if (!isRecord(parsed)) return {};
+    if (!isRecord(parsed)) return Object.create(null);
 
-    const lock: Record<string, LockEntry> = {};
+    const lock: Record<string, LockEntry> = Object.create(null);
     let changed = false;
 
     for (const [name, entry] of Object.entries(parsed)) {
@@ -464,7 +466,7 @@ function readLockFileWithWriter(
 
     return lock;
   } catch {
-    return {};
+    return Object.create(null);
   }
 }
 
@@ -585,7 +587,12 @@ function installDependencies(dir: string): void {
 function finalizePluginRuntime(pluginDir: string): void {
   // Symlink host opencli so TS plugins resolve '@jackwener/opencli/registry'
   // against the running host, not a stale npm-published version.
-  linkHostOpencli(pluginDir);
+  if (!linkHostOpencli(pluginDir)) {
+    throw new PluginError(
+      `Failed to link the host OpenCLI package into ${pluginDir}.`,
+      'Check that the plugin directory is writable and retry the install or update.'
+    );
+  }
 
   // Transpile .ts → .js via esbuild (production node can't load .ts directly).
   transpilePluginTs(pluginDir);
@@ -663,6 +670,8 @@ function publishMonorepoPlugins(
   publishRepo?: { stagingDir: string; parentDir: string },
   writeLock?: (commitHash: string | undefined) => void,
 ): void {
+  // Validate the entire batch before replacing any repository or symlink.
+  for (const plugin of plugins) managedPluginPath(pluginsDir, plugin.name);
   runTransaction((tx) => {
     if (publishRepo) {
       fs.mkdirSync(publishRepo.parentDir, { recursive: true });
@@ -671,7 +680,7 @@ function publishMonorepoPlugins(
 
     const commitHash = getCommitHash(repoDir);
     for (const plugin of plugins) {
-      const linkPath = path.join(pluginsDir, plugin.name);
+      const linkPath = managedPluginPath(pluginsDir, plugin.name);
       const subDir = resolveRepoContainedPath(repoDir, plugin.subPath);
       tx.track(beginReplaceSymlink(subDir, linkPath));
     }
@@ -709,6 +718,8 @@ export function installPlugin(source: string): string | string[] {
   }
 
   const { name: repoName, subPlugin } = parsed;
+  managedPluginPath(getMonoreposDir(), repoName);
+  if (subPlugin !== undefined) managedPluginPath(PLUGINS_DIR, subPlugin);
 
   if (parsed.type === 'local') {
     return installLocalPlugin(parsed.localPath!, repoName);
@@ -741,7 +752,7 @@ function installSinglePlugin(
   manifest: PluginManifest | null,
 ): string {
   const pluginName = manifest?.name ?? name;
-  const targetDir = path.join(PLUGINS_DIR, pluginName);
+  const targetDir = managedPluginPath(PLUGINS_DIR, pluginName);
 
   if (fs.existsSync(targetDir)) {
     throw new PluginError(`Plugin "${pluginName}" is already installed at ${targetDir}`, 'Use "opencli plugin uninstall" first, or pick a different name.');
@@ -787,7 +798,7 @@ function installLocalPlugin(localPath: string, name: string): string {
   }
 
   const pluginName = manifest?.name ?? name;
-  const targetDir = path.join(PLUGINS_DIR, pluginName);
+  const targetDir = managedPluginPath(PLUGINS_DIR, pluginName);
 
   if (fs.existsSync(targetDir)) {
     throw new PluginError(`Plugin "${pluginName}" is already installed at ${targetDir}`, 'Use "opencli plugin uninstall" first, or pick a different name.');
@@ -851,7 +862,7 @@ function installMonorepo(
   subPlugin?: string,
 ): string[] {
   const monoreposDir = getMonoreposDir();
-  const repoDir = path.join(monoreposDir, repoName);
+  const repoDir = managedPluginPath(monoreposDir, repoName);
   const repoAlreadyInstalled = fs.existsSync(repoDir);
   const repoRoot = repoAlreadyInstalled ? repoDir : cloneDir;
   const effectiveManifest = repoAlreadyInstalled ? readPluginManifest(repoDir) : manifest;
@@ -861,6 +872,7 @@ function installMonorepo(
   }
 
   let pluginsToInstall = getEnabledPlugins(effectiveManifest);
+  for (const plugin of pluginsToInstall) managedPluginPath(PLUGINS_DIR, plugin.name);
 
   // If a specific sub-plugin was requested, filter to just that one
   if (subPlugin) {
@@ -908,7 +920,7 @@ function installMonorepo(
       continue;
     }
 
-    const linkPath = path.join(PLUGINS_DIR, name);
+    const linkPath = managedPluginPath(PLUGINS_DIR, name);
     if (fs.existsSync(linkPath)) {
       log.warn(`Skipping "${name}": already installed at ${linkPath}`);
       continue;
@@ -981,6 +993,7 @@ function collectUpdatedMonorepoPlugins(
 
   for (const [pluginName, entry] of Object.entries(lock)) {
     if (entry.source.kind !== 'monorepo' || entry.source.repoName !== monoName) continue;
+    managedPluginPath(PLUGINS_DIR, pluginName);
     const manifestEntry = manifest.plugins?.[pluginName];
     if (!manifestEntry || manifestEntry.disabled) {
       throw new Error(`Installed sub-plugin "${pluginName}" no longer exists in ${cloneUrl}`);
@@ -1050,13 +1063,17 @@ function updateStandaloneLockEntry(
  * directory when no more sub-plugins reference it.
  */
 export function uninstallPlugin(name: string): void {
-  const targetDir = path.join(PLUGINS_DIR, name);
+  const targetDir = managedPluginPath(PLUGINS_DIR, name);
   if (!fs.existsSync(targetDir)) {
     throw new Error(`Plugin "${name}" is not installed.`);
   }
 
   const lock = readLockFile();
   const lockEntry = lock[name];
+
+  const monoDir = lockEntry?.source.kind === 'monorepo'
+    ? managedPluginPath(getMonoreposDir(), lockEntry.source.repoName)
+    : undefined;
 
   // Check if this is a symlink (monorepo sub-plugin)
   const isSymlink = isSymlinkSync(targetDir);
@@ -1075,8 +1092,7 @@ export function uninstallPlugin(name: string): void {
     const stillReferenced = Object.values(lock).some(
       (entry) => entry.source.kind === 'monorepo' && entry.source.repoName === monoName,
     );
-    if (!stillReferenced) {
-      const monoDir = path.join(getMonoreposDir(), monoName);
+    if (!stillReferenced && monoDir) {
       try { fs.rmSync(monoDir, { recursive: true, force: true }); } catch {}
     }
   } else if (lock[name]) {
@@ -1101,7 +1117,7 @@ function isSymlinkSync(p: string): boolean {
  * for all sub-plugins from the same monorepo.
  */
 export function updatePlugin(name: string): void {
-  const targetDir = path.join(PLUGINS_DIR, name);
+  const targetDir = managedPluginPath(PLUGINS_DIR, name);
   if (!fs.existsSync(targetDir)) {
     throw new Error(`Plugin "${name}" is not installed.`);
   }
@@ -1116,7 +1132,7 @@ export function updatePlugin(name: string): void {
   }
 
   if (source?.kind === 'monorepo') {
-    const monoDir = path.join(getMonoreposDir(), source.repoName);
+    const monoDir = managedPluginPath(getMonoreposDir(), source.repoName);
     const monoName = source.repoName;
     const cloneUrl = source.url;
     withTempClone(cloneUrl, (tmpCloneDir) => {
@@ -1234,7 +1250,7 @@ export function listPlugins(): PluginInfo[] {
     let description = manifest?.description;
     let version = manifest?.version;
     if (lockEntry?.source.kind === 'monorepo' && !description) {
-      const monoDir = path.join(getMonoreposDir(), lockEntry.source.repoName);
+      const monoDir = managedPluginPath(getMonoreposDir(), lockEntry.source.repoName);
       const monoManifest = readPluginManifest(monoDir);
       const subEntry = monoManifest?.plugins?.[entry.name];
       if (subEntry) {
@@ -1402,30 +1418,6 @@ function parseSource(
  * This ensures TS plugins resolve '@jackwener/opencli/registry' against
  * the running host installation rather than a stale npm-published version.
  */
-function linkHostOpencli(pluginDir: string): void {
-  try {
-    const hostRoot = resolveHostOpencliRoot();
-
-    const targetLink = path.join(pluginDir, 'node_modules', '@jackwener', 'opencli');
-
-    // Remove existing (npm-installed copy or stale symlink)
-    if (fs.existsSync(targetLink)) {
-      fs.rmSync(targetLink, { recursive: true, force: true });
-    }
-
-    // Ensure parent directory exists
-    fs.mkdirSync(path.dirname(targetLink), { recursive: true });
-
-    // Use 'junction' on Windows (doesn't require admin privileges),
-    // 'dir' symlink on other platforms.
-    const linkType = isWindows ? 'junction' : 'dir';
-    fs.symlinkSync(hostRoot, targetLink, linkType);
-    log.debug(`Linked host opencli into plugin: ${targetLink} → ${hostRoot}`);
-  } catch (err) {
-    log.warn(`Failed to link host opencli into plugin: ${getErrorMessage(err)}`);
-  }
-}
-
 /**
  * Resolve the path to the esbuild CLI executable with fallback strategies.
  */
@@ -1482,30 +1474,6 @@ export function resolveEsbuildBin(): string | null {
   }
 
   return null;
-}
-
-function resolveHostOpencliRoot(startFile = fileURLToPath(import.meta.url)): string {
-  let dir = path.dirname(startFile);
-
-  while (true) {
-    const pkgPath = path.join(dir, 'package.json');
-    if (fs.existsSync(pkgPath)) {
-      try {
-        const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
-        if (pkg?.name === '@jackwener/opencli') {
-          return dir;
-        }
-      } catch {
-        // Keep walking; a malformed package.json should not hide an ancestor package root.
-      }
-    }
-
-    const parent = path.dirname(dir);
-    if (parent === dir) break;
-    dir = parent;
-  }
-
-  return path.resolve(path.dirname(startFile), '..');
 }
 
 /**

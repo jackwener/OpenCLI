@@ -4,14 +4,22 @@ import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/err
 export const GOOGLE_ACCOUNT_PROBE = String.raw`(() => {
   if (location.hostname === 'accounts.google.com') return { kind: 'auth' };
   const prefix = /^(?:Google Account|Google 帐号|Google 账号|Google 帳戶)\s*[:：]\s*/i;
-  const label = Array.from(document.querySelectorAll('a[aria-label], button[aria-label]'))
-    .map(node => (node.getAttribute('aria-label') || '').trim())
-    .find(label => prefix.test(label));
+  const controls = Array.from(document.querySelectorAll('a[aria-label], button[aria-label]'));
+  const accountLink = controls.find(node => {
+    try {
+      const url = new URL(node.getAttribute('href') || '', location.href);
+      return url.hostname === 'accounts.google.com' && url.pathname === '/SignOutOptions';
+    } catch { return false; }
+  });
+  const label = (accountLink?.getAttribute('aria-label') || '').trim()
+    || controls.filter(node => !node.hasAttribute('href'))
+      .map(node => (node.getAttribute('aria-label') || '').trim())
+      .find(label => prefix.test(label));
   if (!label) {
     const login = document.querySelector('a[href*="accounts.google.com/ServiceLogin"], a[href*="accounts.google.com/v3/signin"], input[type="email"]');
     return { kind: login ? 'auth' : 'shape' };
   }
-  const account = label.replace(prefix, '');
+  const account = accountLink ? label.replace(/^[^:：]+[:：]\s*/, '') : label.replace(prefix, '');
   const email = account.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0] || '';
   const name = (email ? account.slice(0, account.indexOf(email)) : account).replace(/[\s,(（]+$/, '').trim();
   if (!email) return { kind: 'shape' };

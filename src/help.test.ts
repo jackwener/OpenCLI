@@ -18,6 +18,6 @@ describe('formatRootAdapterHelpText', () => {
     const text = formatRootAdapterHelpText({
       sites: ['bilibili'],
     });
-    expect(text).toContain("'opencli <site> --help -f yaml'");
+    expect(text).toContain("'opencli <site> --help -f json'");
   });
 });

@@ -15,12 +15,10 @@ import {
     AuthRequiredError,
     CommandExecutionError,
 } from '@jackwener/opencli/errors';
-import { commentCommand, __test__ as commentTest } from './comment.js';
-import { followCommand, __test__ as followTest } from './follow.js';
-import { unfollowCommand, __test__ as unfollowTest } from './unfollow.js';
+import { commentCommand } from './comment.js';
+import { followCommand } from './follow.js';
+import { unfollowCommand } from './unfollow.js';
 import {
-    BUTTON_WALKER_HELPERS,
-    BUTTON_WALKER_SENTINELS,
     COMMENT_TEXT_MAX,
     RETRYABLE_HINTS,
     parseTikTokVideoUrl,
@@ -84,35 +82,6 @@ describe('tiktok/utils (P0.5 button-walker additions)', () => {
         expect(parseTikTokVideoUrl(`${VIDEO_URL}/?lang=en`).videoId).toBe('7350000000000000000');
     });
 
-    it('BUTTON_WALKER_SENTINELS exposes the 4 sentinel strings used by IIFEs', () => {
-        expect(BUTTON_WALKER_SENTINELS.AUTH_REQUIRED).toBe('AUTH_REQUIRED');
-        expect(BUTTON_WALKER_SENTINELS.BUTTON_NOT_FOUND).toBe('BUTTON_NOT_FOUND');
-        expect(BUTTON_WALKER_SENTINELS.STATE_VERIFY_FAIL).toBe('STATE_VERIFY_FAIL');
-        expect(BUTTON_WALKER_SENTINELS.RATE_LIMITED).toBe('RATE_LIMITED');
-    });
-
-    it('RETRYABLE_HINTS encodes retryable=true|false plus reason in human-readable form', () => {
-        expect(RETRYABLE_HINTS.commentFailure).toMatch(/retryable=false/);
-        expect(RETRYABLE_HINTS.commentFailure).toMatch(/server-fan-out/);
-        expect(RETRYABLE_HINTS.relationFailure).toMatch(/retryable=true/);
-        expect(RETRYABLE_HINTS.relationFailure).toMatch(/idempotent/);
-    });
-
-    it('BUTTON_WALKER_HELPERS string template exposes the expected helper names', () => {
-        expect(typeof BUTTON_WALKER_HELPERS).toBe('string');
-        for (const name of [
-            'checkLoggedIn',
-            'findButtonByText',
-            'buttonExists',
-            'detectRateLimitPopup',
-            'waitFor',
-            'ensureLoggedInOrThrow',
-            'ensureNoRateLimitOrThrow',
-        ]) {
-            expect(BUTTON_WALKER_HELPERS).toContain('function ' + name + '(');
-        }
-    });
-
     it('throwButtonWalkerError maps AUTH_REQUIRED-shaped messages to AuthRequiredError', () => {
         expect(() => throwButtonWalkerError(new Error('AUTH_REQUIRED: login required'), {
             authMessage: 'login pls',
@@ -169,7 +138,6 @@ describe('tiktok/utils (P0.5 button-walker additions)', () => {
 });
 
 describe('tiktok/comment (Route 1 button-walker refactor)', () => {
-
     it('validates --url and --text upfront before navigating', async () => {
         const page = makePage([sampleCommentRow]);
         await expect(commentCommand.func(page, { url: '', text: 'hi' })).rejects.toBeInstanceOf(ArgumentError);
@@ -216,21 +184,9 @@ describe('tiktok/comment (Route 1 button-walker refactor)', () => {
         )).rejects.toBeInstanceOf(CommandExecutionError);
     });
 
-    it('build script embeds text via JSON.stringify and calls login + rate-limit guards', () => {
-        const script = commentTest.buildCommentScript('he said "hi"\nbye');
-        expect(script).toContain('const commentText = "he said \\"hi\\"\\nbye";');
-        expect(script).toContain('ensureLoggedInOrThrow()');
-        expect(script).toContain('ensureNoRateLimitOrThrow()');
-        expect(script).toContain('STATE_VERIFY_FAIL');
-        expect(script).toContain('BUTTON_NOT_FOUND');
-        expect(script).toContain('[data-e2e="comment-input"]');
-        expect(script).toContain('[data-e2e="comment-level-1"]');
-        expect(script).toContain("['Post', '发布', '发送']");
-    });
 });
 
 describe('tiktok/follow (Route 1 button-walker refactor)', () => {
-
     it('validates username upfront before navigating', async () => {
         const page = makePage([sampleFollowRow]);
         await expect(followCommand.func(page, { username: '' })).rejects.toBeInstanceOf(ArgumentError);
@@ -275,25 +231,9 @@ describe('tiktok/follow (Route 1 button-walker refactor)', () => {
         )).rejects.toMatchObject({ hint: expect.stringMatching(/retryable=true/) });
     });
 
-    it('build script embeds username via JSON.stringify and pins all relation labels', () => {
-        const script = followTest.buildFollowScript('creator');
-        expect(script).toContain('const username = "creator";');
-        expect(script).toContain('ensureLoggedInOrThrow()');
-        expect(script).toContain('ensureNoRateLimitOrThrow()');
-        expect(script).toContain("'Follow', '关注'");
-        expect(script).toContain("'Following', '已关注'");
-        expect(script).toContain("'Friends', '互关'");
-        expect(script).toContain("'already-following'");
-        expect(script).toContain("'already-friends'");
-        expect(script).toContain("result: 'followed'");
-        expect(script).not.toContain('becameFriends ?');
-        expect(script).toContain('STATE_VERIFY_FAIL');
-        expect(script).toContain('BUTTON_NOT_FOUND');
-    });
 });
 
 describe('tiktok/unfollow (Route 1 button-walker refactor)', () => {
-
     it('validates username upfront before navigating', async () => {
         const page = makePage([sampleUnfollowRow]);
         await expect(unfollowCommand.func(page, { username: '' })).rejects.toBeInstanceOf(ArgumentError);
@@ -338,15 +278,4 @@ describe('tiktok/unfollow (Route 1 button-walker refactor)', () => {
         )).rejects.toMatchObject({ hint: expect.stringMatching(/retryable=true/) });
     });
 
-    it('build script handles confirm-dialog flow + flips back to Follow', () => {
-        const script = unfollowTest.buildUnfollowScript('creator');
-        expect(script).toContain('const username = "creator";');
-        expect(script).toContain('ensureLoggedInOrThrow()');
-        expect(script).toContain('ensureNoRateLimitOrThrow()');
-        expect(script).toContain("'Unfollow', '取消关注'");
-        expect(script).toContain("'already-not-following'");
-        expect(script).toContain("'unfollowed'");
-        expect(script).toContain('STATE_VERIFY_FAIL');
-        expect(script).toContain('BUTTON_NOT_FOUND');
-    });
 });

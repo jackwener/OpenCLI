@@ -16,7 +16,7 @@ OpenCLI is a **general-purpose browser automation CLI** and an agent-browser alt
 - **Browser Automation** — `browser` gives AI agents direct browser control: click, type/fill, extract, screenshot — fully scriptable.
 - **Website → CLI** — Turn any website into a deterministic CLI: 100+ site surfaces are already registered, or author your own with the `opencli-adapter-author` skill.
 - **Account-safe** — Reuses Chrome's logged-in state; your credentials never leave the browser.
-- **AI Agent ready** — `opencli browser *` primitives (`open` / `network` / `state` / `eval` / `init` / `verify`) drive the adapter-authoring loop.
+- **AI Agent ready** — `opencli browser *` primitives (`open` / `network` / `state` / `eval`) and `adapter init|check|test` drive the adapter-authoring loop.
 - **No built-in LLM dependency** — Commands run without LLM inference; an AI agent orchestrating actions still has its own model costs.
 - **Deterministic adapters** — Site commands provide structured output schemas. Pipeable, scriptable, CI-friendly.
 
@@ -34,10 +34,10 @@ Set up [Browser Bridge](./browser-bridge), then run:
 
 ```bash
 opencli doctor
-opencli browser work open https://example.com
-opencli browser work state
-opencli browser work extract
-opencli browser work close
+opencli browser --session work open https://example.com
+opencli browser --session work state
+opencli browser --session work extract
+opencli browser --session work close
 ```
 
 Install the `opencli-browser` skill so your AI agent can use the same browser primitives:
@@ -60,7 +60,7 @@ opencli zhihu hot -f json                 # JSON output
 All built-in commands support `--format` / `-f`:
 
 ```bash
-opencli bilibili hot -f table   # Default: rich terminal table
+opencli bilibili hot -f table   # Rich terminal table
 opencli bilibili hot -f json    # JSON (pipe to jq or LLMs)
 opencli bilibili hot -f yaml    # YAML (human-readable)
 opencli bilibili hot -f md      # Markdown

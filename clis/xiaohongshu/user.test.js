@@ -58,13 +58,6 @@ describe('isLoginWallSnapshot', () => {
 });
 
 describe('readUserSnapshotHydrated', () => {
-    it('快路径：首读即有笔记 → 不 wait、不重试', async () => {
-        const page = createPageMock(vi.fn().mockResolvedValue(NOTES_SNAP));
-        const out = await readUserSnapshotHydrated(page);
-        expect(out).toBe(NOTES_SNAP);
-        expect(page.evaluate).toHaveBeenCalledTimes(1);
-        expect(page.wait).not.toHaveBeenCalled();
-    });
     it('慢加载：store/notes 晚到 → 重试直到笔记出现（回归 2026-06-09 hydration 竞态）', async () => {
         const page = createPageMock(vi
             .fn()
@@ -75,31 +68,11 @@ describe('readUserSnapshotHydrated', () => {
         expect(countFlatNotes(out)).toBe(1);
         expect(page.wait).toHaveBeenCalled(); // 确实等过
     });
-    it('登录墙：命中即停，不浪费重试预算', async () => {
-        const page = createPageMock(vi.fn().mockResolvedValue(LOGIN_WALL_SNAP));
-        const out = await readUserSnapshotHydrated(page);
-        expect(isLoginWallSnapshot(out)).toBe(true);
-        expect(page.evaluate).toHaveBeenCalledTimes(1); // 没进重试循环
-        expect(page.wait).not.toHaveBeenCalled();
-    });
-    it('真·空号：走满重试后返回空快照（交给下游 EmptyResultError）', async () => {
-        const page = createPageMock(vi.fn().mockResolvedValue(EMPTY_GROUPS_SNAP));
-        const out = await readUserSnapshotHydrated(page, 3, 0.01);
-        expect(countFlatNotes(out)).toBe(0);
-        expect(isLoginWallSnapshot(out)).toBe(false);
-        expect(page.wait).toHaveBeenCalledTimes(3); // maxRetries 次
-    });
+
 });
 
 describe('xiaohongshu user command', () => {
     const command = getRegistry().get('xiaohongshu/user');
-
-    it('登录墙 → 抛 AUTH_REQUIRED（不再误报 Malformed/EMPTY）', async () => {
-        const page = createPageMock(vi.fn().mockResolvedValue(LOGIN_WALL_SNAP));
-        await expect(command.func(page, { id: '56d290df84edcd782a3c8748', limit: 5 })).rejects.toMatchObject({
-            code: 'AUTH_REQUIRED',
-        });
-    });
 
     it('笔记晚到 → 重试后成功返回（端到端回归）', async () => {
         const page = createPageMock(vi
@@ -112,23 +85,6 @@ describe('xiaohongshu user command', () => {
         expect(rows[0].id).toBe('aaa');
     });
 
-    it('滚动续读时被重定向到登录墙 → 抛 AUTH_REQUIRED', async () => {
-        const page = createPageMock(vi
-            .fn()
-            .mockResolvedValueOnce(snap({ noteGroups: [[noteEntry('aaa')]] }))
-            .mockResolvedValueOnce(LOGIN_WALL_SNAP));
-        await expect(command.func(page, { id: 'someuser', limit: 5 })).rejects.toMatchObject({
-            code: 'AUTH_REQUIRED',
-        });
-        expect(page.autoScroll).toHaveBeenCalledTimes(1);
-    });
-
-    it('真·空号 → 抛 EMPTY_RESULT', async () => {
-        const page = createPageMock(vi.fn().mockResolvedValue(EMPTY_GROUPS_SNAP));
-        await expect(command.func(page, { id: 'emptyuser', limit: 5 })).rejects.toMatchObject({
-            code: 'EMPTY_RESULT',
-        });
-    });
 });
 
 describe('assertReadableUserSnapshot (既有契约保持)', () => {

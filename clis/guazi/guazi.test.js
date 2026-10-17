@@ -9,16 +9,8 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { getRegistry, Strategy } from '@jackwener/opencli/registry';
-import { CommandExecutionError } from '@jackwener/opencli/errors';
 
-import {
-    BROWSE_COLUMNS,
-    CAR_COLUMNS,
-    resolveCityCode,
-    normalizeClueId,
-    requireLimit,
-} from './utils.js';
+import { BROWSE_COLUMNS, resolveCityCode, normalizeClueId, requireLimit } from './utils.js';
 import { parseListings } from './browse.js';
 import { parseCarDetail } from './car.js';
 
@@ -65,21 +57,6 @@ describe('guazi adapter — parsers against frozen fixtures', () => {
     it('parseListings respects the limit and dedupes', () => {
         expect(parseListings(LIST, 2).length).toBe(2);
         expect(parseListings('<html>nothing</html>', 40)).toEqual([]);
-    });
-
-    it('browse treats a successful page with no listing anchors as parser drift', async () => {
-        const originalFetch = globalThis.fetch;
-        globalThis.fetch = async () => ({
-            ok: true,
-            status: 200,
-            text: async () => '<html><title>瓜子二手车</title><main>new layout</main></html>',
-        });
-        try {
-            await expect(getRegistry().get('guazi/browse').func({ city: 'bj', limit: 20 }))
-                .rejects.toBeInstanceOf(CommandExecutionError);
-        } finally {
-            globalThis.fetch = originalFetch;
-        }
     });
 
     it('parseListings rejects malformed listing cards instead of silently dropping them', () => {

@@ -344,41 +344,21 @@ describe('extractNotificationRowsFromDoc — JSDOM against frozen fixture', () =
     });
 });
 
-describe('buildNotificationsScript — IIFE invariants', () => {
-    it('embeds all four pure helpers via fn.toString()', () => {
-        const script = buildNotificationsScript(15);
-        expect(script).toContain('function stripMarkAsReadPrefix');
-        expect(script).toContain('function stripAnchorChrome');
-        expect(script).toContain('function parseNotifQuery');
-        expect(script).toContain('function isFacebookAuthRedirectPath');
-        expect(script).toContain('function extractNotificationRowsFromDoc');
+describe('buildNotificationsScript — isolated page execution', () => {
+    it('extracts localized fixture rows with the requested limit', async () => {
+        const dom = new JSDOM(fixtureHtml, { url: 'https://www.facebook.com/notifications', runScripts: 'outside-only' });
+        try {
+            const rows = await dom.window.eval(buildNotificationsScript(2));
+            expect(rows).toEqual(extractNotificationRowsFromDoc(dom.window.document, 2, fixtureHelpers));
+            expect(rows).toHaveLength(2);
+        } finally { dom.window.close(); }
     });
 
-    it('inlines limit and FB_HOST so the live page does not depend on Node closures', () => {
-        const script = buildNotificationsScript(7);
-        expect(script).toMatch(/extractNotificationRowsFromDoc\(document,\s*7,/);
-        expect(script).toContain('"https://www.facebook.com"');
-    });
-
-    it('inlines locale prefix and badge tables so the IIFE has them at runtime', () => {
-        const script = buildNotificationsScript(15);
-        expect(script).toContain('"标记为已读，"');
-        expect(script).toContain('"未读"');
-        expect(script).toContain('"Unread"');
-    });
-
-    it('contains an auth-redirect guard before the DOM walk', () => {
-        const script = buildNotificationsScript(15);
-        expect(script).toMatch(/AUTH_REQUIRED.*facebook/i);
-        expect(script).toContain('isFacebookAuthRedirectPath(window.location.pathname');
-    });
-
-    it('does NOT contain the legacy silent-truncation slice/substring — anti-pattern regression guard', () => {
-        const script = buildNotificationsScript(15);
-        // Legacy: text.substring(0, 150) — silent-bad-shape that this PR fixes.
-        expect(script).not.toMatch(/text\.substring\(0,\s*150\)/);
-        // Legacy: time || '-' — silent sentinel that this PR fixes.
-        expect(script).not.toMatch(/time\s*\|\|\s*['"]-['"]/);
+    it('rejects an authentication redirect before extracting rows', async () => {
+        const dom = new JSDOM(fixtureHtml, { url: 'https://www.facebook.com/login.php', runScripts: 'outside-only' });
+        try {
+            await expect(Promise.resolve().then(() => dom.window.eval(buildNotificationsScript(2)))).rejects.toThrow(/AUTH_REQUIRED/);
+        } finally { dom.window.close(); }
     });
 });
 

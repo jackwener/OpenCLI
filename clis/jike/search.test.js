@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
-import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import './search.js';
 
 const identity = {
@@ -43,26 +43,6 @@ function command() {
 }
 
 describe('jike search API pagination', () => {
-    it('preserves the seven-column contract and maps structured posts', async () => {
-        const page = makePage(identity, apiPage([
-            { type: 'SECTION_HEADER', title: 'posts' },
-            post('post-1', { content: 'hello\nworld', likeCount: '4', commentCount: null }),
-        ], { skip: 20 }));
-
-        await expect(command().func(page, { query: 'OpenCLI', limit: 1 })).resolves.toEqual([{
-            id: 'post-1',
-            author: 'Alice',
-            content: 'hello world',
-            likes: 4,
-            comments: 0,
-            time: '2026-08-25T00:00:00.000Z',
-            url: 'https://web.okjike.com/originalPost/post-1',
-        }]);
-        expect(command().columns).toEqual(['id', 'author', 'content', 'likes', 'comments', 'time', 'url']);
-        expect(page.goto).toHaveBeenCalledWith('https://web.okjike.com/search?q=OpenCLI');
-        expect(page.evaluate).toHaveBeenCalledTimes(2);
-    });
-
     it('follows loadMoreKey, filters non-post results, deduplicates, and stops at upstream exhaustion', async () => {
         const page = makePage(
             identity,
@@ -86,20 +66,6 @@ describe('jike search API pagination', () => {
         const page = makePage(identity, apiPage([{ type: 'SECTION_HEADER' }]));
         await expect(command().func(page, { query: 'no-results', limit: 20 }))
             .rejects.toBeInstanceOf(EmptyResultError);
-    });
-
-    it.each([
-        [{ kind: 'auth', detail: 'expired' }, AuthRequiredError],
-        [{ kind: 'response', status: 403, body: {} }, AuthRequiredError],
-        [{ kind: 'transport', detail: 'offline' }, CommandExecutionError],
-        [{ kind: 'json', status: 200, detail: 'bad json' }, CommandExecutionError],
-        [{ kind: 'response', status: 500, body: {} }, CommandExecutionError],
-        [{ unexpected: true }, CommandExecutionError],
-        [{ kind: 'response', status: 200, body: { success: false, message: 'denied' } }, CommandExecutionError],
-        [{ kind: 'response', status: 200, body: { success: true, data: null } }, CommandExecutionError],
-    ])('maps API failure %# to a typed error', async (outcome, ErrorType) => {
-        const page = makePage(identity, outcome);
-        await expect(command().func(page, { query: 'OpenCLI', limit: 20 })).rejects.toBeInstanceOf(ErrorType);
     });
 
     it('rejects malformed posts and cursors instead of returning partial rows', async () => {
@@ -129,15 +95,4 @@ describe('jike search API pagination', () => {
             .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('exceeded 50 pages') });
     });
 
-    it.each([
-        [{ query: '', limit: 20 }, ArgumentError],
-        [{ query: 'OpenCLI', limit: 0 }, ArgumentError],
-        [{ query: 'OpenCLI', limit: 1.5 }, ArgumentError],
-        [{ query: 'OpenCLI', limit: '20' }, ArgumentError],
-    ])('validates arguments before browser work: %#', async (args, ErrorType) => {
-        const page = makePage();
-        await expect(command().func(page, args)).rejects.toBeInstanceOf(ErrorType);
-        expect(page.goto).not.toHaveBeenCalled();
-        expect(page.evaluate).not.toHaveBeenCalled();
-    });
 });

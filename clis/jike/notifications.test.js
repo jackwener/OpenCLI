@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
-import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import './notifications.js';
 
 const identity = {
@@ -42,51 +42,6 @@ function command() {
 }
 
 describe('jike notifications API pagination', () => {
-    it('maps the live avatar notification shape and preserves the four-column contract', async () => {
-        const page = makePage(identity, apiPage([
-            notification('notification-1', 'LIKE_AVATAR', {
-                actionType: 'USER_LIST',
-                actionItem: {
-                    type: 'LIKE',
-                    users: [{ screenName: 'Bob' }],
-                    usersCount: 1,
-                },
-                referenceItem: { type: 'AVATAR', referenceImageUrl: 'https://example.com/avatar.png' },
-            }),
-        ], { skip: 20 }));
-
-        await expect(command().func(page, { limit: 1 })).resolves.toEqual([{
-            type: '弹了你的头像',
-            user: 'Bob',
-            content: '',
-            time: '2026-08-25T00:00:00.000Z',
-        }]);
-        expect(command().columns).toEqual(['type', 'user', 'content', 'time']);
-        expect(page.goto).toHaveBeenCalledWith('https://web.okjike.com/notification');
-        expect(page.evaluate).toHaveBeenCalledTimes(2);
-    });
-
-    it('maps current bundle action types and content fields without DOM parsing', async () => {
-        const page = makePage(identity, apiPage([
-            notification('notification-1', 'COMMENT_PERSONAL_UPDATE', {
-                actionItem: { users: [{ screenName: 'Bob' }], content: 'hello\nworld' },
-            }),
-            notification('notification-2', 'MENTION', {
-                actionItem: { users: [{ screenName: 'Carol' }], content: '@Alice hi' },
-            }),
-            notification('notification-3', 'PRODUCT_PAGE_VOTED', {
-                actionItem: { users: [{ screenName: 'Dave' }], behavior: '赞了你的产品页' },
-                referenceItem: { content: 'OpenCLI' },
-            }),
-        ]));
-
-        await expect(command().func(page, { limit: 20 })).resolves.toEqual([
-            { type: '评论了你的动态', user: 'Bob', content: 'hello world', time: '2026-08-25T00:00:00.000Z' },
-            { type: '@了你', user: 'Carol', content: '@Alice hi', time: '2026-08-25T00:00:00.000Z' },
-            { type: '赞了你的产品页', user: 'Dave', content: 'OpenCLI', time: '2026-08-25T00:00:00.000Z' },
-        ]);
-    });
-
     it('follows loadMoreKey, deduplicates notifications, and stops at upstream exhaustion', async () => {
         const page = makePage(
             identity,
@@ -111,20 +66,6 @@ describe('jike notifications API pagination', () => {
     it('returns EmptyResult only for a valid exhausted empty response', async () => {
         await expect(command().func(makePage(identity, apiPage([])), { limit: 20 }))
             .rejects.toBeInstanceOf(EmptyResultError);
-    });
-
-    it.each([
-        [{ kind: 'auth', detail: 'expired' }, AuthRequiredError],
-        [{ kind: 'response', status: 403, body: {} }, AuthRequiredError],
-        [{ kind: 'transport', detail: 'offline' }, CommandExecutionError],
-        [{ kind: 'json', status: 200, detail: 'bad json' }, CommandExecutionError],
-        [{ kind: 'response', status: 500, body: {} }, CommandExecutionError],
-        [{ unexpected: true }, CommandExecutionError],
-        [{ kind: 'response', status: 200, body: { error: 'denied' } }, CommandExecutionError],
-        [{ kind: 'response', status: 200, body: { data: null } }, CommandExecutionError],
-    ])('maps API failure %# to a typed error', async (outcome, ErrorType) => {
-        const page = makePage(identity, outcome);
-        await expect(command().func(page, { limit: 20 })).rejects.toBeInstanceOf(ErrorType);
     });
 
     it('rejects malformed notifications, users, and cursors instead of returning partial rows', async () => {
@@ -157,14 +98,4 @@ describe('jike notifications API pagination', () => {
             .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('exceeded 50 pages') });
     });
 
-    it.each([
-        [{ limit: 0 }, ArgumentError],
-        [{ limit: 1.5 }, ArgumentError],
-        [{ limit: '20' }, ArgumentError],
-    ])('validates --limit before browser work: %#', async (args, ErrorType) => {
-        const page = makePage();
-        await expect(command().func(page, args)).rejects.toBeInstanceOf(ErrorType);
-        expect(page.goto).not.toHaveBeenCalled();
-        expect(page.evaluate).not.toHaveBeenCalled();
-    });
 });

@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { ArgumentError } from '@jackwener/opencli/errors';
-import { __test__, isOnGrok, normalizeBooleanFlag, parseGrokSessionId, sendMessage } from './utils.js';
+import { JSDOM } from 'jsdom';
+import { __test__, isLoggedIn, isOnGrok, normalizeBooleanFlag, parseGrokSessionId, sendMessage, waitForAnswer } from './utils.js';
 
 describe('grok parseGrokSessionId', () => {
     const id = '7c4197f2-10a1-4ebb-a84a-fea89f4f1d06';
@@ -119,6 +120,58 @@ describe('grok getPinStateFromMenuLabels', () => {
     });
 });
 
+describe('grok isLoggedIn', () => {
+    function createPage(states) {
+        const queue = [...states];
+        return {
+            evaluate: vi.fn(async () => (queue.length > 1 ? queue.shift() : queue[0])),
+            wait: vi.fn(async () => undefined),
+        };
+    }
+
+    it('returns true immediately when the composer is already visible', async () => {
+        const page = createPage(['in']);
+        await expect(isLoggedIn(page)).resolves.toBe(true);
+        expect(page.wait).not.toHaveBeenCalled();
+    });
+
+    it('keeps polling while the composer has not painted yet', async () => {
+        const page = createPage(['pending', 'pending', 'pending', 'in']);
+        await expect(isLoggedIn(page)).resolves.toBe(true);
+        expect(page.evaluate).toHaveBeenCalledTimes(4);
+        expect(page.wait).toHaveBeenCalledTimes(3);
+    });
+
+    it('returns false right away when a sign-in button is visible', async () => {
+        const page = createPage(['out']);
+        await expect(isLoggedIn(page)).resolves.toBe(false);
+        expect(page.wait).not.toHaveBeenCalled();
+    });
+
+    it('gives up after the poll window when the composer never appears', async () => {
+        const page = createPage(['pending']);
+        await expect(isLoggedIn(page, 3)).resolves.toBe(false);
+        expect(page.evaluate).toHaveBeenCalledTimes(4);
+        expect(page.wait).toHaveBeenCalledTimes(3);
+    });
+
+    it('detects the composer and the sign-in button in the page probe', async () => {
+        const { JSDOM } = await import('jsdom');
+        const probe = async (html) => {
+            const { window } = new JSDOM(`<!doctype html><body>${html}</body>`, { runScripts: 'outside-only' });
+            Object.defineProperty(window.HTMLElement.prototype, 'getBoundingClientRect', {
+                configurable: true,
+                value: () => ({ width: 100, height: 20, top: 0, left: 0, right: 100, bottom: 20 }),
+            });
+            const page = { evaluate: async (script) => window.eval(script), wait: vi.fn(async () => undefined) };
+            return isLoggedIn(page, 0);
+        };
+        expect(await probe('<div class="ProseMirror" contenteditable="true"></div>')).toBe(true);
+        expect(await probe('<div class="ProseMirror" contenteditable="true"></div><button>Sign in</button>')).toBe(false);
+        expect(await probe('<p>loading</p>')).toBe(false);
+    });
+});
+
 describe('grok sendMessage', () => {
     it('requires a submitted user turn after both submit-button and Enter fallback paths', async () => {
         let script = '';
@@ -137,5 +190,93 @@ describe('grok sendMessage', () => {
         expect(script).toContain('[data-testid="user-message"]');
         expect(script).toContain("submittedVia: 'submit-button'");
         expect(script).toContain("submittedVia: 'enter-key'");
+    });
+});
+
+describe('grok sendMessage with a formatted prompt', () => {
+    async function submitPrompt(prompt, renderedUserText) {
+        const dom = new JSDOM(
+            '<!doctype html><body><div id="response-old"><div data-testid="user-message">earlier question</div></div>'
+            + '<div class="ProseMirror" contenteditable="true"></div>'
+            + '<button data-testid="chat-submit">Submit</button></body>',
+            { runScripts: 'outside-only' },
+        );
+        const { window } = dom;
+        window.setTimeout = (callback) => { callback(); return 0; };
+        Object.defineProperty(window.HTMLElement.prototype, 'getBoundingClientRect', {
+            configurable: true,
+            value: () => ({ width: 100, height: 20, top: 0, left: 0, right: 100, bottom: 20 }),
+        });
+        const noop = () => true;
+        window.document.querySelector('.ProseMirror').editor = {
+            commands: { focus: noop, clearContent: noop, insertContent: noop },
+        };
+        // Grok shows the markdown-rendered prompt: fences lose their backticks.
+        window.document.querySelector('button').addEventListener('click', () => {
+            const turn = window.document.createElement('div');
+            turn.setAttribute('data-testid', 'user-message');
+            turn.textContent = renderedUserText;
+            window.document.body.append(turn);
+        });
+        const page = { evaluate: async (script) => window.eval(script) };
+        return sendMessage(page, prompt);
+    }
+
+    it('accepts the rendered bubble of a prompt that contains a code fence', async () => {
+        const prompt = 'Revisa esta funcion Python que reparte el alquiler.\n\n```python\ndef repartir(x):\n    return x\n```\nSe conciso.';
+        const rendered = 'Revisa esta funcion Python que reparte el alquiler.\n\npython\ndef repartir(x):\n    return x\nSe conciso.';
+        await expect(submitPrompt(prompt, rendered)).resolves.toEqual({ ok: true, submittedVia: 'submit-button' });
+    });
+
+    it('rejects a different prompt sharing the first forty characters', async () => {
+        const prefix = 'Please carefully review this lengthy implementation: ';
+        await expect(submitPrompt(prefix + 'correct code', prefix + 'different code')).resolves.toMatchObject({ ok: false });
+    });
+
+    it('does not treat an empty normalized prompt as matching any turn', async () => {
+        await expect(submitPrompt('```', 'unrelated message')).resolves.toMatchObject({ ok: false });
+    });
+
+    it('accepts the rendered bubble of a prompt that starts with a code fence', async () => {
+        const prompt = '```python\ndef repartir(x):\n    return x\n```\nRevisa esta funcion.';
+        const rendered = 'python\ndef repartir(x):\n    return x\nRevisa esta funcion.';
+        await expect(submitPrompt(prompt, rendered)).resolves.toEqual({ ok: true, submittedVia: 'submit-button' });
+    });
+});
+
+describe('grok waitForAnswer', () => {
+    function createPage(steps) {
+        // Each step is one poll: the assistant bubble text and whether the action bar has buttons.
+        let index = 0;
+        return {
+            wait: vi.fn(async () => undefined),
+            evaluate: vi.fn(async (script) => {
+                const step = steps[Math.min(index, steps.length - 1)];
+                if (String(script).includes('.action-buttons')) {
+                    const generating = step.generating;
+                    index += 1;
+                    return generating;
+                }
+                return [{ id: 'abc-assistant', role: 'Assistant', text: step.text, html: '' }];
+            }),
+        };
+    }
+
+    it('keeps waiting while the response is still generating, even if the text is stable', async () => {
+        const page = createPage([
+            { text: 'Analizando la funcion Worked for 18s', generating: true },
+            { text: 'Analizando la funcion Worked for 18s', generating: true },
+            { text: 'Analizando la funcion Worked for 18s', generating: true },
+            { text: 'Fallos reales: 1. recibos=[]', generating: false },
+            { text: 'Fallos reales: 1. recibos=[]', generating: false },
+            { text: 'Fallos reales: 1. recibos=[]', generating: false },
+        ]);
+        const now = vi.spyOn(Date, 'now');
+        let clock = 0;
+        now.mockImplementation(() => (clock += 3_000));
+        const result = await waitForAnswer(page, 'prompt', 60, '');
+        now.mockRestore();
+        expect(result.status).toBe('ok');
+        expect(result.assistant.text).toBe('Fallos reales: 1. recibos=[]');
     });
 });

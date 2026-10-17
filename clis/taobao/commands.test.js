@@ -20,6 +20,7 @@ describe('taobao command safety', () => {
     });
     it('supports dry-run for add-cart without clicking add-to-cart', async () => {
         const page = createPageMock();
+        page.evaluate.mockResolvedValueOnce(undefined).mockResolvedValueOnce('ok');
         const addCart = getRegistry().get('taobao/add-cart');
         const result = await addCart.func(page, { id: '827563850178', 'dry-run': true, spec: '红色 XL' });
         expect(result).toEqual([
@@ -30,6 +31,6 @@ describe('taobao command safety', () => {
         ]);
         expect(page.goto).toHaveBeenCalledTimes(1);
         expect(page.goto).toHaveBeenCalledWith('https://www.taobao.com');
-        expect(page.evaluate).toHaveBeenCalledTimes(2);
+        expect(page.evaluate).toHaveBeenCalledTimes(3);
     });
 });

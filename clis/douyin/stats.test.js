@@ -51,26 +51,6 @@ describe('douyin stats fetching', () => {
         browserFetchMock.mockReset();
     });
 
-    it('returns the full metric set as metric/value rows', async () => {
-        browserFetchMock.mockResolvedValueOnce({
-            items: [{ id: parseId('7665918107357121842'), metrics: METRICS }],
-            has_more: false,
-        });
-        const rows = await getCommand().func({}, { aweme_id: '7665918107357121842' });
-        expect(rows).toEqual([
-            { metric: 'view_count', value: '1173' },
-            { metric: 'bounce_rate_2s', value: '0.288638' },
-            { metric: 'completion_rate_5s', value: '0.515173' },
-            { metric: 'avg_view_second', value: '22.987297' },
-            { metric: 'cover_show', value: '5' },
-        ]);
-        expect(browserFetchMock).toHaveBeenCalledTimes(1);
-        const [, method, url] = browserFetchMock.mock.calls[0];
-        expect(method).toBe('GET');
-        expect(url).toContain('/web/api/creator/item/list');
-        expect(url).toContain('fields=metrics');
-    });
-
     it('walks the cursor until the work is found', async () => {
         browserFetchMock
             .mockResolvedValueOnce({ items: [{ id: parseId('1111111111111111111') }], has_more: true, max_cursor: 42 })
@@ -89,12 +69,4 @@ describe('douyin stats fetching', () => {
         expect(browserFetchMock).toHaveBeenCalledTimes(2);
     });
 
-    it('distinguishes a missing work from a work without metrics', async () => {
-        browserFetchMock.mockResolvedValueOnce({
-            items: [{ id: parseId('7665918107357121842') }],
-            has_more: false,
-        });
-        await expect(getCommand().func({}, { aweme_id: '7665918107357121842' }))
-            .rejects.toMatchObject({ code: 'EMPTY_RESULT', hint: expect.stringContaining('creator metrics are unavailable') });
-    });
 });

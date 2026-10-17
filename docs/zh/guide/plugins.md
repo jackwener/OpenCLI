@@ -173,12 +173,26 @@ cli({
 
 ## 示例 plugins
 
+- [`opencli-plugin-albato`](https://github.com/vecyang1/opencli-plugin-albato)：Albato 自动化工作流管理：方案查看、启停控制、失败诊断与重试
 - [`opencli-plugin-amap`](https://github.com/vecyang1/opencli-plugin-amap)：高德地图收藏地点与路线导出、坐标转换 (GCJ-02/WGS-84) 与 SSR 搜索
 - `opencli-plugin-github-trending`：GitHub Trending 仓库
+- [`opencli-plugin-goofish`](https://github.com/vecyang1/opencli-plugin-goofish)：闲鱼买家订单、收藏夹、私信消息、个人资料、商品搜索与交易履约统计
 - `opencli-plugin-hot-digest`：多平台热点聚合（zhihu、weibo、bilibili、v2ex、stackoverflow、reddit、linux-do）
 - `opencli-plugin-juejin`：稀土掘金热榜、分类和文章流
 - `opencli-plugin-rubysec`：RubySec 漏洞归档与单篇漏洞文章读取
+- [`opencli-plugin-taobao`](https://github.com/vecyang1/opencli-plugin-taobao)：淘宝买家聊天记录、历史订单、已购店铺、收藏夹与基于关键词的聊天摘要
 - [`opencli-plugin-x-article-publisher`](https://github.com/genoooool/opencli-plugin-x-article-publisher)：通过 OpenCLI 与 xPoster 将带本地图片的 Markdown 发布为 X 长文
+
+### 社区 adapter 集合
+
+Albato、Goofish 和 Taobao 当前将命令放在 `clis/<site>` 下，未声明 monorepo manifest。直接用 `github:vecyang1/opencli-plugin-<site>` 安装仓库根目录会在结构验证时失败。请先 clone，再安装命令目录；本地安装通过链接引用该目录，因此需要保留 clone：
+
+```bash
+git clone https://github.com/vecyang1/opencli-plugin-taobao.git
+opencli plugin install ./opencli-plugin-taobao/clis/taobao
+```
+
+安装 Albato 或 Goofish 时，将两处路径中的 `taobao` 换成 `albato` 或 `goofish`。这两个仓库要求 Node.js 22.5 或更高版本。其他工具和配置请参考各仓库 README。以上为社区维护的 adapter，列出的能力不代表历史数据完整性的保证。
 
 ## 排查问题
 

@@ -50,7 +50,7 @@ export function serializeCommand(cmd: CliCommand) {
     columns: cmd.columns ?? [],
     domain: cmd.domain ?? null,
     example: formatCommandExample(cmd),
-    defaultFormat: cmd.defaultFormat ?? null,
+    defaultFormat: 'json',
     siteSession: cmd.siteSession ?? null,
   };
 }
@@ -90,7 +90,6 @@ export function formatCommandExample(cmd: CliCommand): string {
     parts.push(`--${arg.name}`);
     if (arg.type !== 'bool' && arg.type !== 'boolean') parts.push(formatValuePlaceholder(arg.name));
   }
-  parts.push('-f', 'yaml');
   return parts.join(' ');
 }
 
@@ -107,7 +106,7 @@ export function formatRegistryHelpText(cmd: CliCommand): string {
   meta.push(`Access: ${cmd.access}`);
   meta.push(`Browser: ${cmd.browser ? 'yes' : 'no'}`);
   if (cmd.domain) meta.push(`Domain: ${cmd.domain}`);
-  if (cmd.defaultFormat) meta.push(`Default format: ${cmd.defaultFormat}`);
+  meta.push('Default format: json');
   if (cmd.aliases?.length) meta.push(`Aliases: ${cmd.aliases.join(', ')}`);
   lines.push(meta.join(' | '));
   lines.push(`Example: ${formatCommandExample(cmd)}`);

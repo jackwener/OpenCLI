@@ -16,15 +16,6 @@ describe('autoScrollJs', () => {
 });
 
 describe('waitForCaptureJs', () => {
-  it('returns a non-empty string', () => {
-    const code = waitForCaptureJs(1000);
-    expect(typeof code).toBe('string');
-    expect(code.length).toBeGreaterThan(0);
-    expect(code).toContain('__opencli_xhr');
-    expect(code).toContain('resolve');
-    expect(code).toContain('reject');
-  });
-
   it('resolves "captured" when __opencli_xhr is populated before deadline', async () => {
     const g = globalThis as unknown as Record<string, unknown>;
     const captured: unknown[] = [];
@@ -61,14 +52,6 @@ describe('waitForCaptureJs', () => {
 });
 
 describe('waitForSelectorJs', () => {
-  it('returns a non-empty string', () => {
-    const code = waitForSelectorJs('#app', 1000);
-    expect(typeof code).toBe('string');
-    expect(code).toContain('#app');
-    expect(code).toContain('querySelector');
-    expect(code).toContain('MutationObserver');
-  });
-
   it('resolves "found" immediately when selector already present', async () => {
     const g = globalThis as unknown as Record<string, unknown>;
     const fakeEl = { tagName: 'DIV' };

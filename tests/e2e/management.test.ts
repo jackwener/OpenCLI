@@ -17,83 +17,43 @@ describe('management commands E2E', () => {
     '%s rejects an unknown format with a usage error', async (...args) => {
       const result = await runCli([...args, '-f', 'bogus']);
       expect(result.code).toBe(2);
-      expect(result.stdout).toBe('');
-      expect(JSON.parse(result.stderr).error).toMatchObject({ code: 'ARGUMENT', exitCode: 2 });
+      expect(JSON.parse(result.stdout)).toMatchObject({ ok: false, error: { exitCode: 2 } });
     },
   );
 
+  it('returns an early configuration failure as one JSON envelope', async () => {
+    const result = await runCli(['list'], { env: { OPENCLI_DAEMON_PORT: '9999' } });
+    expect(result.code).not.toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({ ok: false, error: { code: 'CONFIG', exitCode: result.code } });
+  });
+
   // ── list ──
-  it('list shows all registered commands', async () => {
-    const { stdout, code } = await runCli(['list', '-f', 'json']);
-    expect(code).toBe(0);
-    const data = parseJsonOutput(stdout);
-    expect(Array.isArray(data)).toBe(true);
-    // Should have 50+ commands across 18 sites
-    expect(data.length).toBeGreaterThan(50);
-    // Each entry should have the standard fields
-    expect(data[0]).toHaveProperty('command');
-    expect(data[0]).toHaveProperty('site');
-    expect(data[0]).toHaveProperty('name');
-    expect(data[0]).toHaveProperty('strategy');
-    expect(data[0]).toHaveProperty('browser');
+  it('searches and paginates capabilities', async () => {
+    const first = await runCli(['list', '--limit', '2']);
+    expect(first.code).toBe(0);
+    const data = parseJsonOutput(first.stdout);
+    expect(data.commands).toHaveLength(2);
+    expect(data.nextOffset).toBe(2);
+    expect(data.total).toBeGreaterThan(50);
+    const second = parseJsonOutput((await runCli(['list', '--offset', '2', '--limit', '2'])).stdout);
+    expect(second.commands[0].command).not.toBe(data.commands[0].command);
+    const site = parseJsonOutput((await runCli(['list', 'top', '--site', 'hackernews'])).stdout);
+    expect(site.commands.some((row: any) => row.command === 'hackernews top')).toBe(true);
   });
-
-  it('list default table format renders sites', async () => {
-    const { stdout, code } = await runCli(['list']);
-    expect(code).toBe(0);
-    // Should contain site names
-    expect(stdout).toContain('hackernews');
-    expect(stdout).toContain('bilibili');
-    expect(stdout).toContain('twitter');
-    expect(stdout).toContain('commands across');
+  it.each(['yaml', 'csv', 'md', 'table'])('exports a compact list as %s', async format => {
+    const result = await runCli(['list', '--site', 'hackernews', '-f', format]);
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain('hackernews');
   });
-
-  it('list -f yaml produces valid yaml', async () => {
-    const { stdout, code } = await runCli(['list', '-f', 'yaml']);
-    expect(code).toBe(0);
-    expect(stdout).toContain('command:');
-    expect(stdout).toContain('site:');
+  it.each([[], ['hackernews'], ['hackernews/top']])('checks adapter definitions %s', async (...target) => {
+    const result = await runCli(['adapter', 'check', ...target]);
+    expect(result.code).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({ ok: true, data: { ok: true } });
   });
-
-  it('list -f csv produces valid csv', async () => {
-    const { stdout, code } = await runCli(['list', '-f', 'csv']);
-    expect(code).toBe(0);
-    const lines = stdout.trim().split('\n');
-    expect(lines.length).toBeGreaterThan(50);
-  });
-
-  it('list -f md produces markdown table', async () => {
-    const { stdout, code } = await runCli(['list', '-f', 'md']);
-    expect(code).toBe(0);
-    expect(stdout).toContain('|');
-    expect(stdout).toContain('command');
-  });
-
-  // ── validate ──
-  it('validate passes for all built-in adapters', async () => {
-    const { stdout, code } = await runCli(['validate']);
-    expect(code).toBe(0);
-    expect(stdout).toContain('PASS');
-    expect(stdout).not.toContain('❌');
-  });
-
-  it('validate works for specific site', async () => {
-    const { stdout, code } = await runCli(['validate', 'hackernews']);
-    expect(code).toBe(0);
-    expect(stdout).toContain('PASS');
-  });
-
-  it('validate works for specific command', async () => {
-    const { stdout, code } = await runCli(['validate', 'hackernews/top']);
-    expect(code).toBe(0);
-    expect(stdout).toContain('PASS');
-  });
-
-  // ── verify ──
-  it('verify runs validation without smoke tests', async () => {
-    const { stdout, code } = await runCli(['verify']);
-    expect(code).toBe(0);
-    expect(stdout).toContain('PASS');
+  it('rejects removed workflow commands with one error envelope', async () => {
+    const result = await runCli(['validate']);
+    expect(result.code).toBe(2);
+    expect(JSON.parse(result.stdout).ok).toBe(false);
   });
 
   // ── version ──
@@ -109,7 +69,7 @@ describe('management commands E2E', () => {
     expect(code).toBe(0);
     expect(stdout).toContain('opencli');
     expect(stdout).toContain('list');
-    expect(stdout).toContain('validate');
+    expect(stdout).toContain('adapter');
   });
 
   // ── unknown command ──
@@ -139,9 +99,9 @@ describe('removed integrations E2E', () => {
   afterAll(() => rmSync(home, { recursive: true, force: true }));
 
   it('excludes removed adapters from discovery and fast completions', async () => {
-    const listed = await runCli(['list', '-f', 'json'], { env });
+    const listed = await runCli(['--help', '-f', 'json'], { env });
     expect(listed.code).toBe(0);
-    const sites = parseJsonOutput(listed.stdout).map((entry: { site: string }) => entry.site);
+    const sites = parseJsonOutput(listed.stdout).site_adapters.sites;
     expect(sites).toContain('hackernews');
     for (const site of removedSites) expect(sites).not.toContain(site);
 
@@ -202,7 +162,7 @@ describe('removed integrations E2E', () => {
     'rejects the removed or legacy command %s', async (name) => {
       const result = await runCli([name], { env });
       expect(result.code).toBe(2);
-      expect(result.stderr).toContain(`unknown command '${name}'`);
+      expect(JSON.parse(result.stdout).ok).toBe(false);
     },
   );
 });

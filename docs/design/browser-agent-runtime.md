@@ -249,9 +249,9 @@ type ActionStatus =
 Add semantic locator support after AX refs are in place:
 
 ```bash
-opencli browser click --role button --name "Submit"
-opencli browser fill --label "Email" "me@example.com"
-opencli browser get text --testid invoice-total
+opencli browser --session research click --role button --name "Submit"
+opencli browser --session research fill --label "Email" "me@example.com"
+opencli browser --session research get text --testid invoice-total
 ```
 
 For write operations, ambiguous locators must fail with candidates. They should
@@ -264,15 +264,15 @@ Keep the surface smaller than agent-browser and Playwright.
 Near-term primitives:
 
 ```bash
-opencli browser click <target>
-opencli browser dblclick <target>
-opencli browser hover <target>
-opencli browser focus <target>
-opencli browser check <target>
-opencli browser uncheck <target>
-opencli browser upload <target> <file...>
-opencli browser drag <source> <target>
-opencli browser wait download [pattern]
+opencli browser --session research click <target>
+opencli browser --session research dblclick <target>
+opencli browser --session research hover <target>
+opencli browser --session research focus <target>
+opencli browser --session research check <target>
+opencli browser --session research uncheck <target>
+opencli browser --session research upload <target> <file...>
+opencli browser --session research drag <source> <target>
+opencli browser --session research wait download [pattern]
 ```
 
 Keep `browser select` native `<select>` only. It should clearly return
@@ -445,7 +445,7 @@ Execution process:
 
 - Phase 0 completion: @opencli-质量官 runs Mercury, Brex, and Linear when access
   is available.
-- On each form page, collect `opencli browser state --compare-sources` so the AX
+- On each form page, collect `opencli browser --session research state --compare-sources` so the AX
   default decision has DOM-vs-AX metrics: refs, frame sections, approximate
   tokens, elapsed time, and per-source errors.
 - Pass means the relevant category/field can be selected and the form state can

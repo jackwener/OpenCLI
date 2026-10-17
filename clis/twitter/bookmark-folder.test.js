@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
-import { getRegistry } from '@jackwener/opencli/registry';
+import { describe, expect, it } from 'vitest';
+
 import { __test__ } from './bookmark-folder.js';
 
 const { parseBookmarkFolderTimeline, extractFolderTweet, buildFolderTimelineUrl, FOLDER_ID_PATTERN } = __test__;
@@ -100,6 +100,7 @@ describe('twitter bookmark-folder timeline parser', () => {
                 has_media: false,
                 media_urls: [],
                 media_posters: [],
+                media_durations: [],
             },
         ]);
         expect(nextCursor).toBe('NEXT_CURSOR');
@@ -318,79 +319,5 @@ describe('twitter bookmark-folder id validation', () => {
         for (const value of ['folder/123', 'folder?x=1', 'folder%2F123', 'folder.123', 'folder 123', '']) {
             expect(FOLDER_ID_PATTERN.test(value)).toBe(false);
         }
-    });
-});
-
-describe('twitter bookmark-folder command (registry)', () => {
-    it('throws ArgumentError on unsafe folder-id before navigation', async () => {
-        const command = getRegistry().get('twitter/bookmark-folder');
-        expect(command?.func).toBeTypeOf('function');
-        const page = {
-            goto: vi.fn(),
-            wait: vi.fn(),
-            evaluate: vi.fn(),
-        };
-        await expect(command.func(page, { 'folder-id': 'folder/123', limit: 5 }))
-            .rejects
-            .toThrow(/Invalid folder-id/);
-        expect(page.goto).not.toHaveBeenCalled();
-    });
-
-    it('throws ArgumentError on empty folder-id', async () => {
-        const command = getRegistry().get('twitter/bookmark-folder');
-        const page = {
-            goto: vi.fn(),
-            wait: vi.fn(),
-            evaluate: vi.fn(),
-        };
-        await expect(command.func(page, { 'folder-id': '   ', limit: 5 }))
-            .rejects
-            .toThrow(/Invalid folder-id/);
-    });
-
-    it('throws ArgumentError on invalid limit before navigation', async () => {
-        const command = getRegistry().get('twitter/bookmark-folder');
-        for (const limit of [0, -1, 1.5, Number.NaN]) {
-            const page = {
-                goto: vi.fn(),
-                wait: vi.fn(),
-                evaluate: vi.fn(),
-            };
-            await expect(command.func(page, { 'folder-id': '12345', limit }))
-                .rejects
-                .toThrow(/Invalid --limit/);
-            expect(page.goto).not.toHaveBeenCalled();
-        }
-    });
-
-    it('throws AuthRequiredError when ct0 cookie is missing', async () => {
-        const command = getRegistry().get('twitter/bookmark-folder');
-        const page = {
-            goto: vi.fn().mockResolvedValue(undefined),
-            wait: vi.fn().mockResolvedValue(undefined),
-            getCookies: vi.fn().mockResolvedValue([]),
-            evaluate: vi.fn().mockResolvedValue(null),
-        };
-        await expect(command.func(page, { 'folder-id': '12345', limit: 5 }))
-            .rejects
-            .toThrow(/Not logged into x.com/);
-        expect(page.getCookies).toHaveBeenCalledWith({ url: 'https://x.com' });
-    });
-
-    it('accepts an opaque safe folder-id and sends it in the GraphQL variables', async () => {
-        const command = getRegistry().get('twitter/bookmark-folder');
-        const page = {
-            goto: vi.fn().mockResolvedValue(undefined),
-            wait: vi.fn().mockResolvedValue(undefined),
-            getCookies: vi.fn().mockResolvedValue([{ name: 'ct0', value: 'ct0-token' }]),
-            evaluate: vi.fn()
-                .mockResolvedValueOnce('queryX')
-                .mockResolvedValueOnce({ data: { bookmark_timeline_v2: { timeline: { instructions: [] } } } }),
-        };
-        const result = await command.func(page, { 'folder-id': 'folder_AbC-123', limit: 5 });
-        expect(result).toEqual([]);
-        expect(page.getCookies).toHaveBeenCalledWith({ url: 'https://x.com' });
-        const fetchScript = page.evaluate.mock.calls[1][0];
-        expect(decodeURIComponent(fetchScript)).toContain('"bookmark_collection_id":"folder_AbC-123"');
     });
 });

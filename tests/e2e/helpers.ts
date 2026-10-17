@@ -71,7 +71,8 @@ export async function runCli(
  */
 export function parseJsonOutput(stdout: string): any {
   try {
-    return JSON.parse(stdout.trim());
+    const result = JSON.parse(stdout.trim());
+    return result.ok === true && Object.hasOwn(result, 'data') ? result.data : result;
   } catch {
     throw new Error(`Failed to parse CLI JSON output:\n${stdout.slice(0, 500)}`);
   }

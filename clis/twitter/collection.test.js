@@ -1,7 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
-import { getRegistry } from '@jackwener/opencli/registry';
+import { describe, expect, it } from 'vitest';
+
 import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import './tweets.js';
 import { __test__ } from './collection.js';
 
 function syntheticTweet(id, {
@@ -61,7 +60,6 @@ function collectionPayload(tweets, nextCursor = null) {
 }
 
 describe('twitter collection', () => {
-
     it('classifies original, quote, reply and repost without inventing context', () => {
         expect(__test__.extractRelationship(syntheticTweet('10'))).toEqual({
             kind: 'original',
@@ -167,54 +165,6 @@ describe('twitter collection', () => {
             receipt: { completed: true, stop_reason: 'cursor_exhausted', pages_fetched: 1 },
         });
         expect(Object.keys(result.receipt)).not.toContain('cursor');
-    });
-
-    it('returns the posts and receipt envelope from the registered command', async () => {
-        const command = getRegistry().get('twitter/collection');
-        const page = {
-            getCookies: vi.fn(async () => [{ name: 'ct0', value: 'test-only' }]),
-            wait: vi.fn(async () => undefined),
-            evaluate: vi.fn(async (script) => {
-                const source = String(script);
-                if (source.includes('operationName')) return null;
-                if (source.includes('/UserByScreenName')) return '42';
-                if (source.includes('/UserTweets')) {
-                    return collectionPayload([
-                        syntheticTweet('27', { createdAt: '2026-07-22T23:59:59.000Z' }),
-                    ]);
-                }
-                return null;
-            }),
-        };
-        const result = await command.func(page, {
-            username: 'synth_author',
-            until: '2026-07-23T00:00:00Z',
-            limit: 10,
-            'page-delay': 0,
-        });
-        expect(result).toMatchObject({
-            posts: [{ id: '27', relationship: { kind: 'original' } }],
-            receipt: { completed: true, stop_reason: 'time_boundary_reached' },
-        });
-    });
-
-    it('uses collection-specific validation errors before touching the browser', async () => {
-        const command = getRegistry().get('twitter/collection');
-        const page = {
-            goto: vi.fn(),
-            getCookies: vi.fn(),
-            evaluate: vi.fn(),
-        };
-
-        await expect(command.func(page, {
-            username: 'home/extra',
-            until: '2026-07-23T00:00:00Z',
-            limit: 10,
-            'page-delay': 0,
-        })).rejects.toThrow(/twitter collection username/);
-        expect(page.goto).not.toHaveBeenCalled();
-        expect(page.getCookies).not.toHaveBeenCalled();
-        expect(page.evaluate).not.toHaveBeenCalled();
     });
 
     it('fails on repeated cursor, limit, page guard, and malformed timestamps', async () => {

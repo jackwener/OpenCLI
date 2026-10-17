@@ -1,4 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { JSDOM } from 'jsdom';
+import { getRegistry } from '@jackwener/opencli/registry';
+import { describe, expect, it, vi } from 'vitest';
 import { __test__ } from './channel.js';
 
 function tab(title, contents, selected = false) {
@@ -279,5 +281,60 @@ describe('parseVideoItem', () => {
             },
         };
         expect(parseVideoItem(item).url).toContain('injected');
+    });
+});
+
+
+describe('youtube channel handle resolution', () => {
+    const channelId = 'UC' + 'a'.repeat(22);
+    const command = () => getRegistry().get('youtube/channel');
+    function fixture(resolve = { ok: true, json: async () => ({ endpoint: { browseEndpoint: { browseId: channelId } } }) }) {
+        const dom = new JSDOM('', { runScripts: 'outside-only' });
+        dom.window.ytcfg = { data_: { INNERTUBE_API_KEY: 'fixture', INNERTUBE_CONTEXT: { client: {} } } };
+        const requests = [];
+        dom.window.fetch = vi.fn(async (url, options) => {
+            requests.push({ url, body: JSON.parse(options.body) });
+            if (url.includes('resolve_url')) return resolve;
+            return { ok: true, json: async () => ({ metadata: { channelMetadataRenderer: { title: 'Fixture channel', externalId: channelId } } }) };
+        });
+        const page = { goto: vi.fn(), wait: vi.fn(), evaluate: vi.fn(script => dom.window.eval(script)) };
+        return { dom, page, requests };
+    }
+    it.each(['halfbraindev', '@halfbraindev', ' UChello ', '频道测试'])('resolves handle %s before browsing', async (id) => {
+        const { dom, page, requests } = fixture();
+        try {
+            const rows = await command().func(page, { id });
+            expect(requests).toHaveLength(2);
+            expect(requests[0].body.url).toBe('https://www.youtube.com/@' + encodeURIComponent(id.trim().replace(/^@/, '')));
+            expect(requests[1].body.browseId).toBe(channelId);
+            expect(rows).toContainEqual({ field: 'name', value: 'Fixture channel' });
+        } finally { dom.window.close(); }
+    });
+    it('browses a canonical channel ID without a handle-resolution request', async () => {
+        const { dom, page, requests } = fixture();
+        try {
+            await command().func(page, { id: channelId });
+            expect(requests).toHaveLength(1);
+            expect(requests[0].body.browseId).toBe(channelId);
+        } finally { dom.window.close(); }
+    });
+    it.each([
+        { ok: false, status: 404 },
+        { ok: true, json: async () => ({ endpoint: {} }) },
+    ])('never browses an unresolved handle', async (response) => {
+        const { dom, page, requests } = fixture(response);
+        try {
+            await expect(command().func(page, { id: 'missing' })).rejects.toMatchObject({ code: 'COMMAND_EXEC' });
+            expect(requests).toHaveLength(1);
+        } finally { dom.window.close(); }
+    });
+    it('rejects malformed input before navigation', async () => {
+        const { dom, page } = fixture();
+        try {
+            for (const id of ['', '@', 'two words', 'name/videos', 'https://other.example/@name', 'name?query']) {
+                await expect(command().func(page, { id })).rejects.toMatchObject({ code: 'ARGUMENT' });
+            }
+            expect(page.goto).not.toHaveBeenCalled();
+        } finally { dom.window.close(); }
     });
 });

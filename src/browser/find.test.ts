@@ -1,120 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { JSDOM } from 'jsdom';
-import { buildFindJs, buildSemanticFindJs, FIND_ATTR_WHITELIST, isFindError, type FindError } from './find.js';
-
-/**
- * These tests validate the shape and options of the generated JS string
- * (no DOM available in the default vitest unit env). Runtime behavior of
- * the generated JS against a real DOM is covered by the browser e2e suite.
- */
-
-describe('buildFindJs', () => {
-  it('produces syntactically valid JS that can be parsed', () => {
-    expect(() => new Function(`return (${buildFindJs('.btn')});`)).not.toThrow();
-  });
-
-  it('embeds the selector via JSON.stringify (injection-safe)', () => {
-    const js = buildFindJs('[data-x="a\"b"]');
-    // Unescaped literal break-out must not appear
-    expect(js).not.toContain('[data-x="a"b"]');
-    // The JSON-encoded form (with escaped quotes) should
-    expect(js).toContain(JSON.stringify('[data-x="a\"b"]'));
-  });
-
-  it('emits invalid_selector + selector_not_found branches', () => {
-    const js = buildFindJs('.btn');
-    expect(js).toContain("code: 'invalid_selector'");
-    expect(js).toContain("code: 'selector_not_found'");
-  });
-
-  it('emits matches_n + entries + per-entry shape', () => {
-    const js = buildFindJs('.btn');
-    expect(js).toContain('matches_n: matches.length');
-    expect(js).toContain('entries.push(');
-    // Per-entry keys reviewers signed off on: nth, ref, tag, role, text, attrs, visible
-    expect(js).toContain('nth: i');
-    expect(js).toContain('ref: refNum');
-    expect(js).toContain('tag: el.tagName.toLowerCase()');
-    expect(js).toContain("el.getAttribute('role')");
-    expect(js).toContain('visible: isVisible(el)');
-  });
-
-  it('allocates fresh refs for untagged matches (write attribute + identity map)', () => {
-    const js = buildFindJs('.btn');
-    // On the just-annotated branch we must flip the attribute on the element
-    // so downstream `browser click <ref>` works off the find output.
-    expect(js).toContain("el.setAttribute('data-opencli-ref'");
-    // The fingerprint must also land in the shared identity map so the
-    // target resolver's stale-ref check has data to verify against.
-    expect(js).toContain('__opencli_ref_identity');
-    expect(js).toContain("identity['' + refNum] = fingerprintOf(el)");
-    // Allocation walks both the identity map and any existing data-opencli-ref
-    // annotations — guards against collisions after a soft nav.
-    expect(js).toContain("document.querySelectorAll('[data-opencli-ref]')");
-  });
-
-  it('fingerprint shape matches the snapshot / resolver contract', () => {
-    const js = buildFindJs('.btn');
-    // The six fields resolveTargetJs verifies in its stale_ref check.
-    for (const field of ['tag:', 'role:', 'text:', 'ariaLabel:', 'id:', 'testId:']) {
-      expect(js).toContain(field);
-    }
-  });
-
-  it('embeds defaults for limit and textMax', () => {
-    const js = buildFindJs('.btn');
-    expect(js).toContain('LIMIT = 50');
-    expect(js).toContain('TEXT_MAX = 120');
-  });
-
-  it('overrides limit and textMax when requested', () => {
-    const js = buildFindJs('.btn', { limit: 3, textMax: 20 });
-    expect(js).toContain('LIMIT = 3');
-    expect(js).toContain('TEXT_MAX = 20');
-  });
-
-  it('embeds the attribute whitelist verbatim (no style/onclick leaking)', () => {
-    const js = buildFindJs('.btn');
-    // Whitelist fields appear inside the generated JS
-    for (const key of FIND_ATTR_WHITELIST) {
-      expect(js).toContain(`"${key}"`);
-    }
-    // Sensitive / high-noise attrs must stay out of the whitelist
-    expect(FIND_ATTR_WHITELIST).not.toContain('style' as never);
-    expect(FIND_ATTR_WHITELIST).not.toContain('onclick' as never);
-    expect(FIND_ATTR_WHITELIST).not.toContain('onload' as never);
-  });
-
-  it('inlines compoundInfoOf and attaches compound field per entry', () => {
-    const js = buildFindJs('input, select');
-    // Helper definition is inlined so each matched element can be classified.
-    expect(js).toContain('function compoundInfoOf(el)');
-    // The emitted entry opts in only when compound data is present — no noisy
-    // compound: null on every non-form element.
-    expect(js).toContain('const compound = compoundInfoOf(el);');
-    expect(js).toContain('if (compound) entry.compound = compound;');
-    // Spot-check all three compound families are covered in the inlined helper.
-    expect(js).toContain("'YYYY-MM-DD'");
-    expect(js).toContain("control: 'file'");
-    expect(js).toContain("control: 'select'");
-  });
-
-  it('keeps the whitelist small and explicit (guardrail against silent expansion)', () => {
-    expect(FIND_ATTR_WHITELIST).toEqual([
-      'id',
-      'class',
-      'name',
-      'type',
-      'placeholder',
-      'aria-label',
-      'title',
-      'href',
-      'value',
-      'role',
-      'data-testid',
-    ]);
-  });
-});
+import { resolveTargetJs } from './target-resolver.js';
+import { buildFindJs, buildSemanticFindJs, isFindError, type FindError, type FindResult } from './find.js';
 
 describe('isFindError', () => {
   it('narrows { error: ... } as FindError', () => {
@@ -136,44 +23,12 @@ describe('isFindError', () => {
 
 describe('buildSemanticFindJs', () => {
   function runSemanticFind(html: string, opts: Parameters<typeof buildSemanticFindJs>[0]) {
-    const dom = new JSDOM(html, { runScripts: 'outside-only' });
+    const dom = page(html);
     return {
       dom,
       result: dom.window.eval(buildSemanticFindJs(opts)),
     };
   }
-
-  it('produces syntactically valid JS and embeds semantic criteria safely', () => {
-    const js = buildSemanticFindJs({ role: 'button', name: 'Save "now"', testid: 'submit' });
-    expect(() => new Function(`return (${js});`)).not.toThrow();
-    expect(js).toContain(JSON.stringify({
-      role: 'button',
-      name: 'Save "now"',
-      label: '',
-      text: '',
-      testid: 'submit',
-    }));
-  });
-
-  it('matches native roles, accessible name, labels, text, and test ids', () => {
-    const js = buildSemanticFindJs({ role: 'button', name: 'Save', label: 'Category', text: 'Travel', testid: 'category' });
-    expect(js).toContain('function nativeRole(el)');
-    expect(js).toContain('function accessibleName(el)');
-    expect(js).toContain('function labelText(el)');
-    expect(js).toContain('CRITERIA.role');
-    expect(js).toContain('CRITERIA.name');
-    expect(js).toContain('CRITERIA.label');
-    expect(js).toContain('CRITERIA.text');
-    expect(js).toContain('CRITERIA.testid');
-  });
-
-  it('allocates refs exactly like CSS find so downstream actions can click them', () => {
-    const js = buildSemanticFindJs({ role: 'button', name: 'Save' });
-    expect(js).toContain("el.setAttribute('data-opencli-ref'");
-    expect(js).toContain('__opencli_ref_identity');
-    expect(js).toContain("identity['' + refNum] = fingerprintOf(el)");
-    expect(js).toContain("document.querySelectorAll('[data-opencli-ref]')");
-  });
 
   it('executes semantic role/name/testid matching and allocates a clickable ref', () => {
     const { dom, result } = runSemanticFind(
@@ -202,5 +57,69 @@ describe('buildSemanticFindJs', () => {
         { nth: 0, ref: 1, tag: 'input', role: 'textbox' },
       ],
     });
+  });
+});
+
+// Exercise the generated find → resolve contract rather than private helper names.
+function page(html: string) {
+  const dom = new JSDOM(html, { runScripts: 'outside-only' });
+  pages.push(dom);
+  return dom;
+}
+const pages: JSDOM[] = [];
+afterEach(() => { for (const dom of pages.splice(0)) dom.window.close(); });
+
+describe('CSS find and target resolution', () => {
+  it('limits results, truncates text, filters attributes and allocates noncolliding refs', () => {
+    const dom = page('<button data-opencli-ref="7">Old</button><button class="btn" id="save" style="color:red" onclick="x()">Save now</button><button class="btn">Cancel</button>');
+    const result = dom.window.eval(buildFindJs('.btn', { limit: 1, textMax: 4 })) as FindResult;
+    expect(result).toMatchObject({ matches_n: 2, entries: [{ ref: 8, nth: 0, tag: 'button', text: 'Save' }] });
+    expect(result.entries[0].attrs).toEqual({ id: 'save', class: 'btn' });
+    expect(dom.window.eval(resolveTargetJs('8'))).toMatchObject({ ok: true, match_level: 'exact' });
+  });
+
+  it.each([
+    ['???', {}, 'invalid_selector'], ['.missing', {}, 'selector_not_found'],
+    ['button', {}, 'selector_ambiguous'], ['button', { nth: 5 }, 'selector_nth_out_of_range'],
+    ['"; window.injected = true; "', {}, 'invalid_selector'],
+  ])('returns typed errors for %s (%j)', (selector, options, code) => {
+    const dom = page('<button>A</button><button>B</button>');
+    expect(dom.window.eval(resolveTargetJs(selector, options))).toMatchObject({ ok: false, code });
+    expect((dom.window as any).injected).toBeUndefined();
+  });
+
+  it('supports nth, firstOnMulti and selectors outside the old prefix shortlist', () => {
+    const dom = page('<button>A</button><button>B</button>');
+    for (const [selector, options] of [['button', { nth: 1 }], ['button', { firstOnMulti: true }], [':root', {}]] as const) {
+      expect(dom.window.eval(resolveTargetJs(selector, options))).toMatchObject({ ok: true, match_level: 'exact' });
+    }
+    expect(dom.window.eval(buildFindJs('???'))).toMatchObject({ error: { code: 'invalid_selector' } });
+    expect(dom.window.eval(buildFindJs('.missing'))).toMatchObject({ error: { code: 'selector_not_found' } });
+  });
+
+  it('keeps strong identities stable and reidentifies a replaced node', () => {
+    const dom = page('<button id="save">Save</button>');
+    dom.window.eval(buildFindJs('button'));
+    dom.window.document.querySelector('button')!.textContent = 'Enregistrer';
+    expect(dom.window.eval(resolveTargetJs('1'))).toMatchObject({ ok: true, match_level: 'stable' });
+    dom.window.document.body.innerHTML = '<button id="save">Save again</button>';
+    expect(dom.window.eval(resolveTargetJs('1'))).toMatchObject({ ok: true, match_level: 'reidentified' });
+    expect(dom.window.document.querySelector('button')!.getAttribute('data-opencli-ref')).toBe('1');
+    expect(dom.window.eval(resolveTargetJs('1'))).toMatchObject({ ok: true, match_level: 'exact' });
+  });
+
+  it('rejects stale weak identities and ambiguous replacement candidates', () => {
+    const dom = page('<button>Save</button><button aria-label="Delete">Delete</button>');
+    dom.window.eval(buildFindJs('button'));
+    dom.window.document.querySelector('button')!.textContent = 'Unrelated action';
+    expect(dom.window.eval(resolveTargetJs('1'))).toMatchObject({ ok: false, code: 'stale_ref' });
+    dom.window.document.body.innerHTML = '<button aria-label="Delete">Delete</button><button aria-label="Delete">Delete</button>';
+    expect(dom.window.eval(resolveTargetJs('2'))).toMatchObject({ ok: false });
+  });
+
+  it('attaches compound control data and safely matches quoted criteria', () => {
+    const dom = page('<input type="date" value="2026-10-16"><button aria-label="Save &quot;now&quot;">Save</button>');
+    expect((dom.window.eval(buildFindJs('input')) as FindResult).entries[0].compound).toMatchObject({ control: 'date', current: '2026-10-16' });
+    expect(dom.window.eval(buildSemanticFindJs({ name: 'Save "now"' }))).toMatchObject({ matches_n: 1 });
   });
 });

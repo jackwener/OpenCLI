@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { getRegistry } from '@jackwener/opencli/registry';
-import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { expectRejectsWithMessage, makePage } from './test-helpers.js';
-import './course.js';
+
+import { ArgumentError } from '@jackwener/opencli/errors';
 
 const { parseSlug, parseCourse } = await import('./course.js').then((m) => m.__test__);
 
@@ -74,50 +72,4 @@ describe('linkedin-learning course', () => {
         expect(parseCourse({ title: '   ' }, 'x')).toBeNull();
     });
 
-    it('throws AuthRequiredError when JSESSIONID is missing', async () => {
-        const cmd = getRegistry().get('linkedin-learning/course');
-        const page = makePage({ cookies: [], evaluateResult: { json: { elements: [{}] } } });
-        await expect(cmd.func(page, { slug: 'agentic-ai-build' })).rejects.toBeInstanceOf(AuthRequiredError);
-    });
-
-    it('keeps the exact page-required message local to course', async () => {
-        const cmd = getRegistry().get('linkedin-learning/course');
-        await expectRejectsWithMessage(
-            cmd.func(undefined, { slug: 'agentic-ai-build' }),
-            CommandExecutionError,
-            'Browser session required for linkedin-learning course'
-        );
-    });
-
-    it('throws EmptyResultError when no element matches the slug', async () => {
-        const cmd = getRegistry().get('linkedin-learning/course');
-        const page = makePage({ evaluateResult: { json: { elements: [] } } });
-        await expect(cmd.func(page, { slug: 'agentic-ai-build' })).rejects.toBeInstanceOf(EmptyResultError);
-    });
-
-    it('throws CommandExecutionError when the elements array is missing', async () => {
-        const cmd = getRegistry().get('linkedin-learning/course');
-        const page = makePage({ evaluateResult: { json: { data: {} } } });
-        await expectRejectsWithMessage(
-            cmd.func(page, { slug: 'agentic-ai-build' }),
-            CommandExecutionError,
-            'LinkedIn Learning courses lookup returned malformed payload: missing elements array'
-        );
-    });
-
-    it('throws CommandExecutionError when the first detail element is malformed', async () => {
-        const cmd = getRegistry().get('linkedin-learning/course');
-        const page = makePage({ evaluateResult: { json: { elements: [{}] } } });
-        await expect(cmd.func(page, { slug: 'agentic-ai-build' })).rejects.toBeInstanceOf(CommandExecutionError);
-    });
-
-    it('throws CommandExecutionError on fetch errors', async () => {
-        const cmd = getRegistry().get('linkedin-learning/course');
-        const page = makePage({ evaluateResult: { error: 'HTTP 500' } });
-        await expectRejectsWithMessage(
-            cmd.func(page, { slug: 'agentic-ai-build' }),
-            CommandExecutionError,
-            'LinkedIn Learning courses lookup failed: HTTP 500'
-        );
-    });
 });

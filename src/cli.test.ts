@@ -53,7 +53,7 @@ vi.mock('node:child_process', async () => {
   };
 });
 
-import { createProgram, findPackageRoot, normalizeVerifyRows, renderVerifyPreview, resolveBrowserVerifyInvocation, selectFreshByTimestamp } from './cli.js';
+import { createProgram, findPackageRoot, normalizeVerifyRows, resolveBrowserVerifyInvocation, selectFreshByTimestamp } from './cli.js';
 
 describe('createProgram root help descriptions', () => {
   function descriptionFor(program: ReturnType<typeof createProgram>, name: string): string | undefined {
@@ -65,11 +65,11 @@ describe('createProgram root help descriptions', () => {
 
     expect(descriptionFor(program, 'browser')).toContain('open');
     expect(descriptionFor(program, 'browser')).toContain('type');
-    expect(descriptionFor(program, 'browser')).toContain('verify');
+    expect(descriptionFor(program, 'browser')).not.toContain('verify');
     expect(descriptionFor(program, 'browser')).not.toContain('Browser control');
     expect(descriptionFor(program, 'auth')).toBe('refresh, status');
     expect(descriptionFor(program, 'plugin')).toBe('create, install, list, uninstall, update');
-    expect(descriptionFor(program, 'adapter')).toBe('eject, reset, status');
+    expect(descriptionFor(program, 'adapter')).toBe('check, eject, init, reset, status, test');
     expect(descriptionFor(program, 'profile')).toBe('list, rename, use');
     expect(descriptionFor(program, 'daemon')).toBe('restart, status, stop');
     expect(descriptionFor(program, 'external')).toBeUndefined();
@@ -111,7 +111,7 @@ describe('createProgram root help descriptions', () => {
   it('keeps leaf command descriptions unchanged', () => {
     const program = createProgram('', '');
 
-    expect(descriptionFor(program, 'list')).toBe('List all available CLI commands');
+    expect(descriptionFor(program, 'list')).toBe('Find available capabilities; inspect a command with --help -f json');
     expect(descriptionFor(program, 'doctor')).toBe('Diagnose opencli browser bridge connectivity');
   });
 
@@ -142,7 +142,7 @@ describe('createProgram root help descriptions', () => {
 
       expect(help).toContain('Site adapters (2):');
       expect(help).toContain('bilibili, youtube');
-      expect(help).toContain("opencli <site> --help -f yaml");
+      expect(help).toContain("opencli <site> --help -f json");
       expect(help).not.toMatch(/\n  bilibili\s+hot/);
       expect(help).not.toMatch(/\n  youtube\s+search/);
     } finally {
@@ -169,28 +169,19 @@ describe('createProgram root help descriptions', () => {
         columns: ['title', 'url'],
       });
 
-      const tableProgram = createProgram('', '');
-      await tableProgram.parseAsync(['node', 'opencli', 'list']);
-      const tableOutput = stdoutSpy.mock.calls.flat().join('\n');
-      expect(tableOutput).not.toContain('App adapters');
-      expect(tableOutput).toContain('Site adapters');
-      expect(tableOutput).toContain('1 built-in commands across 1 sites');
-
+      const program = createProgram('', '');
+      await program.parseAsync(['node', 'opencli', 'list', '--limit', '2']);
+      const first = JSON.parse(stdoutSpy.mock.calls.flat().join('\n'));
+      expect(first.ok).toBe(true);
+      expect(first.data.commands).toHaveLength(2);
+      expect(first.data.nextOffset).toBe(2);
+      expect(first.data.total).toBeGreaterThan(2);
       stdoutSpy.mockClear();
-      const jsonProgram = createProgram('', '');
-      await jsonProgram.parseAsync(['node', 'opencli', 'list', '-f', 'json']);
-      const jsonOutput = stdoutSpy.mock.calls.flat().join('\n');
-      const rows = JSON.parse(jsonOutput);
-      expect(rows).toMatchObject([
-        {
-          site: 'bilibili',
-          name: 'hot',
-          domain: 'www.bilibili.com',
-          columns: ['title', 'url'],
-        },
-      ]);
-      expect(rows[0]).not.toHaveProperty('adapterKind');
-      expect(rows[0]).not.toHaveProperty('section');
+      await createProgram('', '').parseAsync(['node', 'opencli', 'list', 'hot', '--site', 'bilibili']);
+      const result = JSON.parse(stdoutSpy.mock.calls.flat().join('\n'));
+      expect(result).toEqual({ ok: true, data: { total: 1, commands: [
+        { command: 'bilibili hot', description: 'Bilibili hot videos', access: 'read' },
+      ] } });
     } finally {
       restoreStdoutSpy();
       stdoutSpy.mockClear();
@@ -293,7 +284,7 @@ describe('createProgram root help descriptions', () => {
           access: 'read',
           description: 'Bilibili hot videos',
           browser: false,
-          example: 'opencli bilibili hot -f yaml',
+          example: 'opencli bilibili hot',
           command_options: [{ name: 'limit', type: 'int', default: 20 }],
           columns: ['title', 'url'],
         },
@@ -406,12 +397,12 @@ describe('createProgram root help descriptions', () => {
 
       expect(data.namespace).toBe('browser');
       expect(data.command).toBe('opencli browser');
-      expect(data.description).toBe('Browser control — navigate, click, type, extract, wait (no LLM needed)');
+      expect(data.description).toBe('Inspect pages, interact with elements, and manage Chrome resources');
       expect(data.command_count).toBeGreaterThan(20);
       // `--session` is now a hidden internal option; user-facing surface is the
       // <session> positional declared via `.usage()`. Structured help drops
       // hidden options, so namespace_options shouldn't expose it.
-      expect(data.namespace_options).not.toEqual(expect.arrayContaining([
+      expect(data.namespace_options).toEqual(expect.arrayContaining([
         expect.objectContaining({ name: 'session' }),
       ]));
       expect(data.namespace_options).toEqual(expect.arrayContaining([
@@ -421,7 +412,7 @@ describe('createProgram root help descriptions', () => {
           takes_value: 'required',
         }),
       ]));
-      expect(data.usage).toBe('opencli browser <session> <command> [options]');
+      expect(data.usage).toBe('opencli browser <command> [args] [options]');
       expect(data.global_options).toEqual(expect.arrayContaining([
         expect.objectContaining({
           name: 'version',
@@ -439,27 +430,27 @@ describe('createProgram root help descriptions', () => {
       // agents construct the correct full invocation. `name` is the leaf
       // identifier (placeholder positionals are stripped).
       expect(click).toMatchObject({
-        command: 'opencli browser <session> click',
-        usage: 'opencli browser <session> click [target] [options]',
+        command: 'opencli browser click',
+        usage: 'opencli browser click [target] [options]',
         positionals: [{ name: 'target' }],
       });
-      expect(click.command_options.map((option: any) => option.name)).toEqual(['role', 'name', 'label', 'text', 'testid', 'nth', 'tab']);
+      expect(click.command_options.map((option: any) => option.name)).toEqual(['role', 'name', 'label', 'text', 'testid', 'nth', 'tab', 'session', 'window', 'profile']);
 
       const tabList = data.commands.find((cmd: any) => cmd.name === 'tab list');
       expect(tabList).toMatchObject({
-        command: 'opencli browser <session> tab list',
-        usage: 'opencli browser <session> tab list [options]',
-        command_options: [],
+        command: 'opencli browser tab list',
+        usage: 'opencli browser tab list [options]',
+        command_options: expect.any(Array),
       });
 
       const getText = data.commands.find((cmd: any) => cmd.name === 'get text');
       expect(getText).toMatchObject({
-        command: 'opencli browser <session> get text',
+        command: 'opencli browser get text',
         positionals: [{ name: 'target' }],
       });
       expect(data.structured_help).toMatchObject({
         formats: ['yaml', 'json'],
-        usage: 'opencli browser --help -f yaml',
+        usage: 'opencli browser --help -f json',
       });
     } finally {
       process.argv = argv;
@@ -480,8 +471,8 @@ describe('createProgram root help descriptions', () => {
       expect(data).toMatchObject({
         namespace: 'browser',
         group: 'tab',
-        command: 'opencli browser <session> tab',
-        usage: 'opencli browser <session> tab <command> [args] [options]',
+        command: 'opencli browser tab',
+        usage: 'opencli browser tab <command> [args] [options]',
         command_count: 4,
       });
       expect(data.commands.map((cmd: any) => cmd.name)).toEqual([
@@ -491,15 +482,15 @@ describe('createProgram root help descriptions', () => {
         'tab select',
       ]);
       expect(data.commands.find((cmd: any) => cmd.name === 'tab close')).toMatchObject({
-        command: 'opencli browser <session> tab close',
-        usage: 'opencli browser <session> tab close [targetId] [options]',
+        command: 'opencli browser tab close',
+        usage: 'opencli browser tab close [targetId] [options]',
         positionals: [{ name: 'targetId', help: 'Target tab/page identity returned by "browser open", "browser tab new", or "browser tab list"' }],
       });
       // session is now a hidden internal option (consumed from the <session> positional).
       // namespace_options should only list user-facing options.
-      expect(data.namespace_options.map((option: any) => option.name)).toEqual(['window']);
+      expect(data.namespace_options.map((option: any) => option.name)).toEqual(['session', 'window']);
       expect(data.structured_help).toMatchObject({
-        usage: 'opencli browser <session> tab --help -f yaml',
+        usage: 'opencli browser tab --help -f json',
       });
     } finally {
       process.argv = argv;
@@ -520,16 +511,16 @@ describe('createProgram root help descriptions', () => {
       expect(data).toMatchObject({
         namespace: 'browser',
         name: 'click',
-        command: 'opencli browser <session> click',
-        usage: 'opencli browser <session> click [target] [options]',
+        command: 'opencli browser click',
+        usage: 'opencli browser click [target] [options]',
         positionals: [{ name: 'target' }],
         structured_help: {
-          usage: 'opencli browser <session> click --help -f yaml',
+          usage: 'opencli browser click --help -f json',
         },
       });
-      expect(data.command_options.map((option: any) => option.name)).toEqual(['role', 'name', 'label', 'text', 'testid', 'nth', 'tab']);
+      expect(data.command_options.map((option: any) => option.name)).toEqual(['role', 'name', 'label', 'text', 'testid', 'nth', 'tab', 'session', 'window', 'profile']);
       // session is hidden; only `window` surfaces as a namespace option.
-      expect(data.namespace_options.map((option: any) => option.name)).toEqual(['window']);
+      expect(data.namespace_options.map((option: any) => option.name)).toEqual(['session', 'window']);
       expect(data.global_options.map((option: any) => option.name)).toContain('profile');
     } finally {
       process.argv = argv;
@@ -553,7 +544,7 @@ describe('createProgram root help descriptions', () => {
         description: 'Manage the opencli daemon',
         command_count: 3,
         namespace_options: [],
-        structured_help: { usage: 'opencli daemon --help -f yaml' },
+        structured_help: { usage: 'opencli daemon --help -f json' },
       });
       expect(data.commands.map((cmd: any) => cmd.name)).toEqual(['restart', 'status', 'stop']);
       expect(data.global_options.map((option: any) => option.name)).toEqual(expect.arrayContaining(['version', 'profile']));
@@ -575,7 +566,7 @@ describe('createProgram root help descriptions', () => {
       expect(data).toMatchObject({
         namespace: 'plugin',
         command: 'opencli plugin',
-        description: 'Manage opencli plugins',
+        description: 'Manage OpenCLI plugins',
         namespace_options: [],
       });
       expect(data.commands.map((cmd: any) => cmd.name)).toEqual(['create', 'install', 'list', 'uninstall', 'update']);
@@ -603,7 +594,7 @@ describe('createProgram root help descriptions', () => {
       // applyRootSubcommandSummaries() rewrites .description() to a child-name listing;
       // structured help must surface the original product description via the snapshot.
       expect(data.description).toBe('Manage CLI adapters');
-      expect(data.commands.map((cmd: any) => cmd.name)).toEqual(['eject', 'reset', 'status']);
+      expect(data.commands.map((cmd: any) => cmd.name)).toEqual(['check', 'eject', 'init', 'reset', 'status', 'test']);
       const reset = data.commands.find((cmd: any) => cmd.name === 'reset');
       expect(reset).toMatchObject({
         usage: 'opencli adapter reset [site] [options]',
@@ -627,7 +618,7 @@ describe('createProgram root help descriptions', () => {
 
       expect(data).toMatchObject({
         namespace: 'profile',
-        description: 'Manage Browser Bridge Chrome profiles',
+        description: 'Manage Chrome profiles',
         command_count: 3,
       });
       expect(data.commands.map((cmd: any) => cmd.name)).toEqual(['list', 'rename', 'use']);
@@ -735,10 +726,10 @@ describe('selectFreshByTimestamp', () => {
   });
 });
 
-describe('browser verify', () => {
+describe('adapter test', () => {
   beforeEach(() => {
     process.exitCode = undefined;
-    mockExecFileSync.mockReset().mockReturnValue('[]');
+    mockExecFileSync.mockReset().mockReturnValue('{"ok":true,"data":[]}');
   });
 
   it('passes --trace through to the adapter subprocess', async () => {
@@ -754,11 +745,11 @@ describe('browser verify', () => {
       fs.writeFileSync(path.join(adapterDir, 'top.js'), 'export default {};\n', 'utf-8');
 
       const program = createProgram('', '');
-      await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'verify', 'hn/top', '--no-fixture', '--trace', 'retain-on-failure']);
+      await program.parseAsync(['node', 'opencli', 'adapter', 'test', 'hn/top', '--no-fixture', '--trace', 'retain-on-failure']);
 
       expect(mockExecFileSync).toHaveBeenCalledTimes(1);
       const [, execArgs] = mockExecFileSync.mock.calls[0] as [string, string[]];
-      expect(execArgs.slice(-6)).toEqual(['hn', 'top', '--trace', 'retain-on-failure', '--format', 'json']);
+      expect(execArgs.slice(-6)).toEqual(['hn', 'top', '--format', 'json', '--trace', 'retain-on-failure']);
     } finally {
       if (originalHome === undefined) delete process.env.HOME;
       else process.env.HOME = originalHome;
@@ -768,7 +759,7 @@ describe('browser verify', () => {
     }
   });
 
-  it('uses --seed-args when no fixture args exist', async () => {
+  it('uses --args when no fixture args exist', async () => {
     const originalHome = process.env.HOME;
     const originalUserProfile = process.env.USERPROFILE;
     const fakeHome = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-browser-verify-seed-'));
@@ -781,7 +772,7 @@ describe('browser verify', () => {
       fs.writeFileSync(path.join(adapterDir, 'top.js'), 'export default {};\n', 'utf-8');
 
       const program = createProgram('', '');
-      await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'verify', 'hn/top', '--no-fixture', '--seed-args', 'opencli-verify']);
+      await program.parseAsync(['node', 'opencli', 'adapter', 'test', 'hn/top', '--no-fixture', '--args', 'opencli-verify']);
 
       expect(mockExecFileSync).toHaveBeenCalledTimes(1);
       const [, execArgs] = mockExecFileSync.mock.calls[0] as [string, string[]];
@@ -795,13 +786,13 @@ describe('browser verify', () => {
     }
   });
 
-  it('writes --seed-args into a starter fixture', async () => {
+  it('writes --args into a starter fixture', async () => {
     const originalHome = process.env.HOME;
     const originalUserProfile = process.env.USERPROFILE;
     const fakeHome = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-browser-verify-write-seed-'));
     process.env.HOME = fakeHome;
     process.env.USERPROFILE = fakeHome;
-    mockExecFileSync.mockReturnValue(JSON.stringify([{ title: 'ok' }]));
+    mockExecFileSync.mockReturnValue(JSON.stringify({ok:true,data:[{title:'ok'}]}));
 
     try {
       const adapterDir = path.join(fakeHome, '.opencli', 'clis', 'hn');
@@ -809,7 +800,7 @@ describe('browser verify', () => {
       fs.writeFileSync(path.join(adapterDir, 'top.js'), 'export default {};\n', 'utf-8');
 
       const program = createProgram('', '');
-      await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'verify', 'hn/top', '--write-fixture', '--seed-args', 'opencli-verify']);
+      await program.parseAsync(['node', 'opencli', 'adapter', 'test', 'hn/top', '--write-fixture', '--args', 'opencli-verify']);
 
       const fixtureFile = path.join(fakeHome, '.opencli', 'sites', 'hn', 'verify', 'top.json');
       const fixture = JSON.parse(fs.readFileSync(fixtureFile, 'utf-8'));
@@ -824,13 +815,13 @@ describe('browser verify', () => {
     }
   });
 
-  it('fails before fixture handling when output row shape is not agent-native', async () => {
+  it('accepts nested business data without imposing a row-shape workflow', async () => {
     const originalHome = process.env.HOME;
     const originalUserProfile = process.env.USERPROFILE;
     const fakeHome = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-browser-verify-shape-'));
     process.env.HOME = fakeHome;
     process.env.USERPROFILE = fakeHome;
-    mockExecFileSync.mockReturnValue(JSON.stringify([{ title: 'ok', author: { user_id: 'u1' } }]));
+    mockExecFileSync.mockReturnValue(JSON.stringify({ok:true,data:[{title:'ok',author:{user_id:'u1'}}]}));
     const consoleLogSpy = vi.mocked(console.log);
     consoleLogSpy.mockClear();
 
@@ -840,12 +831,11 @@ describe('browser verify', () => {
       fs.writeFileSync(path.join(adapterDir, 'top.js'), 'export default {};\n', 'utf-8');
 
       const program = createProgram('', '');
-      await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'verify', 'hn/top', '--no-fixture']);
+      await program.parseAsync(['node', 'opencli', 'adapter', 'test', 'hn/top', '--no-fixture']);
 
-      expect(process.exitCode).toBe(1);
+      expect(process.exitCode).toBeUndefined();
       const output = consoleLogSpy.mock.calls.map((args) => args.join(' ')).join('\n');
-      expect(output).toContain('Adapter output violates row shape conventions');
-      expect(output).toContain('author.user_id');
+      expect(JSON.parse(output).data.result[0].author.user_id).toBe('u1');
     } finally {
       consoleLogSpy.mockClear();
       if (originalHome === undefined) delete process.env.HOME;
@@ -942,8 +932,8 @@ describe('profile list', () => {
     await program.parseAsync(['node', 'opencli', 'profile', 'list']);
 
     const output = stdoutSpy.mock.calls.flat().join('\n');
-    expect(output).toContain('stale');
-    expect(output).toContain('opencli daemon restart');
+    expect(JSON.parse(output).data.daemonStale).toBe(true);
+    expect(JSON.parse(output).data.daemonRunning).toBe(true);
     expect(output).not.toContain('No Browser Bridge profiles connected');
   });
 
@@ -967,7 +957,7 @@ describe('profile list', () => {
     await program.parseAsync(['node', 'opencli', 'profile', 'list']);
 
     const output = stdoutSpy.mock.calls.flat().join('\n');
-    expect(output).toContain('No Browser Bridge profiles connected');
+    expect(JSON.parse(output).data.profiles).toEqual([]);
     expect(output).not.toContain('opencli daemon restart');
   });
 });
@@ -1038,7 +1028,9 @@ describe('browser tab targeting commands', () => {
     if (calls.length === 0) throw new Error('Expected at least one console.log call');
     const last = calls[calls.length - 1][0];
     if (typeof last !== 'string') throw new Error(`Expected string arg to console.log, got ${typeof last}`);
-    return JSON.parse(last);
+    const envelope = JSON.parse(last);
+    expect(typeof envelope.ok).toBe('boolean');
+    return envelope.ok ? envelope.data : envelope;
   }
 
   it('binds the current Chrome tab into a browser session', async () => {
@@ -1062,7 +1054,7 @@ describe('browser tab targeting commands', () => {
     await program.parseAsync(['node', 'opencli', 'browser', 'state']);
 
     expect(mockBrowserConnect).not.toHaveBeenCalled();
-    expect(stderrSpy.mock.calls.flat().join('')).toContain('<session> is a required positional argument');
+    expect(lastJsonLog().error).toMatchObject({ code: 'usage_error' });
   });
 
   it('runs browser commands against an explicit session', async () => {
@@ -1157,7 +1149,7 @@ describe('browser tab targeting commands', () => {
       format: 'png',
     });
     expect(browserState.page?.screenshot).not.toHaveBeenCalled();
-    expect(consoleLogSpy).toHaveBeenLastCalledWith('annotated-base64-shot');
+    expect(lastJsonLog()).toBe('annotated-base64-shot');
   });
 
   it('allows history navigation in a bound session', async () => {
@@ -1248,7 +1240,7 @@ describe('browser tab targeting commands', () => {
     expect(process.exitCode).toBeDefined();
     expect(browserState.page?.setActivePage).not.toHaveBeenCalled();
     expect(browserState.page?.evaluate).not.toHaveBeenCalled();
-    expect(stderrSpy.mock.calls.flat().join('\n')).toContain('Target tab tab-stale is not part of the current browser session');
+    expect(consoleLogSpy.mock.calls.flat().join('\n')).toContain('Target tab tab-stale is not part of the current browser session');
   });
 
   it('lists tabs with target IDs via browser tab list', async () => {
@@ -1257,8 +1249,8 @@ describe('browser tab targeting commands', () => {
     await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'tab', 'list']);
 
     expect(browserState.page?.tabs).toHaveBeenCalledTimes(1);
-    expect(consoleLogSpy.mock.calls.flat().join('\n')).toContain('"page": "tab-1"');
-    expect(consoleLogSpy.mock.calls.flat().join('\n')).toContain('"page": "tab-2"');
+    expect(consoleLogSpy.mock.calls.flat().join('\n')).toContain('"page":"tab-1"');
+    expect(consoleLogSpy.mock.calls.flat().join('\n')).toContain('"page":"tab-2"');
   });
 
   it('creates a new tab and prints its target ID', async () => {
@@ -1267,7 +1259,7 @@ describe('browser tab targeting commands', () => {
     await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'tab', 'new', 'https://three.example']);
 
     expect(browserState.page?.newTab).toHaveBeenCalledWith('https://three.example');
-    expect(consoleLogSpy.mock.calls.flat().join('\n')).toContain('"page": "tab-3"');
+    expect(consoleLogSpy.mock.calls.flat().join('\n')).toContain('"page":"tab-3"');
   });
 
   it('prints the resolved target ID when browser open creates or navigates a tab', async () => {
@@ -1276,8 +1268,8 @@ describe('browser tab targeting commands', () => {
     await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'open', 'https://example.com']);
 
     expect(browserState.page?.goto).toHaveBeenCalledWith('https://example.com');
-    expect(consoleLogSpy.mock.calls.flat().join('\n')).toContain('"url": "https://one.example"');
-    expect(consoleLogSpy.mock.calls.flat().join('\n')).toContain('"page": "tab-1"');
+    expect(consoleLogSpy.mock.calls.flat().join('\n')).toContain('"url":"https://one.example"');
+    expect(consoleLogSpy.mock.calls.flat().join('\n')).toContain('"page":"tab-1"');
   });
 
   it('lists cross-origin frames via browser frames', async () => {
@@ -1286,8 +1278,8 @@ describe('browser tab targeting commands', () => {
     await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'frames']);
 
     expect(browserState.page?.frames).toHaveBeenCalledTimes(1);
-    expect(consoleLogSpy.mock.calls.flat().join('\n')).toContain('"frameId": "frame-1"');
-    expect(consoleLogSpy.mock.calls.flat().join('\n')).toContain('"url": "https://x.example/embed"');
+    expect(consoleLogSpy.mock.calls.flat().join('\n')).toContain('"frameId":"frame-1"');
+    expect(consoleLogSpy.mock.calls.flat().join('\n')).toContain('"url":"https://x.example/embed"');
   });
 
   it('routes browser eval --frame through frame-targeted evaluation', async () => {
@@ -1320,7 +1312,7 @@ describe('browser tab targeting commands', () => {
     expect(browserState.page?.selectTab).toHaveBeenCalledWith('tab-2');
     expect(browserState.page?.setActivePage).toHaveBeenCalledWith('tab-2');
     expect(browserState.page?.evaluate).toHaveBeenCalledWith('document.title');
-    expect(consoleLogSpy.mock.calls.flat().join('\n')).toContain('"selected": "tab-2"');
+    expect(consoleLogSpy.mock.calls.flat().join('\n')).toContain('"selected":"tab-2"');
   });
 
   it('clears a saved default target when it is no longer present in the current session', async () => {
@@ -1366,7 +1358,7 @@ describe('browser tab targeting commands', () => {
     await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'tab', 'close', 'tab-2']);
 
     expect(browserState.page?.closeTab).toHaveBeenCalledWith('tab-2');
-    expect(consoleLogSpy.mock.calls.flat().join('\n')).toContain('"closed": "tab-2"');
+    expect(consoleLogSpy.mock.calls.flat().join('\n')).toContain('"closed":"tab-2"');
   });
 
   it('rejects closing a stale tab target ID that is no longer in the current session', async () => {
@@ -1381,126 +1373,13 @@ describe('browser tab targeting commands', () => {
 
     expect(process.exitCode).toBeDefined();
     expect(browserState.page?.closeTab).not.toHaveBeenCalled();
-    expect(stderrSpy.mock.calls.flat().join('\n')).toContain('Target tab tab-stale is not part of the current browser session');
+    expect(consoleLogSpy.mock.calls.flat().join('\n')).toContain('Target tab tab-stale is not part of the current browser session');
   });
 
-  it('browser analyze merges HttpOnly cookie names from page.getCookies and drains stale capture before verdict', async () => {
-    browserState.page = {
-      goto: vi.fn().mockResolvedValue(undefined),
-      wait: vi.fn().mockResolvedValue(undefined),
-      setActivePage: vi.fn(),
-      getActivePage: vi.fn().mockReturnValue('tab-1'),
-      getCurrentUrl: vi.fn().mockResolvedValue('https://target.example'),
-      startNetworkCapture: vi.fn().mockResolvedValue(true),
-      getCookies: vi.fn().mockResolvedValue([{ name: 'cf_clearance', value: 'x', domain: '.target.example' }]),
-      evaluate: vi.fn().mockResolvedValue({
-        cookieNames: [],
-        initialState: {
-          __INITIAL_STATE__: false,
-          __NUXT__: false,
-          __NEXT_DATA__: false,
-          __APOLLO_STATE__: false,
-        },
-        title: 'Target',
-        finalUrl: 'https://target.example/',
-      }),
-      tabs: vi.fn().mockResolvedValue([{ index: 0, page: 'tab-1', url: 'https://target.example', title: 'Target', active: true }]),
-      readNetworkCapture: vi.fn()
-        .mockResolvedValueOnce([
-          {
-            url: 'https://stale.example/api/old',
-            method: 'GET',
-            responseStatus: 200,
-            responseContentType: 'application/json',
-            responsePreview: '{"stale":true}',
-          },
-        ])
-        .mockResolvedValueOnce([
-          {
-            url: 'https://target.example/api/items',
-            method: 'GET',
-            responseStatus: 200,
-            responseContentType: 'application/json',
-            responsePreview: '{"items":[{"title":"A","id":"1"}]}',
-          },
-        ]),
-    } as unknown as IPage;
-
-    const program = createProgram('', '');
-    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'analyze', 'https://target.example/']);
-
-    const out = lastJsonLog();
-    expect(browserState.page?.readNetworkCapture).toHaveBeenCalledTimes(2);
-    expect(out.pattern.pattern).toBe('A');
-    expect(out.api_candidates[0].url).toBe('https://target.example/api/items');
-    expect(out.api_candidates[0].verdict).toBe('likely_data');
-    expect(out.anti_bot.evidence).toContain('cookie:cf_clearance');
-  });
-
-  it('browser analyze falls back to interceptor buffer when network capture is unsupported', async () => {
-    let bufferReads = 0;
-    browserState.page = {
-      goto: vi.fn().mockResolvedValue(undefined),
-      wait: vi.fn().mockResolvedValue(undefined),
-      setActivePage: vi.fn(),
-      getActivePage: vi.fn().mockReturnValue('tab-1'),
-      getCurrentUrl: vi.fn().mockResolvedValue('https://target.example'),
-      startNetworkCapture: vi.fn().mockResolvedValue(false),
-      getCookies: vi.fn().mockResolvedValue([{ name: 'cf_clearance', value: 'x', domain: '.target.example' }]),
-      evaluate: vi.fn().mockImplementation(async (arg: string) => {
-        if (typeof arg === 'string' && arg.includes('document.cookie')) {
-          return {
-            cookieNames: [],
-            initialState: {
-              __INITIAL_STATE__: false,
-              __NUXT__: false,
-              __NEXT_DATA__: false,
-              __APOLLO_STATE__: false,
-            },
-            title: 'Target',
-            finalUrl: 'https://target.example/',
-          };
-        }
-        if (typeof arg === 'string' && arg.includes('window.__opencli_net = []')) {
-          bufferReads += 1;
-          if (bufferReads === 1) {
-            return JSON.stringify([
-              {
-                url: 'https://stale.example/api/old',
-                method: 'GET',
-                status: 200,
-                size: 12,
-                ct: 'application/json',
-                body: { stale: true },
-              },
-            ]);
-          }
-          return JSON.stringify([
-            {
-              url: 'https://target.example/waf',
-              method: 'GET',
-              status: 403,
-              size: 17,
-              ct: 'text/html',
-              body: 'Cloudflare Ray ID',
-            },
-          ]);
-        }
-        return undefined;
-      }),
-      tabs: vi.fn().mockResolvedValue([{ index: 0, page: 'tab-1', url: 'https://target.example', title: 'Target', active: true }]),
-      readNetworkCapture: vi.fn().mockResolvedValue([]),
-    } as unknown as IPage;
-
-    const program = createProgram('', '');
-    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'analyze', 'https://target.example/']);
-
-    const out = lastJsonLog();
-    expect(browserState.page?.readNetworkCapture).toHaveBeenCalledTimes(2);
-    expect(bufferReads).toBe(2);
-    expect(out.anti_bot.vendor).toBe('cloudflare');
-    expect(out.anti_bot.evidence).toContain('cookie:cf_clearance');
-    expect(out.anti_bot.evidence).toContain('body:https://target.example/waf');
+  it('state diagnostics reports page facts without navigating or probing endpoints', async () => {
+    browserState.page!.evaluate = vi.fn().mockResolvedValue({title:'Fixture',url:'https://fixture.test',initialState:['__NEXT_DATA__']});
+    await createProgram('', '').parseAsync(['node','opencli','browser','state','--session','test','--diagnostics']);
+    expect(lastJsonLog()).toMatchObject({diagnostics:{title:'Fixture',initialState:['__NEXT_DATA__']}});
   });
 
   it('browser wait xhr starts capture, injects interceptor on fallback, and ignores stale ring entries', async () => {
@@ -1646,7 +1525,7 @@ describe('browser tab targeting commands', () => {
 
     const out = lastJsonLog();
     expect(out.error.code).toBe('download_not_seen');
-    expect(out.download.elapsedMs).toBe(900);
+    expect(out.error.download.elapsedMs).toBe(900);
     expect(process.exitCode).toBeDefined();
   });
 });
@@ -1667,7 +1546,9 @@ describe('browser network command', () => {
     if (calls.length === 0) throw new Error('Expected at least one console.log call');
     const last = calls[calls.length - 1][0];
     if (typeof last !== 'string') throw new Error(`Expected string arg to console.log, got ${typeof last}`);
-    return JSON.parse(last);
+    const envelope = JSON.parse(last);
+    expect(typeof envelope.ok).toBe('boolean');
+    return envelope.ok ? envelope.data : envelope;
   }
 
   beforeEach(() => {
@@ -2303,7 +2184,9 @@ describe('browser console command', () => {
     if (calls.length === 0) throw new Error('Expected at least one console.log call');
     const last = calls[calls.length - 1][0];
     if (typeof last !== 'string') throw new Error(`Expected string arg to console.log, got ${typeof last}`);
-    return JSON.parse(last);
+    const envelope = JSON.parse(last);
+    expect(typeof envelope.ok).toBe('boolean');
+    return envelope.ok ? envelope.data : envelope;
   }
 
   it('filters console messages by level and time window', async () => {
@@ -2328,7 +2211,9 @@ describe('browser get html command', () => {
   function lastJsonLog(): any {
     const arg = lastLogArg();
     if (typeof arg !== 'string') throw new Error(`expected string arg, got ${typeof arg}`);
-    return JSON.parse(arg);
+    const envelope = JSON.parse(arg);
+    expect(typeof envelope.ok).toBe('boolean');
+    return envelope.ok ? envelope.data : envelope;
   }
 
   beforeEach(() => {
@@ -2353,7 +2238,7 @@ describe('browser get html command', () => {
 
     await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'get', 'html']);
 
-    expect(lastLogArg()).toBe(big);
+    expect(lastJsonLog()).toBe(big);
   });
 
   it('caps output with --max and prepends a visible truncation marker', async () => {
@@ -2363,7 +2248,7 @@ describe('browser get html command', () => {
 
     await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'get', 'html', '--max', '100']);
 
-    const out = String(lastLogArg());
+    const out = String(lastJsonLog());
     expect(out.startsWith('<!-- opencli: truncated 100 of')).toBe(true);
     expect(out.length).toBeGreaterThan(100);
     expect(out.length).toBeLessThan(big.length);
@@ -2492,7 +2377,9 @@ function installSelectorFirstTestHarness(label: string, pageOverrides: () => Par
   function lastJsonLog(): any {
     const arg = lastLogArg();
     if (typeof arg !== 'string') throw new Error(`expected string arg, got ${typeof arg}`);
-    return JSON.parse(arg);
+    const envelope = JSON.parse(arg);
+    expect(typeof envelope.ok).toBe('boolean');
+    return envelope.ok ? envelope.data : envelope;
   }
 
   beforeEach(() => {
@@ -3273,16 +3160,7 @@ describe('browser click/type commands', () => {
 
     await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'fill', '#msg', 'expected']);
 
-    expect(lastJsonLog()).toEqual({
-      filled: true,
-      verified: false,
-      target: '#msg',
-      text: 'expected',
-      actual: 'actual',
-      length: 6,
-      matches_n: 1,
-      match_level: 'exact',
-    });
+    expect(lastJsonLog()).toMatchObject({ ok: false, error: { code: 'value_mismatch', expected: 'expected', actual: 'actual' } });
     expect(process.exitCode).toBeDefined();
   });
 
@@ -3425,32 +3303,5 @@ describe('normalizeVerifyRows', () => {
 
   it('wraps a single object as a one-row array', () => {
     expect(normalizeVerifyRows({ ok: true })).toEqual([{ ok: true }]);
-  });
-});
-
-describe('renderVerifyPreview', () => {
-  it('emits a placeholder for empty rows', () => {
-    expect(renderVerifyPreview([])).toContain('no rows');
-  });
-
-  it('prints column headers followed by row cells', () => {
-    const out = renderVerifyPreview([{ a: 'x', b: 1 }, { a: 'y', b: 2 }]);
-    const lines = out.split('\n');
-    expect(lines[0]).toContain('a');
-    expect(lines[0]).toContain('b');
-    expect(lines.some((l) => l.includes('x') && l.includes('1'))).toBe(true);
-    expect(lines.some((l) => l.includes('y') && l.includes('2'))).toBe(true);
-  });
-
-  it('truncates long cells and reports hidden rows / columns', () => {
-    const rows = Array.from({ length: 15 }, (_, i) => ({
-      a: i, b: 'x'.repeat(100), c: i, d: i, e: i, f: i, g: i, h: i,
-    }));
-    const out = renderVerifyPreview(rows, { maxRows: 5, maxCols: 3, cellMax: 10 });
-    expect(out).toContain('and 10 more row');
-    expect(out).toContain('more column');
-    // cell gets truncated
-    expect(out).toContain('xxxxxxxxxx');
-    expect(out).not.toContain('xxxxxxxxxxx'); // never 11 consecutive
   });
 });

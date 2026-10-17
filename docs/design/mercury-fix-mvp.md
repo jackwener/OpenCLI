@@ -242,7 +242,7 @@ Manual SaaS check:
   credentials/access are available.
 - Pass means the workflow can select the relevant category/field and save or
   commit the form state.
-- For each site, also run `opencli browser state --compare-sources` on the form
+- For each site, also run `opencli browser --session research state --compare-sources` on the form
   page and record `sources.dom.refs`, `sources.ax.refs`, `frame_sections`,
   `approx_tokens`, `elapsed_ms`, and any per-source `error`.
 - Failure does not block MVP retroactively, but each failure must be recorded as

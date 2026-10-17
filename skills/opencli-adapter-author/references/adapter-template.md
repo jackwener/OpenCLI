@@ -385,7 +385,7 @@ if (/暂时没有提醒内容/.test(html)) {
 
 ## Verify fixture（每个 adapter 配一份 `~/.opencli/sites/<site>/verify/<name>.json`）
 
-verify fixture 是"adapter 产出长什么样"的结构锚点。没有它，`opencli browser verify` 只能证"adapter 能跑完不抛"，证不出数据没错位。**必写**。
+verify fixture 是"adapter 产出长什么样"的结构锚点。没有它，`opencli adapter test` 只能证"adapter 能跑完不抛"，证不出数据没错位。**必写**。
 
 详细 schema 见 `site-memory.md` 的 `verify/<cmd>.json` 节。这里只讲两个容易踩的地方：
 
@@ -428,7 +428,7 @@ named-flag adapter（`hot` / `latest` 类）可以直接让工具生成种子：
 
 ```bash
 # 1. 让 verify 先跑一遍，--write-fixture 生成种子（默认追加 --limit 3）
-opencli browser verify 1point3acres/hot --write-fixture
+opencli adapter test 1point3acres/hot --write-fixture
 
 # 2. 手改 ~/.opencli/sites/1point3acres/verify/hot.json
 #    - patterns: 加 URL / 日期 / ID 正则
@@ -436,7 +436,7 @@ opencli browser verify 1point3acres/hot --write-fixture
 #    - rowCount: 收紧到业务合理区间
 
 # 3. 再跑 verify，fixture 吃得动就 OK
-opencli browser verify 1point3acres/hot
+opencli adapter test 1point3acres/hot
 ```
 
 positional adapter 目前 `--write-fixture` 没法表达主语，**首份 fixture 要手写**：
@@ -449,7 +449,7 @@ opencli 1point3acres thread 1173710 --limit 2 --format json | head
 #    （args 一定用数组: ["1173710", "--limit", "2"]）
 
 # 3. 跑 verify 核对
-opencli browser verify 1point3acres/thread
+opencli adapter test 1point3acres/thread
 ```
 
 机器生成的种子只有 rowCount.min=1 / columns / types，挡不住字段值错位。**patterns + notEmpty 无论哪种情形都是肉写的**。

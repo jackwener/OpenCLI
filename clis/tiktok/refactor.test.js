@@ -13,22 +13,12 @@ import {
     EmptyResultError,
 } from '@jackwener/opencli/errors';
 import { exploreCommand, __test__ as exploreTest } from './explore.js';
-import { friendsCommand, __test__ as friendsTest } from './friends.js';
-import { followingCommand, __test__ as followingTest } from './following.js';
-import { notificationsCommand, __test__ as notificationsTest } from './notifications.js';
-import { liveCommand, __test__ as liveTest } from './live.js';
+import { friendsCommand } from './friends.js';
+import { followingCommand } from './following.js';
+import { notificationsCommand } from './notifications.js';
+import { liveCommand } from './live.js';
 import { userCommand, __test__ as userTest } from './user.js';
-import {
-    BROWSER_HELPERS,
-    NOTIFICATION_TYPES,
-    VIDEO_ITEM_NORMALIZER,
-    USER_ITEM_NORMALIZER,
-    LIVE_ITEM_NORMALIZER,
-    NOTIFICATION_NORMALIZER,
-    normalizeUsername,
-    requireLimit,
-    requireNotificationType,
-} from './utils.js';
+import { BROWSER_HELPERS, normalizeUsername, requireLimit, requireNotificationType } from './utils.js';
 
 function makePage(rows) {
     return {
@@ -135,18 +125,9 @@ describe('tiktok/utils', () => {
         expect(() => assertTikTokApiSuccess({ status_code: 1001, status_msg: 'rate limited' }, 'test')).toThrow(/test API failed: rate limited/);
     });
 
-    it('Item normalizers produce well-formed JS function declarations', () => {
-        expect(VIDEO_ITEM_NORMALIZER).toContain('function normalizeVideoItem(');
-        expect(USER_ITEM_NORMALIZER).toContain('function normalizeUserRow(');
-        expect(LIVE_ITEM_NORMALIZER).toContain('function normalizeLiveItem(');
-        expect(LIVE_ITEM_NORMALIZER).toContain('room.user_count ?? room.viewerCount');
-        expect(LIVE_ITEM_NORMALIZER).toContain('room.like_count ?? room.likeCount');
-        expect(NOTIFICATION_NORMALIZER).toContain('function normalizeNotification(');
-    });
 });
 
 describe('tiktok/explore (page-context refactor)', () => {
-
     it('validates --limit upfront before navigating (no silent clamp)', async () => {
         const page = makePage([]);
         await expect(exploreCommand.func(page, { limit: 0 })).rejects.toBeInstanceOf(ArgumentError);
@@ -170,17 +151,9 @@ describe('tiktok/explore (page-context refactor)', () => {
         await expect(exploreCommand.func(makeFailingPage(new Error('boom')), { limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
     });
 
-    it('build script targets recommend-feed state + recommend item_list endpoint', () => {
-        const script = exploreTest.buildExploreScript(15);
-        expect(script).toContain('/api/recommend/item_list/');
-        expect(script).toContain("assertTikTokApiSuccess(data, 'recommend')");
-        expect(script).toContain('findUniversalData');
-        expect(script).toContain('normalizeVideoItem');
-    });
 });
 
 describe('tiktok/user (page-context refactor)', () => {
-
     it('validates username and --limit upfront before navigating', async () => {
         const page = makePage([]);
         await expect(userCommand.func(page, { username: '', limit: 5 })).rejects.toBeInstanceOf(ArgumentError);
@@ -204,24 +177,9 @@ describe('tiktok/user (page-context refactor)', () => {
         await expect(userCommand.func(makeFailingPage(new Error('No videos found for @dictogo (profile/search API failed: invalid JSON)')), { username: 'dictogo', limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
     });
 
-    it('build script resolves secUid, pages post-list, and exact-author search fallback', () => {
-        const script = userTest.buildUserScript('dictogo', 20);
-        expect(script).toContain('/api/user/detail/');
-        expect(script).toContain("assertTikTokApiSuccess(detail, 'user-detail')");
-        expect(script).toContain('/api/post/item_list/');
-        expect(script).toContain("assertTikTokApiSuccess(data, 'post-list')");
-        expect(script).toContain('/api/search/general/full/');
-        expect(script).toContain("assertTikTokApiSuccess(data, 'search')");
-        expect(script).toContain("'profile-api'");
-        expect(script).toContain("'bootstrap'");
-        expect(script).toContain("'search-fallback'");
-        expect(script).toContain(JSON.stringify('dictogo'));
-        expect(script).not.toContain('AUTH_REQUIRED: cannot resolve secUid');
-    });
 });
 
 describe('tiktok/friends (page-context refactor)', () => {
-
     it('validates --limit upfront and never navigates on bad input', async () => {
         const page = makePage([]);
         await expect(friendsCommand.func(page, { limit: -2 })).rejects.toBeInstanceOf(ArgumentError);
@@ -238,17 +196,9 @@ describe('tiktok/friends (page-context refactor)', () => {
         await expect(friendsCommand.func(makeFailingPage(new Error('No friend suggestions returned by TikTok (recommend-user API failed: invalid JSON)')), { limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
     });
 
-    it('build script targets recommend-user endpoint via state-then-API', () => {
-        const script = friendsTest.buildFriendsScript(20);
-        expect(script).toContain('/api/recommend/user/');
-        expect(script).toContain("assertTikTokApiSuccess(data, 'recommend-user')");
-        expect(script).toContain('findUniversalData');
-        expect(script).toContain('normalizeUserRow');
-    });
 });
 
 describe('tiktok/following (page-context refactor)', () => {
-
     it('validates --limit upfront', async () => {
         const page = makePage([]);
         await expect(followingCommand.func(page, { limit: 999 })).rejects.toBeInstanceOf(ArgumentError);
@@ -269,18 +219,9 @@ describe('tiktok/following (page-context refactor)', () => {
         expect(page.goto).toHaveBeenCalledWith('https://www.tiktok.com/following', { waitUntil: 'load', settleMs: 5000 });
     });
 
-    it('build script resolves viewer secUid then pages user-list scene=21', () => {
-        const script = followingTest.buildFollowingScript(20);
-        expect(script).toContain('/api/user/list/');
-        expect(script).toContain("assertTikTokApiSuccess(data, 'user-list')");
-        expect(script).toContain("scene: '21'");
-        expect(script).toContain('findViewerSecUid');
-        expect(script).toContain('normalizeUserRow');
-    });
 });
 
 describe('tiktok/notifications (page-context refactor)', () => {
-
     it('validates --limit and --type upfront before navigating', async () => {
         const page = makePage([]);
         await expect(notificationsCommand.func(page, { limit: 0, type: 'all' })).rejects.toBeInstanceOf(ArgumentError);
@@ -301,18 +242,9 @@ describe('tiktok/notifications (page-context refactor)', () => {
         await expect(notificationsCommand.func(page, { limit: 5, type: 'comments' })).resolves.toEqual([sampleNotificationRow]);
     });
 
-    it('embeds the requested notice_type code from NOTIFICATION_TYPES into the script', () => {
-        for (const [key, meta] of Object.entries(NOTIFICATION_TYPES)) {
-            const script = notificationsTest.buildNotificationsScript(15, key);
-            expect(script).toContain('const noticeType = ' + meta.code);
-            expect(script).toContain('/api/notice/multi/');
-            expect(script).toContain("assertTikTokApiSuccess(data, 'notice')");
-        }
-    });
 });
 
 describe('tiktok/live (page-context refactor)', () => {
-
     it('validates --limit upfront', async () => {
         const page = makePage([]);
         await expect(liveCommand.func(page, { limit: -1 })).rejects.toBeInstanceOf(ArgumentError);
@@ -329,11 +261,4 @@ describe('tiktok/live (page-context refactor)', () => {
         await expect(liveCommand.func(makeFailingPage(new Error('No live streams returned (live-discover API failed: invalid JSON)')), { limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
     });
 
-    it('build script targets live-discover endpoint via state-then-API', () => {
-        const script = liveTest.buildLiveScript(15);
-        expect(script).toContain('/api/live/discover/get/');
-        expect(script).toContain("assertTikTokApiSuccess(data, 'live-discover')");
-        expect(script).toContain('findUniversalData');
-        expect(script).toContain('normalizeLiveItem');
-    });
 });

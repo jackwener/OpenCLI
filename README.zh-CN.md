@@ -15,7 +15,32 @@ OpenCLI 可以用同一套 CLI 做三类事情：
 
 - **直接使用现成适配器**：B站、知乎、小红书、Twitter/X、Reddit、HackerNews 等 [100+ 站点](#内置命令) 开箱即用。
 - **让 AI Agent 操作任意网站**：在你的 AI Agent（Claude Code、Cursor 等）中安装 `opencli-browser` skill，Agent 就能用你的已登录浏览器导航、点击、输入/填充、提取任意网页内容。
-- **把新网站写成 CLI**：用 `opencli browser` 原语 + `opencli-adapter-author` skill，从站点侦察、API 发现、字段解码到 `opencli browser verify` 一条龙。
+- **把新网站写成 CLI**：用 `opencli browser` 原语 + `opencli-adapter-author` skill，从站点侦察、API 发现、字段解码到 `opencli adapter test` 一条龙。
+
+
+## Agent 命令约定
+
+命令默认返回 JSON：`{ "ok": true, "data": ... }`。失败返回
+`{ "ok": false, "error": { "code": "...", "message": "...", "hint": "..." } }`
+并设置非零 exit code。结果写入 stdout，日志写入 stderr。显式指定的展示格式、
+help、version 和 completion 保留各自格式；browser follow 模式使用 JSON Lines。
+
+```sh
+opencli list search --site github
+opencli browser open https://example.com --session research
+opencli browser network --static --session research
+opencli browser chrome describe
+opencli adapter check github/search
+```
+
+`list` 返回精简的分页结果（`commands`、`total`、`nextOffset`），详细参数通过
+`<command> --help -f json` 查询。页面操作使用 `--session`，native Chrome 调用无需 session。
+adapter 开发入口统一为 `adapter init|check|test`；`state --diagnostics` 和
+`network --static` 取代 `analyze`、`discover`。
+
+本次调整改变 CLI 语法和 JSON 输出，JS adapter 的 `cli({...})`、`func(args)`、
+`func(page,args)` 接口保持不变；adapter 的 `defaultFormat` 不再影响 CLI 默认格式。
+
 
 ## 快速开始
 
@@ -78,7 +103,7 @@ opencli bilibili hot --limit 5
 | 需求 | 推荐路径 |
 |------|----------|
 | 把个人网站命令放在自己的 Git repo | `opencli plugin create` + `opencli plugin install file://...` |
-| 快速写一个本机私人 adapter | `opencli browser init <site>/<command>`，放在 `~/.opencli/clis/` |
+| 快速写一个本机私人 adapter | `opencli adapter init <site>/<command>`，放在 `~/.opencli/clis/` |
 | 本地修改官方 adapter | `opencli adapter eject <site>` + `opencli adapter reset <site>` |
 | 发布或安装第三方命令 | `opencli plugin install github:user/repo` |
 
@@ -128,9 +153,9 @@ Agent 在内部自动处理所有 `opencli browser` 命令——你只需用自�
 - [`skills/opencli-autofix/SKILL.md`](./skills/opencli-autofix/SKILL.md) — 修复已有适配器
 - [`skills/opencli-usage/SKILL.md`](./skills/opencli-usage/SKILL.md) — 命令和站点参考
 
-`browser` 可用命令包括：`open`、`state`、`click`、`type`、`fill`、`select`、`keys`、`wait`、`get`、`find`、`extract`、`frames`、`screenshot`、`scroll`、`back`、`eval`、`network`、`tab list`、`tab new`、`tab select`、`tab close`、`init`、`verify`、`close`。
+`browser` 可用命令包括：`open`、`state`、`click`、`type`、`fill`、`select`、`keys`、`wait`、`get`、`find`、`extract`、`frames`、`screenshot`、`scroll`、`back`、`eval`、`network`、`tab list`、`tab new`、`tab select`、`tab close`、`chrome describe`、`chrome call`、`close`。
 
-`opencli browser` 命令必须紧跟一个 `<session>` 位置参数。`opencli browser work open <url>` 和 `opencli browser work tab new [url]` 都会返回 target ID。`opencli browser work tab list` 用来查看当前已存在 tab 的 target ID，再通过 `--tab <targetId>` 把命令明确路由到某个 tab。`tab new` 只会新建 tab，不会改变默认浏览器目标；只有显式执行 `tab select <targetId>`，才会把该 tab 设为同一 session 后续未指定 target 的默认目标。
+`opencli browser` 命令通过 `--session <name>` 指定页面 session。`opencli browser --session work open <url>` 和 `opencli browser --session work tab new [url]` 都会返回 target ID。`opencli browser --session work tab list` 用来查看当前已存在 tab 的 target ID，再通过 `--tab <targetId>` 把命令明确路由到某个 tab。`tab new` 只会新建 tab，不会改变默认浏览器目标；只有显式执行 `tab select <targetId>`，才会把该 tab 设为同一 session 后续未指定 target 的默认目标。
 
 ## 为新站点写适配器
 
@@ -149,8 +174,11 @@ Agent 在内部自动处理所有 `opencli browser` 命令——你只需用自�
 |------|--------|------|
 | `OPENCLI_WINDOW` | 命令默认值 | 设为 `foreground` 或 `background` 来覆盖 Browser Bridge 窗口位置。浏览器型命令也支持 `--window <foreground\|background>` |
 | `OPENCLI_SITE_SESSION` | adapter 默认值 | 设为 `ephemeral` 或 `persistent`，覆盖浏览器型 adapter 命令的 `siteSession` 元数据。`ephemeral` 会在命令结束时释放一次性标签页，自动化窗口会保留为可复用的容器；`persistent` 会复用该站点的 session。命令级 `--site-session` 优先。 |
+| `OPENCLI_CLOSE_OWNED_TAB` | `0` | 设为 `1`，显式关闭会话或一次性 adapter 清理时关闭当前租约拥有的标签，不保留空白占位页。需要支持此功能的 Browser Bridge 扩展。 |
+| `OPENCLI_SITE_SLOTS` | — | 把站点放进常驻标签页池，例如 `xiaohongshu:1:1500-3000,weibo:2`（`站点:池大小[:最小毫秒[-最大毫秒]]`）。每次命令运行独占借用一个槽位标签页（读命令也一样），全忙时排队；可选的间隔会以随机抖动的延迟拉开相邻两次运行。所有标签页共用一个自动化窗口，只有活动标签页会渲染，因此 `池大小` > 1 时，依赖渲染的命令（懒加载列表）在后台槽位上可能卡住——这类命令和有风控的站点请用 `1`。`--site-session ephemeral` 可让单次调用不走池。 |
 | `OPENCLI_BROWSER_CONNECT_TIMEOUT` | `45` | 浏览器连接超时（秒） |
 | `OPENCLI_BROWSER_COMMAND_TIMEOUT` | `60` | 单个浏览器命令超时（秒） |
+| `OPENCLI_BROWSER_IDLE_TIMEOUT` | 扩展默认值 | owned session 的 idle timeout（秒），命令级 `idleTimeout` 优先。不延长显式清理时间：ephemeral adapter 通常在命令结束时释放 tab；bound tab 和 persistent adapter session 忽略 idle timeout。释放 session 后，可复用的 window container 仍保留。 |
 | `OPENCLI_CDP_ENDPOINT` | — | Chrome DevTools Protocol 端点，用于远程浏览器 |
 | `OPENCLI_CDP_TARGET` | — | 按 URL 子串过滤 CDP target（如 `detail.1688.com`） |
 | `OPENCLI_VERBOSE` | `false` | 启用详细日志（`-v` 也可以） |
@@ -158,7 +186,7 @@ Agent 在内部自动处理所有 `opencli browser` 命令——你只需用自�
 
 Browser Bridge daemon 与扩展的通信端口固定为 `localhost:19825`，不再支持通过 `OPENCLI_DAEMON_PORT` 配置自定义端口。
 
-`opencli browser *` 必须紧跟一个 `<session>` 位置参数，默认使用前台窗口，并保留该 session 的 tab lease，直到你手动执行 `opencli browser <session> close` 或等空闲超时。浏览器型 adapter 默认使用后台 adapter 窗口并在命令结束后释放一次性 tab lease；如果需要调试最终页面，可以传 `--window foreground --keep-tab true`。
+`opencli browser *` 通过 `--session <name>` 指定页面 session，默认使用前台窗口，并保留该 session 的 tab lease，直到你手动执行 `opencli browser --session <session> close` 或等空闲超时。浏览器型 adapter 默认使用后台 adapter 窗口并在命令结束后释放一次性 tab lease；如果需要调试最终页面，可以传 `--window foreground --keep-tab true`。
 
 ## 内置命令
 
@@ -259,7 +287,7 @@ opencli weixin download --url "https://mp.weixin.qq.com/s/xxx" --output ./weixin
 
 ## 输出格式
 
-所有内置命令都支持 `--format` / `-f`，可选值为 `table`、`json`、`yaml`、`md`、`csv`。
+所有内置命令都支持 `--format` / `-f`，可选值为 `table`、`json`（默认）、`yaml`、`md`、`csv`。
 `list` 命令也支持同样的格式参数，同时继续兼容 `--json`。
 
 ```bash
@@ -290,12 +318,17 @@ opencli plugin uninstall my-tool                            # 卸载
 
 当 plugin 的版本被记录到 `~/.opencli/plugins.lock.json` 后，`opencli plugin list` 也会显示对应的短 commit hash。
 
+Albato、Goofish 和 Taobao 需要从本地 adapter 子目录安装，见[安装说明](./docs/zh/guide/plugins.md#社区-adapter-集合)。
+
 | 插件 | 类型 | 描述 |
 |------|------|------|
+| [opencli-plugin-albato](https://github.com/vecyang1/opencli-plugin-albato) | JS | Albato 自动化工作流管理：方案查看、启停控制、失败诊断与重试 |
 | [opencli-plugin-amap](https://github.com/vecyang1/opencli-plugin-amap) | JS | 高德地图收藏地点与路线导出、坐标转换 (GCJ-02/WGS-84) 与 SSR 搜索 |
 | [opencli-plugin-github-trending](https://github.com/ByteYue/opencli-plugin-github-trending) | JS | GitHub Trending 仓库 |
+| [opencli-plugin-goofish](https://github.com/vecyang1/opencli-plugin-goofish) | JS | 闲鱼买家订单、收藏夹、私信消息、个人资料、商品搜索与交易履约统计 |
 | [opencli-plugin-hot-digest](https://github.com/ByteYue/opencli-plugin-hot-digest) | JS | 多平台热榜聚合 |
 | [opencli-plugin-juejin](https://github.com/Astro-Han/opencli-plugin-juejin) | JS | 稀土掘金热门文章 |
+| [opencli-plugin-taobao](https://github.com/vecyang1/opencli-plugin-taobao) | JS | 淘宝买家聊天记录、历史订单、已购店铺、收藏夹与基于关键词的聊天摘要 |
 | [opencli-plugin-vk](https://github.com/flobo3/opencli-plugin-vk) | JS | VK (VKontakte) 动态、信息流和搜索 |
 | [opencli-plugin-x-article-publisher](https://github.com/genoooool/opencli-plugin-x-article-publisher) | JS | 通过 OpenCLI 与 xPoster 将带本地图片的 Markdown 发布为 X 长文 |
 
@@ -322,3 +355,16 @@ opencli plugin uninstall my-tool                            # 卸载
 ## License
 
 [Apache-2.0](./LICENSE)
+
+### 任务完成后关闭临时标签页
+
+设置 `export OPENCLI_CLOSE_OWNED_TAB=1` 后，一次性 adapter 命令结束时会关闭
+当前租约拥有的标签；多步浏览器任务结束时执行 `opencli browser close --session <session>`。
+最后一个标签关闭后 Chrome 会自动关闭窗口，用户已有页面、其他会话和绑定的用户标签
+都会保留。默认的窗口复用策略、空闲回收、`--keep-tab true` 和持久站点会话不变；
+需要让默认持久化的 adapter 单次运行后清理时，可加 `--site-session ephemeral`。
+
+清理使用独立 action，旧扩展会在释放租约前拒绝请求。清理失败或扩展过旧时会单独
+输出警告，保留身份信息。可重试显式浏览器清理，或手动关闭残留的一次性 adapter
+标签；不要重复已经完成的网站写入。显式 `browser close` 会报错退出；一次性 adapter 仍可能返回
+已经完成的操作结果。

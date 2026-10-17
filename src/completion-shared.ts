@@ -10,11 +10,13 @@
  */
 export const BUILTIN_COMMANDS = [
   'list',
-  'validate',
-  'verify',
+  'adapter',
+  'profile',
+  'daemon',
+  'skills',
+  'convention-audit',
   'auth',
   'browser',
-  'tab',
   'doctor',
   'plugin',
   'completion',

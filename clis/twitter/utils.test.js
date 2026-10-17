@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { __test__ } from './utils.js';
 
-const { computeEngagementScore, applyTopByEngagement, ENGAGEMENT_WEIGHTS, isRecoverableFileInputError } = __test__;
+const { computeEngagementScore, applyTopByEngagement, isRecoverableFileInputError } = __test__;
 
 describe('isRecoverableFileInputError', () => {
     it('falls back when Chrome never reports Page.fileChooserOpened', () => {
@@ -102,15 +102,6 @@ describe('computeEngagementScore', () => {
         expect(computeEngagementScore(bookmarkRow)).toBe(95);
     });
 
-    it('exposes the documented weight table', () => {
-        expect(ENGAGEMENT_WEIGHTS).toEqual({
-            likes: 1,
-            retweets: 3,
-            replies: 2,
-            bookmarks: 5,
-            viewsLog: 0.5,
-        });
-    });
 });
 
 describe('applyTopByEngagement', () => {

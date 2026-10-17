@@ -182,6 +182,30 @@ adapter site tab and keeps that tab open until it is explicitly closed. Users
 can override the adapter default with `--site-session ephemeral` or force
 persistence with `--site-session persistent`.
 
+A persistent site tab is shared, so concurrent persistent commands for one site
+can navigate each other's page. Users who batch a site can instead pool it with
+`OPENCLI_SITE_SLOTS` (for example `xiaohongshu:1:1500-3000`): each command run
+borrows one of `poolSize` persistent slot sessions (`site:<site>#<n>`, one warm
+tab each) for its whole duration, reads included, and waits in a daemon-side
+queue when every slot is busy. A command's `--timeout` covers the queue wait and
+the run together; without one, the wait alone is capped at 60s. The optional interval spaces slot grants start-to-start, so the
+pace applies per command run rather than per navigation. A waiting command that
+exits leaves the queue. When a holder stops sending commands for longer than the
+session-lease TTL, its slot can go to the next waiting run. Commands from expired
+or released runs are rejected until they acquire a slot again. Adapters need no changes to be pooled.
+
+All adapter tabs share one automation window, and only its active tab renders.
+A pooled run brings its slot tab to the front when it starts, but another
+command opening a tab during the run (or a second slot of the same site) puts it
+in the background, where rAF and IntersectionObserver-driven lazy loading stall.
+Keep `poolSize` at `1` for render-dependent commands.
+Slot pools require Browser Bridge; direct CDP callers can opt out with
+`--site-session ephemeral`. Pool sizes are limited to 1–32 and intervals/wait
+budgets to 2,147,483,647 ms. Concurrent callers must use the same policy while a
+pool has active runs or waiters. A policy can change after the pool is idle.
+Manual slot-session commands are rejected while a run holds that slot; runs
+must acquire their own slot and cannot reuse a run identity in another pool.
+
 ## The `page` Object
 
 The `page` parameter provides browser interaction methods:
@@ -221,13 +245,13 @@ Use the `opencli-adapter-author` skill plus the `opencli browser *` primitives t
 
 ```bash
 # Recon on the target site
-opencli browser open https://example.com
-opencli browser network
-opencli browser state
+opencli browser --session research open https://example.com
+opencli browser --session research network
+opencli browser --session research state
 
 # Scaffold + verify
-opencli browser init mysite/trending
-opencli browser verify mysite/trending
+opencli adapter init mysite/trending
+opencli adapter test mysite/trending
 ```
 
 See [AI Workflow](/developer/ai-workflow) for the full loop and the adapter-author skill for the step-by-step runbook.

@@ -1,281 +1,95 @@
 ---
 name: opencli-adapter-author
-description: Use when writing an OpenCLI adapter for a new site or adding a new command to an existing site. Guides end-to-end from first recon through field decoding, adapter coding, and verify. Replaces opencli-oneshot / opencli-explorer. For ad-hoc browser driving (no adapter), see opencli-browser instead; for a top-level orientation to opencli, see opencli-usage.
+description: Build or improve an OpenCLI JS adapter using observed site behavior, existing adapters and browser API evidence. For ad-hoc browser interaction, see opencli-browser.
 allowed-tools: Bash(opencli:*), Bash(jsluice:*), Read, Edit, Write, Grep
 ---
 
-# opencli-adapter-author
+# Adapter authoring
 
-你是要给一个站点写 adapter 的 agent。这份 skill 目标：简单站点争取 **30 分钟内从零到通过 `opencli browser verify`**；复杂、私有协议或写操作站点以证据完整和安全为先，不为了时限猜接口。
+Choose the simplest implementation that reliably performs the requested task.
+Use an existing site adapter when it already covers the capability:
 
-全程用现有工具：`opencli browser *` / `opencli doctor` / `opencli browser init` / `opencli browser verify`。没有新命令。
-
-调试浏览器型 adapter 时，优先直接带上 `--trace on --keep-tab true --window foreground`。`--trace on` 每轮都落 trace artifact，`summary.md` 是失败/成功复盘入口；`--keep-tab true --window foreground` 让 tab lease 保留且浏览器窗口在前台，方便核对最终页面状态。
-
----
-
-## 前置：看你落在哪
-
-先拿 `coverage-matrix.md` 快速自测。三个问题：
-
-1. 数据在浏览器里看得到吗？（否 → 先解决鉴权）
-2. 数据是 HTTP/JSON/HTML 吗？（否 → 不在 skill 范围）
-3. 需要实时推送吗？（是 → 找同数据 HTTP 接口；没有就放弃）
-
-三个都 yes 继续。
-
----
-
-## 顶层决策树
-
-**先定 strategy，再写 adapter。** 每次进入 Step 3/4 后、写代码前，必须产出一段 strategy note。没有这段 note，不要开始写 `clis/<site>/<name>.js`。
-
-核心判断不是 "API 比 DOM 高级"，而是 **数据源有没有外部契约**。实测维护成本显示：公开/官方接口最稳；UI/DOM 语义通常也有用户可见契约；站内未文档化 XHR/GraphQL/signature endpoint 最容易漂。不要为了 "API-first" 把稳定的 UI/DOM 实现盲目迁到无契约内部接口。
-
-```md
-Strategy: PUBLIC_API | COOKIE_API | PAGE_FETCH | INTERCEPT | DOM_STATE | UI_SELECTOR
-Contract: stable | visible-ui | internal-unstable
-Evidence:
-- observed request/state: <endpoint / state global / UI-only signal>
-- auth source: <none / browser cookie / csrf from meta / localStorage / page runtime>
-- replay result: <status + content-type + non-empty sample shape>
-
-If Strategy is PAGE_FETCH or INTERCEPT:
-- why PUBLIC_API / COOKIE_API are unavailable:
-- why UI_SELECTOR / DOM_STATE are not safer:
-- why the maintenance cost is acceptable:
+```sh
+opencli list search --site example
+opencli example search --help -f json
 ```
 
-Strategy classes:
+`list` returns `{ok:true,data:{commands,total,nextOffset?}}`; use `--offset` to
+continue, `--limit` to adjust page size. Detailed arguments belong in command help.
 
-| Strategy | 契约级别 | 用在什么时候 | 证据要求 |
-|---|---|---|---|
-| `PUBLIC_API` | stable | 不需要登录，Node-side `fetch` 直接拿到目标数据 | 200 + JSON/HTML 含目标数据，不是埋点/广告 |
-| `COOKIE_API` | stable | Node-side `fetch` + `page.getCookies()` / header helper 能拿数据 | cookie/CSRF 来源清楚，replay 非空 |
-| `UI_SELECTOR` | visible-ui | publish/upload/click/表单，或页面语义比内部接口更稳 | selector 有语义锚点；错误路径是 typed error |
-| `DOM_STATE` | visible-ui | 数据在 hydration state / bootstrap JSON / SSR HTML 里 | state key / script JSON / HTML 结构明确 |
-| `PAGE_FETCH` | internal-unstable | 只能在页面上下文 `fetch` 才能复用 same-origin/session/runtime | `opencli browser eval fetch(...)` 非空；必须解释为什么避不开内部接口 |
-| `INTERCEPT` | internal-unstable | 请求签名复杂，但页面自己能自然发出请求 | 触发 UI 后能截到目标 response；必须解释为什么 UI/DOM 不够 |
+## Evidence available to you
 
-选择规则：优先 `PUBLIC_API` / `COOKIE_API`。如果 UI/DOM 语义稳定，不要强行升级到 `PAGE_FETCH` / `INTERCEPT`。只有公开/官方接口不可用、UI/DOM 无法表达目标数据或操作时，才承担无契约内部接口的维护成本。
-
-实测：`PAGE_FETCH` / `INTERCEPT` 的 fix 频率约为 `PUBLIC_API` 的 7-8 倍，`UI_SELECTOR` 跟 `COOKIE_API` 同档。详细 ladder 推导、`api_candidates` 证据怎么填、booking #1680 等反例见 [`references/strategy-selection.md`](./references/strategy-selection.md)。
-
-边界：只复用页面自己已经合法获得的数据/能力。不教破解签名、不绕验证码/风控/访问控制；遇到不可复用签名（如必须由页面 runtime 生成且不能安全抽象）就降级到 `UI_SELECTOR` / `DOM_STATE` / `INTERCEPT`。
-
-```
-START
-  │
-  ▼
-┌──────────────────────────┐
-│ opencli doctor 通？      │── no ──→ 修桥接（doctor 输出里的提示）
-└──────────────────────────┘
-  │ yes
-  ▼
-┌────────────────────────────────────────────────────┐
-│ 读站点记忆：                                        │
-│   1. ~/.opencli/sites/<site>/endpoints.json         │
-│   2. ~/.opencli/sites/<site>/notes.md               │
-│   3. references/site-memory/<site>.md               │
-└────────────────────────────────────────────────────┘
-  │ 命中 endpoint + 字段 → 直接跳到【endpoint 验证】（不跳写 adapter！memory 可能过期）
-  │ 没命中 → 继续
-  ▼
-┌──────────────────────────┐
-│ 站点侦察（site-recon）    │  → Pattern A/B/C/D/E
-└──────────────────────────┘
-  │
-  ▼
-┌──────────────────────────┐
-│ API 发现（api-discovery）│  §1 network → §2 state → §3 bundle → §4 token → §5 intercept
-└──────────────────────────┘
-  │ 拿到候选 endpoint
-  ▼
-┌────────────────────────────────────────────┐
-│ 需要 Deep Recon？                          │  无文档私有 API / DOM 丢数据 / 写操作 / 证据冲突
-│ → references/deep-recon.md                 │  intent matrix → 因果 diff → 候选账本 → contract gate
-└────────────────────────────────────────────┘
-  │ 候选通过合同证明；不通过则记录拒绝与 lift condition
-  ▼
-┌────────────────────────────────────────────┐
-│ 验证候选合同（memory 命中也要跑）           │── 401/403 ──→ 回到 §4 排 token
-│ safe replay；不可 replay 的 read 用自然截获 │── 空/HTML ──→ 回到 site-recon 换 Pattern
-│ 数据非空、identity 对、分页/错误语义完整     │── 站点换版 ──→ 标记旧 endpoint，回 api-discovery
-└────────────────────────────────────────────┘
-  │ OK
-  ▼
-┌───────────────────────────────────────┐
-│ 字段解码（memory 里的 field-map 也要抽查）│  自解释 → 直接 / 已知代号 → field-conventions / 未知 → decode-playbook
-│ 比一条已知字段和网页肉眼值，确认没错位     │
-└───────────────────────────────────────┘
-  │
-  ▼
-┌──────────────────────────┐
-│ 设计 columns (output)    │  对照 output-design.md 的命名 / 类型 / 顺序
-└──────────────────────────┘
-  │
-  ▼
-┌──────────────────────────┐
-│ opencli browser init      │  生成 ~/.opencli/clis/<site>/<name>.js 骨架
-│ 复制最像的邻居 adapter    │
-│ 改 name / URL / 映射三处  │
-└──────────────────────────┘
-  │
-  ▼
-┌──────────────────────────┐
-│ opencli browser verify    │── 失败 ──→ autofix skill，用 --trace retain-on-failure 回对应步骤
-└──────────────────────────┘
-  │ 成功
-  ▼
-┌──────────────────────────┐
-│ 字段 vs 网页肉眼对一遍   │── 数值不对 ──→ 回字段解码
-└──────────────────────────┘
-  │ 对得上
-  ▼
-┌──────────────────────────┐
-│ 回写 ~/.opencli/sites/   │  endpoints / field-map / notes / fixtures
-└──────────────────────────┘
-  │
-  ▼
-DONE
+```sh
+opencli browser open https://example.com --session research
+opencli browser state --diagnostics --session research
+opencli browser network --session research
+opencli browser network --static --session research
+opencli browser network --detail RequestKey --session research
 ```
 
----
+Network captures describe observed requests. Static analysis adds candidates
+from loaded scripts without executing them. Inspect source locations, unresolved
+expressions and capture provenance. Replay read requests when useful and compare
+business data with the page. Write commands have real effects, including when run
+through `adapter test`; use a suitable test account or a supported dry-run.
 
-## Runbook（一步一步勾选）
+Prefer public APIs with a stable contract when available. Browser fetch, captured
+responses, page state and semantic UI interactions are also valid choices. Select
+based on the task and observed reliability. Do not guess endpoint parameters or
+hide failed operations behind empty success results.
 
-```
-[ ] 1. opencli doctor 返回 "Everything looks good"
-[ ] 2. 读站点记忆：
-       [ ] ~/.opencli/sites/<site>/endpoints.json 存在？里面有想要的 endpoint？
-       [ ] references/site-memory/<site>.md 存在？看"已知 endpoint"节
-       [ ] 命中后：**跳到第 5（endpoint 验证） + 第 7（字段核对）**，不能直接跳第 9 写 adapter
-       [ ] memory 写入超过 30 天（看 `verified_at`）→ 当作过期，按冷启动走 Step 3 → 4
-[ ] 3. 侦察（site-recon.md）：
-       [ ] **首选**：`opencli browser analyze <url>` 一步拿 pattern + 反爬 + 最近 adapter + next step
-       [ ] `analyze` 结论模糊时再手跑：`open` → `wait time 2` (或 `wait xhr <regex>`) → `network`
-       [ ] 定 Pattern（A / B / C / D / E）
-[ ] 4. API 发现（api-discovery.md）按 Pattern 选 §：
-       [ ] Pattern A → §1 network 精读
-       [ ] Pattern B → §2 state 抽取 + §1 深层数据
-       [ ] Pattern C → §3 bundle / script src 搜索
-       [ ] Pattern D → §4 token 来源 + 降级 §5
-       [ ] Pattern E → 找 HTTP 轮询接口；找不到才 §5
-       [ ] 无文档 API / DOM 丢数据 / 写操作 / bundle 与 network 冲突 → `deep-recon.md`
-           [ ] 写 intent matrix 和明确的 mutation boundary
-           [ ] baseline → 单一动作 → 新请求 diff；至少一组 changed-input 对照
-           [ ] jsluice 只扩大候选面；候选必须进入 evidence ledger
-           [ ] read 候选过 occurrence/replay/completeness/auth/pagination/failure gate
-           [ ] write 候选有明确授权、目标绑定、幂等/不确定性与不可自动重试语义
-[ ] 5. 候选合同验证（memory 命中也要重跑）：
-       [ ] `PUBLIC_API / COOKIE_API / PAGE_FETCH`：safe replay 跨两个输入返回成功
-       [ ] `INTERCEPT`：两次自然页面动作都截到属于目标 identity 的完整响应
-       [ ] 响应含目标数据（不是 HTML / 广告 / 推荐侧栏），字段与网页对得上
-       [ ] 分页达到 exact limit 或证明 upstream exhaustion；失败不返回 partial
-       [ ] write 不自动 replay，必须过 `deep-recon.md` 的额外合同门禁
-[ ] 6. 写 strategy note（写代码前的强制产物）：
-       [ ] 从 `PUBLIC_API / COOKIE_API / PAGE_FETCH / INTERCEPT / DOM_STATE / UI_SELECTOR` 选一个
-       [ ] 填 Contract：`stable / visible-ui / internal-unstable`
-       [ ] 填 Evidence：observed request/state、auth source、replay result
-       [ ] 如果选 `PAGE_FETCH` / `INTERCEPT`，必须解释为什么 `PUBLIC_API` / `COOKIE_API` / `UI_SELECTOR` / `DOM_STATE` 都不适合
-       [ ] 如果选 `UI_SELECTOR` / `DOM_STATE`，不需要为 "为什么不是 API" 过度辩护；只要说明语义锚点和 typed error 路径
-[ ] 7. 字段解码：
-       [ ] 自解释 → 直接用 key
-       [ ] 已知代号 → field-conventions.md 查表
-       [ ] 未知代号 → field-decode-playbook.md（排序键对比 / 结构差分 / 常量排查）
-[ ] 8. 设计 columns（output-design.md）：
-       [ ] 命名 camelCase 且对齐邻居 adapter
-       [ ] 类型 / 单位 / 百分比格式清楚
-       [ ] 顺序：识别列 → 业务数字 → metadata
-[ ] 9. 写 adapter（adapter-template.md）：
-       [ ] opencli browser init <site>/<name>
-       [ ] 找同站点或同类型最像的 adapter，cp 过来
-       [ ] 改 name / URL / 字段映射
-[ ] 10. opencli browser verify <site>/<name>
-        [ ] 首轮通过后立刻 `--write-fixture` 生成 `~/.opencli/sites/<site>/verify/<cmd>.json` 种子
-        [ ] 手改种子：加 `patterns`（URL / 日期 / ID 格式）+ `notEmpty`（核心字段）+ 收紧 `rowCount`
-        [ ] 再跑一次 `opencli browser verify <site>/<name>`，确认 ✓ matches fixture
-[ ] 11. 字段值 vs 网页肉眼比对（别只看 "Adapter works!"）
-[ ] 12. 回写站点记忆（**verify 通过 + 肉眼比对对得上之后**，schema 见 `references/site-memory.md`）：
-        [ ] `endpoints.json`：以 endpoint 的短名为 key，value = `{url, method, params.{required,optional}, response, verified_at: YYYY-MM-DD, notes}`
-        [ ] `field-map.json`：只追加新代号。key = 字段代号，value = `{meaning, verified_at: YYYY-MM-DD, source}`；**已存在的 key 不要覆盖**，有冲突先和网页肉眼值对齐再写
-        [ ] `notes.md`：顶部追加一段 `## YYYY-MM-DD by <agent/user>`，写本次写 adapter 时遇到的新坑 / 新结论
-        [ ] `verify/<cmd>.json`：**必填。** `opencli browser verify` 的期望值（args / rowCount / columns / types / patterns / notEmpty），Step 10 已经让你生成了，这里只是 checklist
-        [ ] `fixtures/<cmd>-<YYYYMMDDHHMM>.json`：仅保存公开数据或可证明完成脱敏的样本；私人邮箱/消息/账号等高敏响应改用合成 fixture，不落盘
-        [ ] 原始 dump/capture 只短暂落 `/tmp/` 或受控 cache；安全分级后的长期样本才进 `fixtures/`，任务结束清理原始文件
-[ ] 13. repo 贡献收口（私人 adapter 可跳过）：
-        [ ] production-path tests，不只测 parser/helper
-        [ ] `npm run typecheck` + focused/site tests + `npm run build`
-        [ ] `node dist/src/main.js validate <site>`
-        [ ] `npm run check:typed-error-lint` + `npm run check:silent-column-drop`
-        [ ] adapter 文档；若 site memory 有稳定新知识则同步
-        [ ] `git diff --check` + 敏感数据扫描 + 删除 raw capture/cache + 释放 browser session
-        [ ] 写操作或私有协议请独立 review exact head 后再合入
+## JS interface
+
+Adapters are ordinary files under `~/.opencli/clis/<site>/<command>.js` or repository
+`clis/<site>/`. There is no draft directory, promotion step or required memory file.
+
+```sh
+opencli adapter init example/search
 ```
 
----
+The existing `cli({...})` interface is unchanged: `func(args)` for Node execution,
+`func(page, args)` with `browser: true`. Reuse neighboring adapters and shared helpers.
+Return business data; the CLI adds the JSON success envelope. Throw a typed error
+with an actionable hint for failures. Use `access: 'read'|'write'` accurately.
+`columns` controls human table exports; JSON preserves nested results.
 
-## 降级路径（某步卡住跳到哪）
+```js
+import { cli, Strategy } from '@jackwener/opencli/registry';
 
-| 卡在 | 现象 | 跳去 |
-|------|------|-----|
-| Step 4 API 发现 | `network` 空，`__INITIAL_STATE__` 也空 | §3 bundle 搜 baseURL |
-| | bundle 搜不到 baseURL | §5 intercept |
-| Step 5 endpoint 验证 | 401 / 403 | §4 token 排查 |
-| | 200 但响应是 HTML | 回 Step 3 换 Pattern 判断 |
-| | 200 但 `data: []` 空 | 参数传错 / 接口换版，回 §1 看 network 里真实请求头 |
-| Step 7 字段解码 | 排序键对比推不出 | field-decode-playbook.md §3 结构差分 |
-| | 还推不出 | 先输出 raw，adapter 跑起来再迭代 |
-| Step 10 verify 失败 | `fltt` 漏了 / 字段映射错 | autofix skill；复现命令加 `--trace retain-on-failure` |
-| | 某列永远是 `null` | 字段路径错了，回 Step 7 |
-| Step 10 verify fixture mismatch | `[pattern]` row[i] 报错 | 先肉眼比对网页值；值对 → 是 fixture pattern 太严，放宽；值不对 → 字段映射错 |
-| | `[column] missing column "X"` | 实际 response 没这列（站点改版 or args 影响）；重新 `--update-fixture` 或修 adapter |
-| | `[type]` actual null / undefined | 字段提取失败，回 Step 7 重抽；临时 fallback 用 union type `string\|null` 只有在语义真的可空时用 |
-| Step 11 数值不对 | 差 10000 倍 | 单位不统一（"万" vs "元"） |
-| | 百分比小 100 倍 | 响应已是 `0.025`，不要 × 100 |
+cli({
+  site: 'example', name: 'search', description: 'Search example items',
+  access: 'read', strategy: Strategy.PUBLIC, browser: false,
+  args: [{ name: 'query', positional: true, required: true }],
+  func: async (args) => {
+    const response = await fetch(`https://example.com/api/search?q=${encodeURIComponent(args.query)}`);
+    if (!response.ok) throw new Error(`Search failed: HTTP ${response.status}`);
+    return response.json();
+  },
+});
+```
 
----
+## Check and exercise
 
-## 参考文件
+```sh
+opencli adapter check example/search
+opencli example search 'query'
+opencli adapter test example/search --args '{"query":"query"}'
+```
 
-| 文件 | 什么时候翻 |
-|------|----------|
-| `references/coverage-matrix.md` | 动手前做"是否在范围内"自测 |
-| `references/site-recon.md` | Step 3 定站点类型 |
-| `references/api-discovery.md` | Step 4 找 endpoint |
-| `references/deep-recon.md` | 复杂无文档站：动作归因、jsluice 候选扩展、合同证明、读写安全与交付净账 |
-| `references/strategy-selection.md` | Step 6 填 strategy note 之前：契约模型 + 实测 fix 频率 + `api_candidates` 证据用法 + 反例 |
-| `references/field-conventions.md` | Step 7 查已知字段代号 |
-| `references/field-decode-playbook.md` | Step 7 字段不在词典时 |
-| `references/output-design.md` | Step 8 命名 / 类型 / 顺序 |
-| `references/adapter-template.md` | Step 9 文件结构 + 活例子 `convertible.js` |
-| `references/site-memory.md` | 总览：in-repo 种子 + 本地 `~/.opencli/sites/` 的两层结构 |
-| `references/site-memory/<site>.md` | Step 2 读站点公共知识（eastmoney / xueqiu / bilibili / tonghuashun 已铺） |
-| `references/success-rate-pitfalls.md` | Step 7 / 11 踩坑前翻：11 种"verify 能过但数据是错的"静默失败（含 aria-label locale-dependence） |
-| `references/jsdom-fixture-pattern.md` | 当 adapter 走 `page.evaluate` 内 DOM 抽取、且 mocked-evaluate 单测漏 silent bug 时——把 HTML 冻进 `clis/<site>/__fixtures__/` 用 JSDOM 跑（含 fixture 创建 mandatory `awk 'NF>0'` 收紧 + reverse-validate 纪律） |
-| `references/typed-errors.md` | 写 `func` 主体之前必读：5 类 typed error 落点表（ArgumentError / EmptyResultError / CommandExecutionError / AuthRequiredError / TimeoutError）+ 三大 silent anti-pattern（silent-clamp / sentinel-row / generic CliError）的反例修法 |
+`check` validates definitions without executing adapters. `test` executes the normal
+CLI and optionally compares an existing fixture. `--write-fixture`, `--update-fixture`
+and `--no-fixture` control optional expectations; no row-shape or site-memory gate
+is imposed. `--trace retain-on-failure` helps diagnose browser execution.
 
----
+For repository changes, cover the core behavior and failure paths with focused
+production-path tests, typecheck and build. Verify IDs, fields, units, pagination
+and empty/error semantics relevant to the task. Do not automatically replay a
+write with an unknown outcome; inspect state first.
 
-## 关键约定
+## Optional references
 
-- adapter 只引 `@jackwener/opencli/registry` + `@jackwener/opencli/errors`，不用第三方
-- `columns` 数组和 `func` 返回对象 keys 完全对齐（含顺序）
-- **中间解析对象 key 不能跟 `columns` 任一项重叠**（否则 silent-column-drop audit 误判，PR #1329 R1 真踩过；改成专属命名 + push row 时 destructure aliasing）
-- **`browser:` field 决定 func 签名**：`browser:false → (args)`，`browser:true → (page, args)`。搞反时 `args` 实际是 debug flag，所有外部参数 silent fallback 到 default（PR #1329 upstream 之前 8 个 non-browser adapter 全踩过这个）
-- 已知失败按 [`references/typed-errors.md`](./references/typed-errors.md) 5-classification 抛对应 typed error；**不要** silent `return []`，**不要** silent `return [{sentinel}]`，**不要** `Math.max/min` silent clamp 外部参数
-- 写私人 adapter 用 `~/.opencli/clis/<site>/<name>.js`（免 build）；要提 PR 才 copy 到 `clis/<site>/<name>.js`
-- 站点记忆每轮回写：没记忆 → 用 skill → 产生记忆 → 下次变 5 分钟
-- **“真实发生过”不等于“可作为 production contract 重放”**。私有写请求、一次性风控 token、页面 runtime controller 都必须过 `deep-recon.md` 的 contract gate；过不了就记录 blocker/lift condition，不生成伪 API 命令。
-- **调试过程中的原始 dump / 抓包 / HTML 样本只能短暂落在系统 `/tmp/` 或受控 cache，任务结束删除。只有通过 `site-memory.md` 数据分级、准备长期保留的公开/合成/已脱敏样本才进入 `~/.opencli/sites/<site>/fixtures/`。严禁在 repo 根目录、`clis/<site>/` 或当前工作目录留 `.dbg-*.html / raw-*.json / sample.*`。**
-- **JSDOM unit-test fixture（`clis/<site>/__fixtures__/<command>.html`）是上面那条的例外**——它是有意 commit 进 repo 的 review artifact，不是临时 dump。但因此 quality bar 要更高：必须按 `references/jsdom-fixture-pattern.md` 的 5 步做完（含 mandatory `awk 'NF>0'` 空白行收紧），并 reverse-validate 一道证明 regression guard 真能挂。
-
----
-
-## 卡住了
-
-- 诊断类：`opencli doctor` → 看 `notes.md` → 搜 autofix skill
-- 字段解码类：`field-decode-playbook.md` 全三节走完 → 先输出 raw 迭代
-- endpoint 找不到：api-discovery §5 intercept 兜底
-
-不要猜。猜错了 verify 能通过但数据是错的，用户看到乱码才发现。
+Read only what is useful for the current task: `references/adapter-template.md`
+for adapter patterns, `api-discovery.md` for request investigation,
+`output-design.md` for result fields, `field-decode-playbook.md` for opaque fields,
+and `deep-recon.md` for difficult private protocols. Site notes and fixtures are
+optional knowledge aids; older reference checklists are not mandatory workflows.

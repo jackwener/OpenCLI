@@ -1,339 +1,60 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
-const {
-  fetchDaemonStatusMock,
-  requestDaemonShutdownMock,
-  restartDaemonMock,
-} = vi.hoisted(() => ({
-  fetchDaemonStatusMock: vi.fn(),
-  requestDaemonShutdownMock: vi.fn(),
-  restartDaemonMock: vi.fn(),
-}));
-
-vi.mock('../browser/daemon-transport.js', () => ({
-  fetchDaemonStatus: fetchDaemonStatusMock,
-  requestDaemonShutdown: requestDaemonShutdownMock,
-}));
-
-vi.mock('../browser/daemon-lifecycle.js', () => ({
-  restartDaemon: restartDaemonMock,
-}));
-
-import { daemonRestart, daemonStatus, daemonStop } from './daemon.js';
+const mocks = vi.hoisted(() => ({ status: vi.fn(), stop: vi.fn(), restart: vi.fn() }));
+vi.mock('../browser/daemon-transport.js', () => ({ fetchDaemonStatus: mocks.status, requestDaemonShutdown: mocks.stop }));
+vi.mock('../browser/daemon-lifecycle.js', () => ({ restartDaemon: mocks.restart }));
+import { daemonStatus, daemonStop, daemonRestart } from './daemon.js';
 import { PKG_VERSION } from '../version.js';
-
-describe('daemonStatus', () => {
-  let stdoutSpy: ReturnType<typeof vi.spyOn>;
-
-  beforeEach(() => {
-    stdoutSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
-    fetchDaemonStatusMock.mockReset();
-    requestDaemonShutdownMock.mockReset();
+let stdout: ReturnType<typeof vi.spyOn>;
+const status = { daemonVersion: PKG_VERSION, pid: 42, uptime: 60, extensionConnected: true, memoryMB: 32, port: 19825 };
+function result() {
+  expect(stdout).toHaveBeenCalledTimes(1);
+  return JSON.parse(stdout.mock.calls[0][0]);
+}
+beforeEach(() => { vi.resetAllMocks(); stdout = vi.spyOn(console, 'log').mockImplementation(() => {}); process.exitCode = undefined; });
+afterEach(() => { vi.restoreAllMocks(); process.exitCode = undefined; });
+describe('daemon structured output', () => {
+  it('reports an unreachable daemon', async () => {
+    mocks.status.mockResolvedValue(null); await daemonStatus();
+    expect(result()).toEqual({ ok: true, data: { running: false } });
   });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
+  it('preserves running daemon facts', async () => {
+    mocks.status.mockResolvedValue(status); await daemonStatus();
+    expect(result()).toEqual({ ok: true, data: { ...status, running: true, stale: false } });
   });
-
-  it('reports "not running" when daemon is unreachable', async () => {
-    fetchDaemonStatusMock.mockResolvedValue(null);
-
-    await daemonStatus();
-
-    expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining('not running'));
+  it.each(['profileRequired', 'profileDisconnected'])('preserves %s and supplies a recovery hint', async flag => {
+    mocks.status.mockResolvedValue({ ...status, extensionConnected: false, [flag]: true }); await daemonStatus();
+    expect(result().data).toMatchObject({ [flag]: true, hint: expect.stringContaining('opencli profile use') });
   });
-
-  it('shows daemon info when running', async () => {
-    fetchDaemonStatusMock.mockResolvedValue({
-      ok: true,
-      pid: 12345,
-      uptime: 3661,
-      daemonVersion: PKG_VERSION,
-      extensionConnected: true,
-      extensionVersion: '1.6.8',
-      pending: 0,
-      memoryMB: 64,
-      port: 19825,
-    });
-
-    await daemonStatus();
-
-    expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining('running'));
-    expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining('PID 12345'));
-    expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining(`v${PKG_VERSION}`));
-    expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining('1h 1m'));
-    expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining('connected'));
-    expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining('v1.6.8'));
-    expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining('64 MB'));
-    expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining('19825'));
+  it('distinguishes zero connected profiles from missing selection', async () => {
+    mocks.status.mockResolvedValue({ ...status, extensionConnected: false, profiles: [] }); await daemonStatus();
+    expect(result().data).toMatchObject({ extensionConnected: false, profiles: [] });
   });
-
-  it('shows disconnected when extension is not connected', async () => {
-    fetchDaemonStatusMock.mockResolvedValue({
-      ok: true,
-      pid: 99,
-      uptime: 120,
-      daemonVersion: PKG_VERSION,
-      extensionConnected: false,
-      pending: 0,
-      memoryMB: 32,
-      port: 19825,
-    });
-
-    await daemonStatus();
-
-    expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining('disconnected'));
+  it('reports stale daemon versions', async () => {
+    mocks.status.mockResolvedValue({ ...status, daemonVersion: '0.0.1' }); await daemonStatus();
+    expect(result().data.stale).toBe(true);
   });
-
-  it('shows version unknown when the connected extension does not report one', async () => {
-    fetchDaemonStatusMock.mockResolvedValue({
-      ok: true,
-      pid: 99,
-      uptime: 120,
-      daemonVersion: PKG_VERSION,
-      extensionConnected: true,
-      extensionVersion: undefined,
-      pending: 0,
-      memoryMB: 32,
-      port: 19825,
-    });
-
-    await daemonStatus();
-
-    expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining('version unknown'));
+  it('stops idempotently when absent', async () => {
+    mocks.status.mockResolvedValue(null); await daemonStop();
+    expect(result().data).toEqual({ running: false, stopped: false }); expect(mocks.stop).not.toHaveBeenCalled();
   });
-});
-
-// ────────────────────────────────────────────────────────────────────
-// GH #1575: differentiate the three "no route" states. The pre-fix
-// behaviour collapsed multi-profile-no-default + profile-disconnected
-// + zero-profile all to "Extension: disconnected", sending users on
-// reinstall-everything debug paths when the actual fix was
-// `opencli profile use <name>`.
-// ────────────────────────────────────────────────────────────────────
-
-describe('daemonStatus extension label states (#1575)', () => {
-  let stdoutSpy: ReturnType<typeof vi.spyOn>;
-
-  beforeEach(() => {
-    stdoutSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
-    fetchDaemonStatusMock.mockReset();
+  it('stops a running daemon', async () => {
+    mocks.status.mockResolvedValue(status); mocks.stop.mockResolvedValue(true); await daemonStop();
+    expect(result().data).toEqual({ running: false, stopped: true });
   });
-  afterEach(() => vi.restoreAllMocks());
-
-  async function extensionLineFor(extra: Record<string, unknown>): Promise<string | undefined> {
-    fetchDaemonStatusMock.mockResolvedValue({
-      ok: true,
-      pid: 99,
-      uptime: 60,
-      daemonVersion: PKG_VERSION,
-      pending: 0,
-      memoryMB: 32,
-      port: 19825,
-      ...extra,
-    });
-    await daemonStatus();
-    return stdoutSpy.mock.calls
-      .map((c: unknown[]) => c[0])
-      .find((line: unknown): line is string =>
-        typeof line === 'string' && line.startsWith('Extension:'));
-  }
-
-  it('prints a route hint for 2+ profiles with no default (not bare "disconnected")', async () => {
-    const line = await extensionLineFor({
-      extensionConnected: false,
-      profileRequired: true,
-      profiles: [
-        { contextId: 'work', extensionConnected: true, pending: 0 },
-        { contextId: 'personal', extensionConnected: true, pending: 0 },
-      ],
-    });
-    expect(line).not.toBe('Extension: disconnected');
-    expect(line).toContain('2 profiles connected');
-    expect(line).toContain('opencli profile use');
+  it('reports a shutdown failure', async () => {
+    mocks.status.mockResolvedValue(status); mocks.stop.mockResolvedValue(false); await daemonStop();
+    expect(result().error.code).toBe('daemon_stop_failed'); expect(process.exitCode).toBe(1);
   });
-
-  it('defensively uses singular grammar for a one-profile profile-required payload', async () => {
-    const line = await extensionLineFor({
-      extensionConnected: false,
-      profileRequired: true,
-      profiles: [{ contextId: 'work', extensionConnected: true, pending: 0 }],
-    });
-    expect(line).toContain('1 profile connected');
+  it.each([true, false])('reports restart action when previous daemon exists: %s', async previous => {
+    mocks.restart.mockResolvedValue({ stopped: true, status, previousStatus: previous ? status : null }); await daemonRestart();
+    expect(result().data).toEqual({ action: previous ? 'restarted' : 'started', status });
   });
-
-  it('prints a route hint when the requested profile is disconnected', async () => {
-    const line = await extensionLineFor({
-      extensionConnected: false,
-      profileDisconnected: true,
-    });
-    expect(line).not.toBe('Extension: disconnected');
-    expect(line).toContain('opencli profile use');
+  it('reports restart stop failure', async () => {
+    mocks.restart.mockResolvedValue({ stopped: false }); await daemonRestart();
+    expect(result().error.code).toBe('daemon_stop_failed'); expect(process.exitCode).toBe(1);
   });
-
-  it('keeps the plain "disconnected" label when zero profiles are connected', async () => {
-    const line = await extensionLineFor({ extensionConnected: false });
-    expect(line).toBe('Extension: disconnected');
-  });
-});
-
-describe('daemonStop', () => {
-  let stderrSpy: ReturnType<typeof vi.spyOn>;
-
-  beforeEach(() => {
-    stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
-    fetchDaemonStatusMock.mockReset();
-    requestDaemonShutdownMock.mockReset();
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it('reports "not running" when daemon is unreachable', async () => {
-    fetchDaemonStatusMock.mockResolvedValue(null);
-
-    await daemonStop();
-
-    expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining('not running'));
-  });
-
-  it('sends shutdown and reports success', async () => {
-    fetchDaemonStatusMock.mockResolvedValue({
-      ok: true,
-      pid: 12345,
-      uptime: 100,
-      daemonVersion: PKG_VERSION,
-      extensionConnected: true,
-      pending: 0,
-      memoryMB: 50,
-      port: 19825,
-    });
-    requestDaemonShutdownMock.mockResolvedValue(true);
-
-    await daemonStop();
-
-    expect(requestDaemonShutdownMock).toHaveBeenCalledTimes(1);
-    expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining('Daemon stopped'));
-  });
-
-  it('reports failure when shutdown request fails', async () => {
-    fetchDaemonStatusMock.mockResolvedValue({
-      ok: true,
-      pid: 12345,
-      uptime: 100,
-      daemonVersion: PKG_VERSION,
-      extensionConnected: true,
-      pending: 0,
-      memoryMB: 50,
-      port: 19825,
-    });
-    requestDaemonShutdownMock.mockResolvedValue(false);
-
-    await daemonStop();
-
-    expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining('Failed to stop daemon'));
-  });
-});
-
-describe('daemonRestart', () => {
-  let stderrSpy: ReturnType<typeof vi.spyOn>;
-
-  beforeEach(() => {
-    stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
-    fetchDaemonStatusMock.mockReset();
-    requestDaemonShutdownMock.mockReset();
-    restartDaemonMock.mockReset();
-    process.exitCode = undefined;
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-    process.exitCode = undefined;
-  });
-
-  it('restarts a running daemon and reports the new version', async () => {
-    fetchDaemonStatusMock.mockResolvedValue({
-      ok: true,
-      pid: 12345,
-      uptime: 100,
-      daemonVersion: '1.7.6',
-      extensionConnected: true,
-      profiles: [{ contextId: 'work', extensionConnected: true, pending: 0 }],
-      pending: 0,
-      memoryMB: 50,
-      port: 19825,
-    });
-    restartDaemonMock.mockResolvedValue({
-      previousStatus: { daemonVersion: '1.7.6' },
-      stopped: true,
-      spawned: true,
-      status: {
-        ok: true,
-        pid: 12346,
-        uptime: 1,
-        daemonVersion: PKG_VERSION,
-        extensionConnected: true,
-        profiles: [{ contextId: 'work', extensionConnected: true, pending: 0 }],
-        pending: 0,
-        memoryMB: 51,
-        port: 19825,
-      },
-    });
-
-    await daemonRestart();
-
-    expect(restartDaemonMock).toHaveBeenCalledTimes(1);
-    expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining('will disconnect 1 browser profile'));
-    expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining(`Daemon restarted on port 19825 (v${PKG_VERSION})`));
-    expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining('Extension connected; profiles connected: 1'));
-  });
-
-  it('starts a new daemon when none was running', async () => {
-    fetchDaemonStatusMock.mockResolvedValue(null);
-    restartDaemonMock.mockResolvedValue({
-      previousStatus: null,
-      stopped: true,
-      spawned: true,
-      status: {
-        ok: true,
-        pid: 12346,
-        uptime: 1,
-        daemonVersion: PKG_VERSION,
-        extensionConnected: false,
-        pending: 0,
-        memoryMB: 51,
-        port: 19825,
-      },
-    });
-
-    await daemonRestart();
-
-    expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining(`Daemon started on port 19825 (v${PKG_VERSION})`));
-    expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining('extension has not connected yet'));
-  });
-
-  it('reports failure when the daemon cannot stop', async () => {
-    fetchDaemonStatusMock.mockResolvedValue({
-      ok: true,
-      pid: 12345,
-      uptime: 100,
-      daemonVersion: '1.7.6',
-      extensionConnected: true,
-      pending: 0,
-      memoryMB: 50,
-      port: 19825,
-    });
-    restartDaemonMock.mockResolvedValue({
-      previousStatus: { daemonVersion: '1.7.6' },
-      status: { daemonVersion: '1.7.6' },
-      stopped: false,
-      spawned: false,
-    });
-
-    await daemonRestart();
-
-    expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining('Failed to stop daemon before restart'));
-    expect(process.exitCode).toBe(1);
+  it('reports unknown outcome after a restart timeout', async () => {
+    mocks.restart.mockResolvedValue({ stopped: true, status: null }); await daemonRestart();
+    expect(result().error).toMatchObject({ code: 'outcome_unknown', outcome: 'unknown' });
   });
 });

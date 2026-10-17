@@ -15,7 +15,7 @@ cli({
     args: [
         { name: 'limit', type: 'int', default: 20, help: 'Max videos to return (default 20, max 100)' },
     ],
-    columns: ['rank', 'title', 'channel', 'video_id', 'views', 'duration', 'published', 'url'],
+    columns: ['rank', 'title', 'channel', 'channel_avatar', 'video_id', 'views', 'duration', 'published', 'url'],
     func: async (page, kwargs) => {
         const limit = Math.min(kwargs.limit || 20, 100);
         await page.goto('https://www.youtube.com');
@@ -43,9 +43,14 @@ cli({
                 if (b.thumbnailBadgeViewModel?.text) duration = b.thumbnailBadgeViewModel.text;
               }
             }
+            // Channel avatar: lockup keeps it under decoratedAvatarViewModel.
+            // Sources are smallest-first, so the last one is the largest.
+            const lockupAvatars = meta?.image?.decoratedAvatarViewModel?.avatar
+              ?.avatarViewModel?.image?.sources || [];
             return {
               title: meta?.title?.content || '',
               channel: parts[0] || '',
+              channel_avatar: lockupAvatars[lockupAvatars.length - 1]?.url || '',
               views: parts[1] || '',
               duration,
               published: parts[2] || '',
@@ -56,9 +61,14 @@ cli({
           // Legacy videoRenderer format
           const v = item.richItemRenderer?.content?.videoRenderer || item.videoRenderer;
           if (v?.videoId) {
+            // Legacy renderer keeps the avatar under channelThumbnailSupportedRenderers
+            // (smallest-first, so the last thumbnail is the largest).
+            const rendererAvatars = v.channelThumbnailSupportedRenderers
+              ?.channelThumbnailWithLinkRenderer?.thumbnail?.thumbnails || [];
             return {
               title: v.title?.runs?.[0]?.text || '',
               channel: v.ownerText?.runs?.[0]?.text || v.shortBylineText?.runs?.[0]?.text || '',
+              channel_avatar: rendererAvatars[rendererAvatars.length - 1]?.url || '',
               views: v.viewCountText?.simpleText || v.shortViewCountText?.simpleText || '',
               duration: v.lengthText?.simpleText || '',
               published: v.publishedTimeText?.simpleText || '',

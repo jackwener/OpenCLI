@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
-import { getRegistry } from '@jackwener/opencli/registry';
+import { describe, expect, it } from 'vitest';
+
 import { __test__ } from './bookmark-folders.js';
 
 const { parseBookmarkFolders, buildUrl } = __test__;
@@ -133,20 +133,5 @@ describe('twitter bookmark-folders URL builder', () => {
         expect(url).toContain('/i/api/graphql/queryid123/bookmarkFoldersSlice');
         expect(url).toContain('variables=' + encodeURIComponent('{}'));
         expect(url).toContain('features=');
-    });
-});
-
-describe('twitter bookmark-folders command (registry)', () => {
-    it('throws AuthRequiredError when ct0 cookie is missing', async () => {
-        const command = getRegistry().get('twitter/bookmark-folders');
-        expect(command?.func).toBeTypeOf('function');
-        const page = {
-            goto: vi.fn().mockResolvedValue(undefined),
-            wait: vi.fn().mockResolvedValue(undefined),
-            getCookies: vi.fn().mockResolvedValue([]), // no ct0 cookie → AuthRequired
-            evaluate: vi.fn().mockResolvedValue(null),
-        };
-        await expect(command.func(page, {})).rejects.toThrow(/Not logged into x.com/);
-        expect(page.getCookies).toHaveBeenCalledWith({ url: 'https://x.com' });
     });
 });

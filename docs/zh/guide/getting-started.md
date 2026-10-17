@@ -19,10 +19,10 @@ npm install -g @jackwener/opencli
 
 ```bash
 opencli doctor
-opencli browser work open https://example.com
-opencli browser work state
-opencli browser work extract
-opencli browser work close
+opencli browser --session work open https://example.com
+opencli browser --session work state
+opencli browser --session work extract
+opencli browser --session work close
 ```
 
 安装 `opencli-browser` skill，让 AI Agent 使用同一组 browser primitives：

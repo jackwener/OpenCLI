@@ -1,19 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
-import { getRegistry } from '@jackwener/opencli/registry';
-import './event-matches.js';
-import './match-map.js';
-import './match-series.js';
-import './player-duel.js';
-import './player-form.js';
-import './player-map-pool.js';
-import './player-matches.js';
-import './player-summary.js';
-import './player-teammate-impact.js';
-import './player-vs-team.js';
-import './search.js';
-import './team-map-pool.js';
-import './team-matches.js';
+
 import {
   absolutizeUrl,
   assertRequiredFields,
@@ -23,35 +10,6 @@ import {
   parsePlayerRef,
   parseTeamRef,
 } from './utils.js';
-
-describe('hltv command registration', () => {
-  it('registers the read-only HLTV browser commands', () => {
-    const commands = [
-      'event-matches',
-      'match-map',
-      'match-series',
-      'player-duel',
-      'player-form',
-      'player-map-pool',
-      'player-matches',
-      'player-summary',
-      'player-teammate-impact',
-      'player-vs-team',
-      'search',
-      'team-map-pool',
-      'team-matches',
-    ];
-
-    for (const name of commands) {
-      const command = getRegistry().get(`hltv/${name}`);
-      expect(command, `hltv/${name}`).toBeDefined();
-      expect(command.access).toBe('read');
-      expect(command.browser).toBe(true);
-      expect(command.navigateBefore).toBe(false);
-      expect(command.domain).toBe('www.hltv.org');
-    }
-  });
-});
 
 describe('hltv argument normalization', () => {
   it('accepts compact ids and first-party HLTV URLs', () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
-import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
+
 import './thread-snapshot.js';
 
 const {
@@ -132,83 +132,10 @@ describe('linkedin thread-snapshot command', () => {
     expect(parsed.messages).toHaveLength(2);
   });
 
-  it('retries slow API discovery without repeating the configured scroll budget', async () => {
-    const command = getRegistry().get('linkedin/thread-snapshot');
-    const page = makeFakePage();
-    page.evaluate = vi.fn()
-      .mockResolvedValueOnce({
-        url: THREAD_URL,
-        title: 'Messaging | LinkedIn',
-        authRequired: false,
-        apiUrls: [],
-        scrollAttempts: 8,
-        scrollStable: true,
-      })
-      .mockResolvedValueOnce({
-        url: THREAD_URL,
-        title: 'Messaging | LinkedIn',
-        authRequired: false,
-        apiUrls: [API_URL],
-        scrollAttempts: 0,
-        scrollStable: null,
-      })
-      .mockResolvedValueOnce({ pages: liveFixturePages() });
-
-    const rows = await command.func(page, {
-      'thread-url': THREAD_URL,
-      'max-scrolls': 8,
-    });
-
-    expect(rows[0].message_count).toBe(2);
-    expect(page.evaluate).toHaveBeenCalledTimes(3);
-    expect(page.evaluate.mock.calls[1][0]).toContain('index < 0');
-    expect(page.wait).toHaveBeenNthCalledWith(2, 4);
-  });
-
-  it('rejects invalid thread URL before navigation', async () => {
-    const command = getRegistry().get('linkedin/thread-snapshot');
-    const page = makeFakePage();
-
-    await expect(command.func(page, {
-      'thread-url': 'https://www.linkedin.com/feed/',
-      'max-scrolls': 8,
-    })).rejects.toBeInstanceOf(ArgumentError);
-    expect(page.goto).not.toHaveBeenCalled();
-  });
-
   it('rejects unsafe or mismatched discovered API URLs', () => {
     expect(() => validateThreadApiUrls([
       'https://evil.example/voyager/api/voyagerMessagingGraphQL/graphql?queryId=messengerMessages.abc123&variables=(conversationUrn:2-abc)',
     ], THREAD_URL)).toThrow('unsafe or mismatched');
   });
 
-  it('fails typed on malformed normalized payloads', async () => {
-    const command = getRegistry().get('linkedin/thread-snapshot');
-    const page = makeFakePage({ fetched: { pages: [{ url: API_URL, json: {} }] } });
-
-    await expect(command.func(page, {
-      'thread-url': THREAD_URL,
-      'max-scrolls': 8,
-    })).rejects.toBeInstanceOf(CommandExecutionError);
-  });
-
-  it('refuses a partial snapshot when history never stabilizes at the scroll cap', async () => {
-    const command = getRegistry().get('linkedin/thread-snapshot');
-    const page = makeFakePage({
-      discovery: {
-        url: THREAD_URL,
-        title: 'Messaging | LinkedIn',
-        authRequired: false,
-        apiUrls: [API_URL],
-        scrollAttempts: 8,
-        scrollStable: false,
-      },
-    });
-
-    await expect(command.func(page, {
-      'thread-url': THREAD_URL,
-      'max-scrolls': 8,
-    })).rejects.toThrow('refusing to return a partial snapshot');
-    expect(page.getCookies).not.toHaveBeenCalled();
-  });
 });

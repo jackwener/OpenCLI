@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
-import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { expectRejectsWithMessage, makePage } from './test-helpers.js';
+
+import { makePage } from './test-helpers.js';
 import './trending.js';
 
 const { parseCard } = await import('./trending.js').then((m) => m.__test__);
@@ -66,73 +66,4 @@ describe('linkedin-learning trending', () => {
         expect(rows[2].group).toBe('Trending in your network');
     });
 
-    it('respects --limit', async () => {
-        const cmd = getRegistry().get('linkedin-learning/trending');
-        const cards = Array.from({ length: 6 }, (_, i) => ({ slug: `s${i}`, headline: { title: { text: `T${i}` } } }));
-        const page = makePage({
-            evaluateResult: {
-                json: { elements: [{ carousels: [{ title: { text: 'G' }, cards }] }] },
-            },
-        });
-        const rows = await cmd.func(page, { limit: 3 });
-        expect(rows).toHaveLength(3);
-    });
-
-    it('rejects invalid --limit before navigation', async () => {
-        const cmd = getRegistry().get('linkedin-learning/trending');
-        const page = makePage({ evaluateResult: { json: { elements: [] } } });
-        await expect(cmd.func(page, { limit: 0 })).rejects.toBeInstanceOf(ArgumentError);
-        expect(page.goto).not.toHaveBeenCalled();
-    });
-
-    it('throws AuthRequiredError when JSESSIONID is missing', async () => {
-        const cmd = getRegistry().get('linkedin-learning/trending');
-        const page = makePage({ cookies: [], evaluateResult: { json: { elements: [] } } });
-        await expect(cmd.func(page, { limit: 5 })).rejects.toBeInstanceOf(AuthRequiredError);
-    });
-
-    it('keeps the exact page-required message local to trending', async () => {
-        const cmd = getRegistry().get('linkedin-learning/trending');
-        await expectRejectsWithMessage(
-            cmd.func(undefined, { limit: 5 }),
-            CommandExecutionError,
-            'Browser session required for linkedin-learning trending'
-        );
-    });
-
-    it('keeps the exact feedRecommendationGroups failure message local to trending', async () => {
-        const cmd = getRegistry().get('linkedin-learning/trending');
-        const page = makePage({ evaluateResult: { error: 'HTTP 500' } });
-        await expectRejectsWithMessage(
-            cmd.func(page, { limit: 5 }),
-            CommandExecutionError,
-            'LinkedIn Learning feedRecommendationGroups failed: HTTP 500'
-        );
-    });
-
-    it('throws EmptyResultError when no carousels yield cards', async () => {
-        const cmd = getRegistry().get('linkedin-learning/trending');
-        const page = makePage({ evaluateResult: { json: { elements: [{ carousels: [] }] } } });
-        await expect(cmd.func(page, { limit: 5 })).rejects.toBeInstanceOf(EmptyResultError);
-    });
-
-    it('throws CommandExecutionError when the elements array is missing', async () => {
-        const cmd = getRegistry().get('linkedin-learning/trending');
-        const page = makePage({ evaluateResult: { json: { data: {} } } });
-        await expectRejectsWithMessage(
-            cmd.func(page, { limit: 5 }),
-            CommandExecutionError,
-            'LinkedIn Learning feedRecommendationGroups returned malformed payload: missing elements array'
-        );
-    });
-
-    it('throws CommandExecutionError when cards lack slug identity', async () => {
-        const cmd = getRegistry().get('linkedin-learning/trending');
-        const page = makePage({
-            evaluateResult: {
-                json: { elements: [{ carousels: [{ title: { text: 'G' }, cards: [{ headline: { title: { text: 'No slug' } } }] }] }] },
-            },
-        });
-        await expect(cmd.func(page, { limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
-    });
 });

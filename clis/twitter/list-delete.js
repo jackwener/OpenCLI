@@ -133,12 +133,15 @@ cli({
             editLink.click();
             const editDialog = await waitFor(() => document.querySelector('[role="dialog"]'));
             if (!editDialog) return { ok: false, message: 'Edit List dialog did not open' };
-            const deleteButton = findButton('Delete List');
+            // The dialog element lands before its buttons do, and on a cold
+            // call that gap is wide enough to lose (a hidden or minimized tab
+            // also clamps setTimeout to ~1s), so both of these used to be
+            // sampled too early: waitFor them instead.
+            const deleteButton = await waitFor(() => findButton('Delete List'));
             if (!deleteButton) return { ok: false, message: 'Delete List button not found' };
             deleteButton.click();
-            await sleep(800);
-            const confirmButton = document.querySelector('[data-testid="confirmationSheetConfirm"]')
-                || findButton('Delete');
+            const confirmButton = await waitFor(() => document.querySelector('[data-testid="confirmationSheetConfirm"]')
+                || findButton('Delete'));
             if (!confirmButton) return { ok: false, message: 'Delete confirmation button not found' };
             confirmButton.click();
             await sleep(2500);

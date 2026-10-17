@@ -1,6 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CommandExecutionError } from '@jackwener/opencli/errors';
-import { apiGet, resolveBvid, parsePageArg, selectVideoPart } from './utils.js';
+import { apiGet, httpsUrl, resolveBvid, parsePageArg, selectVideoPart } from './utils.js';
 
 function requireObject(value, label) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
@@ -121,10 +121,17 @@ cli({
       { field: 'bvid',         value: d.bvid ?? '' },
       { field: 'aid',          value: String(d.aid ?? '') },
       { field: 'title',        value: title },
+      // author 是 "名字 (mid: 123)" 展示串（保留不动）；mid / face 是给下游用的裸字段。
       { field: 'author',       value: owner.name ? `${owner.name} (mid: ${owner.mid})` : '' },
+      { field: 'mid',          value: String(owner.mid ?? '') },
+      { field: 'face',         value: httpsUrl(owner.face) },
       { field: 'category',     value: d.tname_v2 || d.tname || '' },
+      // publish_time 是 UTC 无时区串（保留不动）；pubdate_ts 是接口原始的 unix 秒。
       { field: 'publish_time', value: pubDate },
+      { field: 'pubdate_ts',   value: String(d.pubdate ?? '') },
       { field: 'duration',     value: dur ? `${mm}m${ss}s (${dur}s)` : '' },
+      // duration_sec：纯秒数，--page 时是该分集的时长，下游不用再正则剥括号。
+      { field: 'duration_sec', value: String(dur) },
       { field: 'view',         value: String(stat.view ?? '') },
       { field: 'danmaku',      value: String(stat.danmaku ?? '') },
       { field: 'reply',        value: String(stat.reply ?? '') },

@@ -62,7 +62,7 @@ describe('CLI auth contract end to end', () => {
   it('returns current Ctrip membership without legacy cookies', async () => {
     const result = await runWithSite(['ctrip', 'whoami', '-f', 'json'], member);
     expect(result.code, result.stderr).toBe(0);
-    expect(JSON.parse(result.stdout)).toMatchObject({ logged_in: true, user_id: '', name: '', vip_grade: '30' });
+    expect(JSON.parse(result.stdout).data).toMatchObject({ logged_in: true, user_id: '', name: '', vip_grade: '30' });
     expect(result.requests).toEqual(['https://m.ctrip.com/restapi/soa2/15201/getMemberSummaryInfo']);
   }, 20_000);
   it.each([
@@ -76,12 +76,12 @@ describe('CLI auth contract end to end', () => {
   it('preserves service errors through full auth status', async () => {
     const result = await runWithSite(['auth', 'status', '--site', 'ctrip', '--full', '-f', 'json'], {}, 503);
     expect(result.code, result.stderr).toBe(0);
-    expect(JSON.parse(result.stdout)[0].status).toBe('error');
+    expect(JSON.parse(result.stdout).data[0].status).toBe('error');
   }, 20_000);
   it('reports quick status as unknown without opening a browser or guessing from cookies', async () => {
     const result = await runWithSite(['auth', 'status', '--site', 'ctrip', '-f', 'json'], member);
     expect(result.code, result.stderr).toBe(0);
-    expect(JSON.parse(result.stdout)[0].status).toBe('unknown');
+    expect(JSON.parse(result.stdout).data[0].status).toBe('unknown');
     expect(result.requests).toEqual([]);
   }, 20_000);
 });

@@ -1,10 +1,4 @@
-/**
- * Verification: runs validation and optional smoke test.
- *
- * The smoke test is intentionally kept as a stub — full browser-based
- * smoke testing requires a running browser session and is better suited
- * to the `opencli test` command or CI pipelines.
- */
+/** Validate definitions and optionally run the repository public API smoke suite. */
 
 import { validateClisWithTarget, renderValidationReport, type ValidationReport } from './validate.js';
 import { spawn } from 'node:child_process';
@@ -47,7 +41,7 @@ export function renderVerifyReport(report: VerifyReport): string {
 }
 
 async function runSmokeTests(builtinClis: string): Promise<NonNullable<VerifyReport['smoke']>> {
-  const projectRoot = path.resolve(builtinClis, '..', '..');
+  const projectRoot = path.resolve(builtinClis, '..');
   const smokeDir = path.join(projectRoot, 'tests', 'smoke');
 
   if (!fs.existsSync(smokeDir)) {
@@ -67,6 +61,7 @@ async function runSmokeTests(builtinClis: string): Promise<NonNullable<VerifyRep
       stdio: ['ignore', 'pipe', 'pipe'],
     });
 
+    child.stdout.resume();
     let stderr = '';
     child.stderr.on('data', (chunk) => {
       stderr += chunk.toString();

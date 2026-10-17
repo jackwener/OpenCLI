@@ -1,65 +1,50 @@
-# AI Workflow
+# Building adapters with an agent
 
-OpenCLI is designed for AI agents writing adapters. The workflow is built on a small set of browser primitives plus a skill that teaches the end-to-end loop.
+OpenCLI supplies composable tools and observable results. The agent chooses its
+implementation from the task, available site behavior and existing adapters.
 
-## The Loop
+## Discover capabilities
 
-From a new site URL to a passing `opencli browser verify` — one skill, one set of primitives:
-
-```bash
-# 1. Pick up the skill (Claude Code)
-#    skills/opencli-adapter-author/SKILL.md
-
-# 2. Reconnaissance
-opencli browser analyze https://example.com
-# Fallback primitives when analyze says deeper inspection is needed:
-# opencli browser open https://example.com
-# opencli browser network      # inspect XHR / fetch calls
-# opencli browser state        # extract __INITIAL_STATE__ / __NEXT_DATA__
-
-# 3. Scaffold + verify
-opencli browser init <site>/<name>
-opencli browser verify <site>/<name>
+```sh
+opencli list search --site example
+opencli example search --help -f json
 ```
 
-The skill `opencli-adapter-author` walks through: coverage self-test → site recon → API discovery → field decoding → output design → adapter coding → verify → write-back to site memory.
+`list` returns compact capabilities with `total` and optional `nextOffset`.
+Default command results use `{ok:true,data:...}`; failures use
+`{ok:false,error:{code,message,hint?,...}}` and a nonzero exit code. Logs go to stderr.
 
-See [skills/opencli-adapter-author/SKILL.md](https://github.com/jackwener/opencli/blob/main/skills/opencli-adapter-author/SKILL.md).
+## Inspect a site
 
-## Primitives
+```sh
+opencli browser open https://example.com --session research
+opencli browser state --diagnostics --session research
+opencli browser network --static --session research
+opencli browser network --detail RequestKey --session research
+```
 
-| Command | Purpose |
-|---------|---------|
-| `opencli doctor` | Sanity check: bridge, Chrome, signals |
-| `opencli browser analyze <url>` | One-shot site recon: anti-bot, pattern, nearest adapter, next step |
-| `opencli browser open <url>` | Open a tab in the Chrome session |
-| `opencli browser network` | List recent XHR / fetch calls |
-| `opencli browser state` | Page state: URL, title, interactive elements |
-| `opencli browser eval '<expr>'` | Evaluate JS in the page context (cookies + origin honored) |
-| `opencli browser init <site>/<name>` | Scaffold `~/.opencli/clis/<site>/<name>.js` |
-| `opencli browser verify <site>/<name>` | Run the adapter and print first rows |
+Page facts, captured requests and AST candidates inform implementation choices.
+Static candidates are unexecuted evidence; the agent decides what to investigate.
+`browser chrome describe` exposes native tab, group and window management without
+a page session. Use `doctor` to diagnose connectivity when needed.
 
-No `explore` / `synthesize` / `generate` / `cascade` command. The skill drives the loop — the primitives are small and composable.
+## Implement and exercise
 
-## Site Memory
+```sh
+opencli adapter init example/search
+opencli adapter check example/search
+opencli adapter test example/search --args '{"query":"hello"}'
+```
 
-Every site accumulates knowledge at `~/.opencli/sites/<site>/` (endpoints, field decode map, notes, response fixtures). The adapter-author skill reads memory on Step 2 and writes back on Step 12 — see `skills/opencli-adapter-author/references/site-memory.md` for the schema.
+Write a normal JS file. `cli({...})`, `func(args)` and `func(page,args)` remain the
+adapter contract. Return business data; the CLI adds the JSON envelope.
+`check` validates definitions; `test` executes the real command and optionally
+compares a fixture. Write adapters have real effects when tested.
 
-In-repo seeds for well-known sites live at `skills/opencli-adapter-author/references/site-memory/<site>.md` (eastmoney / xueqiu / bilibili / tonghuashun already covered).
+There is no draft store, promotion step, required strategy note or site-memory gate.
+Use focused tests and real execution to cover core behavior, error paths and
+business semantics. Optional traces and fixtures help investigate failures.
 
-## Authentication Strategies
-
-Adapters declare one of:
-
-1. **PUBLIC** — direct fetch, no credentials
-2. **COOKIE** — reuse Chrome session cookies (`browser: true` + `credentials: 'include'`)
-3. **INTERCEPT** — let the page make the request; capture the response
-4. **UI** — drive the authenticated browser UI when no stable API is available
-
-Pick per the `coverage-matrix.md` and `api-discovery.md` references inside the skill.
-
-## When Something Breaks
-
-- Verify failure → run `opencli doctor`, then consult `skills/opencli-autofix/SKILL.md`
-- Field values wrong → jump back to `skills/opencli-adapter-author/references/field-decode-playbook.md`
-- Endpoint returns 401/403 → `api-discovery.md` §4 (token) / §5 (intercept)
+See [opencli-adapter-author](https://github.com/jackwener/opencli/blob/main/skills/opencli-adapter-author/SKILL.md)
+and [opencli-browser](https://github.com/jackwener/opencli/blob/main/skills/opencli-browser/SKILL.md)
+for the tool contracts and references.

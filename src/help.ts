@@ -32,7 +32,7 @@ const COMMON_OPTIONS = [
     flags: '-f, --format <fmt>',
     name: 'format',
     help: 'Output format: table, plain, json, yaml, md, csv',
-    default: 'table',
+    default: 'json',
     choices: OUTPUT_FORMATS,
   },
   {
@@ -148,7 +148,7 @@ export function formatRootAdapterHelpText(groups: RootAdapterGroups): string {
   const lines: string[] = [''];
   lines.push(...formatGroupSection('Site adapters', groups.sites));
   lines.push("Run 'opencli list' for full command details, or 'opencli <site> --help' to inspect one site.");
-  lines.push("Agent tip: use 'opencli <site> --help -f yaml' for all command args/options in one structured response.");
+  lines.push("Agent tip: use 'opencli <site> --help -f json' for all command args/options in one structured response.");
   lines.push('');
   return lines.join('\n');
 }
@@ -333,7 +333,7 @@ export function commanderNamespaceHelpData(
     ...(opts.globalCommand ? { global_options: compactCommanderOptions(opts.globalCommand.options) } : {}),
     structured_help: {
       formats: ['yaml', 'json'],
-      usage: `${commandPath} --help -f yaml`,
+      usage: `${commandPath} --help -f json`,
     },
   };
 }
@@ -350,7 +350,7 @@ export function commanderCommandHelpData(
     ...(opts.globalCommand ? { global_options: compactCommanderOptions(opts.globalCommand.options) } : {}),
     structured_help: {
       formats: ['yaml', 'json'],
-      usage: `${commanderPath(command).join(' ')} --help -f yaml`,
+      usage: `${commanderPath(command).join(' ')} --help -f json`,
     },
   };
 }
@@ -375,7 +375,7 @@ export function commanderGroupHelpData(
     ...(opts.globalCommand ? { global_options: compactCommanderOptions(opts.globalCommand.options) } : {}),
     structured_help: {
       formats: ['yaml', 'json'],
-      usage: `${commanderPath(groupCommand).join(' ')} --help -f yaml`,
+      usage: `${commanderPath(groupCommand).join(' ')} --help -f json`,
     },
   };
 }
@@ -439,7 +439,7 @@ function compactCommand(cmd: CliCommand): Record<string, unknown> {
     ...(cmd.browser ? { browser_common_options: BROWSER_COMMON_OPTIONS.map(compactCommonOption) } : {}),
     example: formatCommandExample(cmd),
     ...(cmd.siteSession ? { siteSession: cmd.siteSession } : {}),
-    ...(cmd.defaultFormat ? { defaultFormat: cmd.defaultFormat } : {}),
+    defaultFormat: 'json',
     ...(cmd.columns?.length ? { columns: cmd.columns } : {}),
   };
 }
@@ -463,9 +463,9 @@ export function rootHelpData(program: Command, groups: RootAdapterGroups): Recor
       sites: [...groups.sites].sort(sortLocale),
     },
     next: [
-      'opencli <site> --help -f yaml',
-      'opencli list -f yaml',
-      'opencli <site> <command> -f yaml',
+      'opencli <site> --help -f json',
+      'opencli list <query>',
+      'opencli <site> <command>',
     ],
   };
 }
@@ -480,8 +480,8 @@ export function siteHelpData(site: string, commands: readonly CliCommand[]): Rec
     common_options: COMMON_OPTIONS.map(compactCommonOption),
     ...(unique.some(cmd => cmd.browser) ? { browser_common_options: BROWSER_COMMON_OPTIONS.map(compactCommonOption) } : {}),
     next: [
-      `opencli ${site} <command> --help -f yaml`,
-      `opencli ${site} <command> -f yaml`,
+      `opencli ${site} <command> --help -f json`,
+      `opencli ${site} <command>`,
     ],
   };
 }
@@ -543,7 +543,7 @@ export function formatSiteHelpText(site: string, commands: readonly CliCommand[]
     formatCommonOptionsHelpText(),
     ...(unique.some(cmd => cmd.browser) ? ['', formatBrowserCommonOptionsHelpText()] : []),
     '',
-    `Agent tip: use 'opencli ${site} --help -f yaml' to get all command args/options in one structured response.`,
+    `Agent tip: use 'opencli ${site} --help -f json' to get all command args/options in one structured response.`,
     '',
   ];
   return lines.join('\n');
@@ -580,12 +580,12 @@ export function formatCommandHelpText(cmd: CliCommand): string {
   meta.push(`Access: ${cmd.access}`);
   meta.push(`Browser: ${cmd.browser ? 'yes' : 'no'}`);
   if (cmd.domain) meta.push(`Domain: ${cmd.domain}`);
-  if (cmd.defaultFormat) meta.push(`Default format: ${cmd.defaultFormat}`);
+  meta.push('Default format: json');
   if (cmd.aliases?.length) meta.push(`Aliases: ${cmd.aliases.join(', ')}`);
   lines.push(meta.join(' | '));
   lines.push(`Example: ${formatCommandExample(cmd)}`);
   if (cmd.columns?.length) lines.push(`Output columns: ${cmd.columns.join(', ')}`);
-  lines.push("Agent tip: use '--help -f yaml' for structured args/options.");
+  lines.push("Agent tip: use '--help -f json' for structured args/options.");
   lines.push('');
   return lines.join('\n');
 }

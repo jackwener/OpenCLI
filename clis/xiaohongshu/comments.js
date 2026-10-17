@@ -6,7 +6,7 @@
  * the --with-replies flag.
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { AuthRequiredError, CliError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { parseNoteId, buildNoteUrl } from './note-helpers.js';
 import { readXhsDetailPage } from './risk-control.js';
 
@@ -63,6 +63,60 @@ export function parseXhsLikeCountText(value) {
     const unit = short[2].toLowerCase();
     const multiplier = unit === 'w' || unit === '万' ? 10000 : 1000;
     return Math.round(numeric * multiplier);
+}
+
+/**
+ * The note's total comment count as the page states it: the comments header
+ * ("共 3528 条评论") when rendered, else the interaction-bar count ("1.2万").
+ * The bar's zero-count placeholder ("评论") and "暂无评论" are 0. Anything
+ * unrecognised is null (unknown), never 0 — a misread 0 would skip the
+ * comment scroll and pass an empty load off as "no comments". Self-contained
+ * apart from parseXhsLikeCountText, since both are injected into the
+ * page-side extractor.
+ */
+export function parseXhsCommentTotal(headerText, barText) {
+    // parseXhsLikeCountText reads any shape it does not know as 0; only a
+    // literal zero may become 0 here.
+    const count = (raw) => {
+        const n = parseXhsLikeCountText(raw);
+        return n === 0 && !/^0+$/.test(raw) ? null : n;
+    };
+    const header = String(headerText ?? '').replace(/\s+/g, '');
+    const fromHeader = header.match(/共([\d,，.]+[wWkK万千]?)条评论/u);
+    if (fromHeader)
+        return count(fromHeader[1]);
+    if (/暂无评论/u.test(header))
+        return 0;
+    const bar = String(barText ?? '').replace(/\s+/g, '');
+    if (bar === '评论')
+        return 0;
+    if (!/^[\d,，.]+[wWkK万千]?\+?$/u.test(bar))
+        return null;
+    return count(bar);
+}
+
+/**
+ * An empty comments payload is only a real "no comments" when the page agrees.
+ * With zero rows: an unavailable-note page is EMPTY_RESULT, and a page that
+ * states the note HAS comments means the list never loaded (background or
+ * occluded window, a transient restriction, a layout change) — fail typed
+ * instead of returning a success-shaped []. Comments the extractor skipped for
+ * having no text (image or sticker only) account for a non-zero total.
+ * Shared with the rednote adapter.
+ */
+export function assertCommentsLoaded(data, rowCount, commandName) {
+    if (rowCount > 0)
+        return;
+    if (data.notFound) {
+        throw new EmptyResultError(commandName, 'The note is unavailable — it may have been deleted or restricted.');
+    }
+    if (typeof data.commentTotal === 'number' && data.commentTotal > 0 && !(data.skippedEmpty > 0)) {
+        throw new CliError(
+            'COMMENTS_NOT_LOADED',
+            `${commandName}: the page reports ${data.commentTotal} comments but none loaded`,
+            'The comment list did not render. Keep the browser automation window visible (not minimized or covered) and retry later.',
+        );
+    }
 }
 
 function normalizeOptionalString(value, field, commandName) {
@@ -143,18 +197,34 @@ export function normalizeCommentRows(value, commandName = 'xiaohongshu/comments'
  * the rednote adapter can reuse the exact same selector chain.
  */
 export function buildCommentsExtractJs(withReplies, limit = 20) {
-    const parseLikeCountText = parseXhsLikeCountText.toString();
     return `
       (async () => {
         const wait = (ms) => new Promise(r => setTimeout(r, ms))
         const withReplies = ${withReplies}
-        const targetCount = ${Number(limit) || 20}
+        const limitCount = ${Number(limit) || 20}
+        ${parseXhsLikeCountText.toString()}
+        ${parseXhsCommentTotal.toString()}
+        const readCommentTotal = () => parseXhsCommentTotal(
+          document.querySelector('.comments-container .total')?.textContent,
+          document.querySelector('.interact-container .chat-wrapper .count')?.textContent,
+        )
 
         // Check login state
         const bodyText = document.body?.innerText || ''
         const loginWall = /登录后查看|请登录/.test(bodyText)
+        // Only a page without the note panel or any comment counts as unavailable:
+        // the same words can appear inside a real note's text or its comments.
+        const notFound = /页面不见了|笔记不存在|无法浏览/.test(bodyText)
+          && !document.querySelector('#noteContainer, .parent-comment')
         const securityBlock = /安全限制|访问链接异常/.test(bodyText)
           || /website-login\\/error|error_code=300017|error_code=300031/.test(location.href)
+        // No scrolling on a page that cannot have a comment list (unavailable,
+        // blocked, login wall) or that says the note has no comments. Loading
+        // is done once --limit is reached or every comment the page states is
+        // loaded, whichever comes first.
+        const initialTotal = readCommentTotal()
+        const skipScroll = notFound || securityBlock || loginWall || initialTotal === 0
+        const loadedEnough = (count) => count >= limitCount || (initialTotal !== null && count >= initialTotal)
 
         // Scroll to trigger comment loading. Xiaohongshu loads comments in
         // small async batches via IntersectionObserver, and depending on the
@@ -178,9 +248,9 @@ export function buildCommentsExtractJs(withReplies, limit = 20) {
         }
         {
           let stall = 0
-          for (let i = 0; i < 60; i++) {
+          for (let i = 0; i < 60 && !skipScroll; i++) {
             const beforeCount = document.querySelectorAll('.parent-comment').length
-            if (beforeCount >= targetCount) break
+            if (loadedEnough(beforeCount)) break
             driveScroll()
             await wait(1000 + Math.random() * 1200)
             const afterCount = document.querySelectorAll('.parent-comment').length
@@ -194,7 +264,7 @@ export function buildCommentsExtractJs(withReplies, limit = 20) {
         }
 
         const clean = (el) => (el?.textContent || '').replace(/\\s+/g, ' ').trim()
-        const parseLikeCountText = ${parseLikeCountText}
+        const parseLikeCountText = parseXhsLikeCountText
         const parseLikes = (el) => {
           return parseLikeCountText(clean(el))
         }
@@ -242,6 +312,7 @@ export function buildCommentsExtractJs(withReplies, limit = 20) {
         }
 
         const results = []
+        let skippedEmpty = 0
         const parents = document.querySelectorAll('.parent-comment')
         for (const p of parents) {
           const item = p.querySelector('.comment-item')
@@ -254,7 +325,12 @@ export function buildCommentsExtractJs(withReplies, limit = 20) {
           const time = clean(item.querySelector('.date, .time'))
           const images = extractImages(item)
 
-          if (!text) continue
+          if (!text) {
+            // Empty skeletons are not evidence that comments have loaded.
+            // Only rendered media/stickers explain a textless comment.
+            if (images.length > 0 || item.querySelector('.content img[src], .note-text img[src]')) skippedEmpty++
+            continue
+          }
           results.push({ author, authorHrefRaw, text, likes, time, is_reply: false, reply_to: '', images })
 
           // Extract nested replies (楼中楼)
@@ -278,7 +354,8 @@ export function buildCommentsExtractJs(withReplies, limit = 20) {
           }
         }
 
-        return { pageUrl: location.href, securityBlock, loginWall, results }
+        const commentTotal = readCommentTotal() ?? initialTotal
+        return { pageUrl: location.href, securityBlock, loginWall, notFound, commentTotal, skippedEmpty, results }
       })()
     `;
 }
@@ -320,6 +397,7 @@ export const command = cli({
         // noteId currently unused after parsing — kept for symmetry with the note command
         void noteId;
         const all = normalizeCommentRows(data.results, 'xiaohongshu/comments');
+        assertCommentsLoaded(data, all.length, 'xiaohongshu/comments');
         // authorHrefRaw is a raw transport field from the extractor; it is consumed
         // here into userId / profileUrl and intentionally not part of the row shape.
         const enrich = (c, i) => ({

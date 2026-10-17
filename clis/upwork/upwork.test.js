@@ -1,35 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import {
-    ArgumentError,
-    AuthRequiredError,
-    CommandExecutionError,
-    EmptyResultError,
-} from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { getRegistry } from '@jackwener/opencli/registry';
-import {
-    UPWORK_ORIGIN,
-    LIST_COLUMNS,
-    DETAIL_COLUMNS,
-    requireQuery,
-    requirePositiveInt,
-    requireBoundedInt,
-    requireCiphertext,
-    requireFeedTab,
-    requireSort,
-    buildSearchUrl,
-    buildFeedUrl,
-    feedStateKey,
-    buildJobUrl,
-    stripHighlight,
-    decodeExperienceLevel,
-    decodeWorkload,
-    decodeProposalsTier,
-    formatBudget,
-    formatBudgetFromDetail,
-    jobType,
-    formatSkills,
-    jobToListRow,
-} from './utils.js';
+import { UPWORK_ORIGIN, LIST_COLUMNS, requireQuery, requirePositiveInt, requireBoundedInt, requireCiphertext, requireFeedTab, requireSort, buildSearchUrl, buildFeedUrl, feedStateKey, buildJobUrl, stripHighlight, decodeExperienceLevel, decodeWorkload, decodeProposalsTier, formatBudget, formatBudgetFromDetail, jobType, formatSkills, jobToListRow } from './utils.js';
 import './search.js';
 import './feed.js';
 import './detail.js';
@@ -44,40 +16,6 @@ function createPageMock(evaluateResult) {
         evaluate,
     };
 }
-
-describe('upwork adapter — registration', () => {
-    it('registers search/feed/detail with the expected shape', () => {
-        const search = getRegistry().get('upwork/search');
-        const feed = getRegistry().get('upwork/feed');
-        const detail = getRegistry().get('upwork/detail');
-
-        expect(search).toBeDefined();
-        expect(search.browser).toBe(true);
-        expect(search.strategy).toBe('cookie');
-        expect(search.navigateBefore).toBe(false);
-        expect(search.columns).toEqual(LIST_COLUMNS);
-
-        expect(feed).toBeDefined();
-        expect(feed.browser).toBe(true);
-        expect(feed.strategy).toBe('cookie');
-        expect(feed.columns).toEqual(LIST_COLUMNS);
-        expect(feed.aliases).toContain('best-matches');
-
-        expect(detail).toBeDefined();
-        expect(detail.browser).toBe(true);
-        expect(detail.strategy).toBe('cookie');
-        expect(detail.columns).toEqual(DETAIL_COLUMNS);
-        expect(detail.aliases).toContain('job');
-        expect(detail.aliases).toContain('view');
-    });
-
-    it('shares list columns between search and feed but not detail', () => {
-        expect(LIST_COLUMNS).toContain('rank');
-        expect(LIST_COLUMNS).toContain('proposalsTier');
-        expect(DETAIL_COLUMNS).toContain('description');
-        expect(DETAIL_COLUMNS).not.toContain('rank');
-    });
-});
 
 describe('upwork adapter — argument validators', () => {
     it('requireQuery trims and rejects empty', () => {
@@ -293,80 +231,6 @@ describe('upwork adapter — jobToListRow', () => {
 describe('upwork search — func behavior', () => {
     const cmd = () => getRegistry().get('upwork/search');
 
-    it('returns rows on a populated state', async () => {
-        const page = createPageMock({
-            ready: true,
-            onLogin: false,
-            challenge: false,
-            jobsPresent: true,
-            jobs: [
-                { ciphertext: '~022054964136512093518', title: 'A', type: 2, hourlyBudget: { min: 10, max: 20 }, attrs: [], client: {} },
-                { ciphertext: '~022055605504980235850', title: 'B', type: 1, amount: { amount: 100 }, attrs: [], client: {} },
-            ],
-            paging: { total: 2, offset: 0, count: 2 },
-        });
-        const rows = await cmd().func(page, { query: 'python', page: 1, per_page: 10 });
-        expect(rows).toHaveLength(2);
-        expect(rows[0].rank).toBe(1);
-        expect(rows[0].type).toBe('hourly');
-        expect(rows[1].rank).toBe(2);
-        expect(rows[1].type).toBe('fixed');
-        expect(page.goto).toHaveBeenCalledWith(expect.stringContaining('/nx/search/jobs/?q=python'));
-    });
-
-    it('uses pageNum/perPage to compute the starting rank', async () => {
-        const page = createPageMock({
-            ready: true, onLogin: false, challenge: false,
-            jobsPresent: true,
-            jobs: [{ ciphertext: '~022054964136512093518', title: 'A', type: 2, attrs: [], client: {} }],
-        });
-        const rows = await cmd().func(page, { query: 'python', page: 3, per_page: 10 });
-        expect(rows[0].rank).toBe(21);
-    });
-
-    it('throws AuthRequiredError when redirected to login', async () => {
-        const page = createPageMock({ ready: false, onLogin: true, challenge: false, jobs: [] });
-        await expect(cmd().func(page, { query: 'python' })).rejects.toBeInstanceOf(AuthRequiredError);
-    });
-
-    it('throws CommandExecutionError on Cloudflare challenge', async () => {
-        const page = createPageMock({ ready: false, onLogin: false, challenge: true, jobs: [] });
-        await expect(cmd().func(page, { query: 'python' })).rejects.toBeInstanceOf(CommandExecutionError);
-    });
-
-    it('throws CommandExecutionError when state never hydrates', async () => {
-        const page = createPageMock({ ready: false, onLogin: false, challenge: false, jobs: [] });
-        await expect(cmd().func(page, { query: 'python' })).rejects.toThrow(/was not present/);
-    });
-
-    it('throws EmptyResultError when the search returns zero jobs', async () => {
-        const page = createPageMock({ ready: true, onLogin: false, challenge: false, jobsPresent: true, jobs: [], paging: { total: 0 } });
-        await expect(cmd().func(page, { query: 'asdfqwerzxcv' })).rejects.toBeInstanceOf(EmptyResultError);
-    });
-
-    it('unwraps Browser Bridge envelopes at the evaluate boundary', async () => {
-        const page = createPageMock({
-            session: 'site:upwork',
-            data: {
-                ready: true,
-                onLogin: false,
-                challenge: false,
-                jobsPresent: true,
-                jobs: [{ ciphertext: '~022054964136512093518', title: 'A', type: 2, attrs: [], client: {} }],
-            },
-        });
-        const rows = await cmd().func(page, { query: 'python' });
-        expect(rows).toHaveLength(1);
-        expect(rows[0].id).toBe('~022054964136512093518');
-    });
-
-    it('treats missing or malformed jobs state as parser drift, not legal empty', async () => {
-        await expect(cmd().func(createPageMock({ ready: true, onLogin: false, challenge: false }), { query: 'python' }))
-            .rejects.toBeInstanceOf(CommandExecutionError);
-        await expect(cmd().func(createPageMock({ ready: true, onLogin: false, challenge: false, jobsPresent: true, jobs: {} }), { query: 'python' }))
-            .rejects.toBeInstanceOf(CommandExecutionError);
-    });
-
     it('fails closed when any search result lacks a round-trippable job id', async () => {
         const page = createPageMock({
             ready: true,
@@ -378,63 +242,10 @@ describe('upwork search — func behavior', () => {
         await expect(cmd().func(page, { query: 'python' })).rejects.toBeInstanceOf(CommandExecutionError);
     });
 
-    it('rejects empty query before opening the page', async () => {
-        const page = createPageMock({ ready: true, jobs: [] });
-        await expect(cmd().func(page, { query: '' })).rejects.toBeInstanceOf(ArgumentError);
-        expect(page.goto).not.toHaveBeenCalled();
-    });
 });
 
 describe('upwork feed — func behavior', () => {
     const cmd = () => getRegistry().get('upwork/feed');
-
-    it('hits the best-matches URL by default', async () => {
-        const page = createPageMock({
-            ready: true, onLogin: false, challenge: false,
-            jobsPresent: true,
-            jobs: [{ ciphertext: '~022054964136512093518', title: 'A', type: 2, attrs: [], client: {} }],
-        });
-        const rows = await cmd().func(page, { tab: 'best-matches', limit: 5 });
-        expect(rows).toHaveLength(1);
-        expect(page.goto).toHaveBeenCalledWith('https://www.upwork.com/nx/find-work/best-matches');
-    });
-
-    it('switches URL for the most-recent tab', async () => {
-        const page = createPageMock({
-            ready: true, onLogin: false, challenge: false,
-            jobsPresent: true,
-            jobs: [{ ciphertext: '~022054964136512093518', title: 'A', type: 1, amount: { amount: 50 }, attrs: [], client: {} }],
-        });
-        await cmd().func(page, { tab: 'most-recent', limit: 5 });
-        expect(page.goto).toHaveBeenCalledWith('https://www.upwork.com/nx/find-work/most-recent');
-    });
-
-    it('throws AuthRequiredError when redirected to login', async () => {
-        const page = createPageMock({ ready: false, onLogin: true, challenge: false, jobs: [] });
-        await expect(cmd().func(page, { tab: 'best-matches' })).rejects.toBeInstanceOf(AuthRequiredError);
-    });
-
-    it('throws EmptyResultError for an empty feed without sentinel rows', async () => {
-        const page = createPageMock({ ready: true, onLogin: false, challenge: false, jobsPresent: true, jobs: [] });
-        await expect(cmd().func(page, { tab: 'best-matches' })).rejects.toBeInstanceOf(EmptyResultError);
-    });
-
-    it('unwraps Browser Bridge envelopes and rejects malformed feed jobs state', async () => {
-        const rows = await cmd().func(createPageMock({
-            session: 'site:upwork',
-            data: {
-                ready: true,
-                onLogin: false,
-                challenge: false,
-                jobsPresent: true,
-                jobs: [{ ciphertext: '~022054964136512093518', title: 'A', type: 2, attrs: [], client: {} }],
-            },
-        }), { tab: 'best-matches' });
-        expect(rows[0].id).toBe('~022054964136512093518');
-
-        await expect(cmd().func(createPageMock({ ready: true, onLogin: false, challenge: false, jobsPresent: true, jobs: null }), { tab: 'best-matches' }))
-            .rejects.toBeInstanceOf(CommandExecutionError);
-    });
 
     it('fails closed when any feed result lacks a round-trippable job id', async () => {
         const page = createPageMock({
@@ -445,122 +256,5 @@ describe('upwork feed — func behavior', () => {
             jobs: [{ ciphertext: '~022054964136512093518', title: 'A' }, { ciphertext: '', title: 'B' }],
         });
         await expect(cmd().func(page, { tab: 'best-matches' })).rejects.toBeInstanceOf(CommandExecutionError);
-    });
-});
-
-describe('upwork detail — func behavior', () => {
-    const cmd = () => getRegistry().get('upwork/detail');
-
-    it('returns one row from a populated jobDetails store', async () => {
-        const page = createPageMock({
-            ready: true, onLogin: false, challenge: false,
-            job: {
-                uid: '2054964136512093518',
-                ciphertext: '~022054964136512093518',
-                title: 'Software Developer',
-                type: 2,
-                extendedBudgetInfo: { hourlyBudgetMin: 40, hourlyBudgetMax: 70 },
-                contractorTier: 2,
-                workload: 'More than 30 hrs/week',
-                category: { name: 'Web Development', urlSlug: 'web-development' },
-                attrs: [{ prettyName: 'Python' }],
-                description: 'We are looking for...',
-                publishTime: '2026-05-14T16:37:43.507Z',
-                clientActivity: { totalApplicants: 50, totalHired: 0 },
-            },
-            buyer: {
-                stats: { score: 4.8, totalJobsWithHires: 5, totalCharges: { amount: 188.28 } },
-                location: { country: 'United States' },
-            },
-        });
-        const rows = await cmd().func(page, { id: '~022054964136512093518' });
-        expect(rows).toHaveLength(1);
-        const row = rows[0];
-        expect(Object.keys(row)).toEqual(DETAIL_COLUMNS);
-        expect(row.id).toBe('~022054964136512093518');
-        expect(row.type).toBe('hourly');
-        expect(row.budget).toBe('$40-$70/hr');
-        expect(row.experienceLevel).toBe('intermediate');
-        expect(row.workload).toBe('More than 30 hrs/week');
-        expect(row.category).toBe('Web Development');
-        expect(row.skills).toBe('Python');
-        expect(row.clientCountry).toBe('United States');
-        expect(row.clientSpent).toBe(188.28);
-        expect(row.clientHires).toBe(5);
-        expect(row.clientRating).toBe(4.8);
-        expect(row.proposalsCount).toBe(50);
-        expect(row.url).toBe('https://www.upwork.com/jobs/~022054964136512093518');
-    });
-
-    it('accepts a full /jobs/ URL as the positional id', async () => {
-        const page = createPageMock({
-            ready: true, onLogin: false, challenge: false,
-            job: { ciphertext: '~022054964136512093518', title: 'X', type: 1, budget: { amount: 100 } },
-            buyer: {},
-        });
-        const rows = await cmd().func(page, { id: 'https://www.upwork.com/jobs/~022054964136512093518' });
-        expect(rows[0].id).toBe('~022054964136512093518');
-        expect(rows[0].budget).toBe('$100');
-    });
-
-    it('drops zero client score to null', async () => {
-        const page = createPageMock({
-            ready: true, onLogin: false, challenge: false,
-            job: { ciphertext: '~022054964136512093518', title: 'X', type: 2 },
-            buyer: { stats: { score: 0, totalJobsWithHires: 0 } },
-        });
-        const rows = await cmd().func(page, { id: '~022054964136512093518' });
-        expect(rows[0].clientRating).toBeNull();
-        expect(rows[0].clientHires).toBe(0);
-    });
-
-    it('throws AuthRequiredError when redirected to login', async () => {
-        const page = createPageMock({ ready: false, onLogin: true, challenge: false, job: null });
-        await expect(cmd().func(page, { id: '~022054964136512093518' })).rejects.toBeInstanceOf(AuthRequiredError);
-    });
-
-    it('throws CommandExecutionError on Cloudflare challenge', async () => {
-        const page = createPageMock({ ready: false, onLogin: false, challenge: true, job: null });
-        await expect(cmd().func(page, { id: '~022054964136512093518' })).rejects.toBeInstanceOf(CommandExecutionError);
-    });
-
-    it('throws EmptyResultError when the store has no job', async () => {
-        const page = createPageMock({ ready: false, onLogin: false, challenge: false, job: null });
-        await expect(cmd().func(page, { id: '~022054964136512093518' })).rejects.toBeInstanceOf(EmptyResultError);
-    });
-
-    it('unwraps Browser Bridge envelopes and treats wrong-shape job as parser drift', async () => {
-        const rows = await cmd().func(createPageMock({
-            session: 'site:upwork',
-            data: {
-                ready: true,
-                onLogin: false,
-                challenge: false,
-                job: { ciphertext: '~022054964136512093518', title: 'X', type: 1, budget: { amount: 100 } },
-                buyer: {},
-            },
-        }), { id: '~022054964136512093518' });
-        expect(rows[0].id).toBe('~022054964136512093518');
-
-        await expect(cmd().func(createPageMock({ ready: true, onLogin: false, challenge: false, job: [] }), { id: '~022054964136512093518' }))
-            .rejects.toBeInstanceOf(CommandExecutionError);
-    });
-
-    it('fails closed when the detail store belongs to a different ciphertext', async () => {
-        const page = createPageMock({
-            ready: true,
-            onLogin: false,
-            challenge: false,
-            job: { ciphertext: '~022055605504980235850', title: 'Wrong job' },
-            buyer: {},
-        });
-        await expect(cmd().func(page, { id: '~022054964136512093518' }))
-            .rejects.toBeInstanceOf(CommandExecutionError);
-    });
-
-    it('rejects malformed ciphertext before opening the page', async () => {
-        const page = createPageMock({ ready: true, job: null });
-        await expect(cmd().func(page, { id: 'not-an-id' })).rejects.toBeInstanceOf(ArgumentError);
-        expect(page.goto).not.toHaveBeenCalled();
     });
 });

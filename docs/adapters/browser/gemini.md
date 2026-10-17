@@ -96,6 +96,10 @@ opencli gemini models -f json
 
 ## Behavior
 
+- Reused Gemini automation tabs are activated within their session so response rendering can resume after another adapter has run.
+- Native prompt insertion replaces the selected composer contents while preserving the rich editor structure, preventing visible text from becoming detached from the editor state.
+- Response polling uses fixed elapsed-time waits, so quiet model reasoning does not prematurely exhaust `--timeout`. The current submitted turn remains the reply anchor across consecutive asks.
+
 - When `--new true` is combined with `--model` and/or `--thinking`, the new chat is created first, then the model and thinking level are selected, then the snapshot is read, and finally the prompt is submitted.
 - `ask --model <value>` selects the requested model before reading the page state and sending the prompt. The selected model remains visible in the Gemini web UI after the command completes. Short aliases like `pro` or `flash` are rejected—use canonical model IDs from `opencli gemini models`.
 - When `--model` is omitted, `ask` does not change the current model.
@@ -111,9 +115,15 @@ opencli gemini models -f json
 - You are already logged into `gemini.google.com`
 - [Browser Bridge extension](/guide/browser-bridge) is installed
 
+- Account identity detection supports localized Google account labels.
+
 ## Caveats
 
 - This adapter drives the Gemini consumer web UI, not a public API.
 - Gemini commands default to persistent site sessions, so consecutive `gemini ask` / `gemini image` / `gemini deep-research-result` invocations continue in the same Gemini page. Pass `--site-session ephemeral` for a one-shot tab.
 - It depends on the current browser session and may fail if Gemini shows login, consent, challenge, quota, or other gating UI.
 - DOM or product changes on Gemini can break composer detection, new-chat handling, or image export behavior.
+
+### Timeouts
+
+A missing completed reply is a typed `TIMEOUT` failure (exit code 75), rather than a successful `[NO RESPONSE]` row. Check `opencli gemini read` before sending again because the original message may already have been submitted. Successful response formatting and the shared renderer/error envelope remain unchanged.

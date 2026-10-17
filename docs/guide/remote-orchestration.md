@@ -46,7 +46,7 @@ While that session is open, anything on the remote connecting to `localhost:1982
 ```bash
 # On the remote server
 opencli twitter feed
-opencli browser open https://example.com
+opencli browser --session research open https://example.com
 ```
 
 ::: tip

@@ -132,7 +132,7 @@ Use `opencli browser` to inspect the live website. **Never use the broken adapte
 
 ```bash
 # Open the page and inspect current DOM
-opencli browser open https://example.com/target-page && opencli browser state
+opencli browser open https://example.com/target-page && opencli browser --session research state
 
 # Look for elements that match the adapter's intent
 # Compare the snapshot with what the adapter expects
@@ -142,16 +142,16 @@ opencli browser open https://example.com/target-page && opencli browser state
 
 ```bash
 # Open page with network interceptor, then trigger the action manually
-opencli browser open https://example.com/target-page && opencli browser state
+opencli browser open https://example.com/target-page && opencli browser --session research state
 
 # Interact to trigger API calls
-opencli browser click <N> && opencli browser network
+opencli browser click <N> && opencli browser --session research network
 
 # Narrow to the request you care about by the fields its body should have
-opencli browser network --filter author,text,likes
+opencli browser --session research network --filter author,text,likes
 
 # Inspect specific API response (key is the `key` field from the default JSON output)
-opencli browser network --detail <key>
+opencli browser --session research network --detail <key>
 ```
 
 ## Step 4: Patch the Adapter
@@ -283,7 +283,7 @@ In all stop cases, clearly communicate the situation to the user rather than mak
 
 3. AI reads summary/state: page loaded but uses ".HotItem" instead of ".HotList-item"
 
-4. AI explores: opencli browser open https://www.zhihu.com/hot && opencli browser state
+4. AI explores: opencli browser open https://www.zhihu.com/hot && opencli browser --session research state
    → Confirms new class name ".HotItem" with child ".HotItem-content"
 
 5. AI patches: Edit adapter at `adapterSourcePath` — replace ".HotList-item" with ".HotItem"

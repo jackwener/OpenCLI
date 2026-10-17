@@ -1,14 +1,15 @@
 /**
- * Xiaohongshu search — DOM-based extraction from search results page.
+ * Xiaohongshu search — in-site navigation and DOM-based result extraction.
  * The previous Pinia store + XHR interception approach broke because
- * the API now returns empty items. This version navigates directly to
- * the search results page and extracts data from rendered DOM elements.
+ * the API now returns empty items. Search results are read from rendered DOM elements.
  * Ref: https://github.com/jackwener/opencli/issues/10
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CliError, CommandExecutionError, EmptyResultError, TimeoutError } from '@jackwener/opencli/errors';
 import { unwrapEvaluateResult } from './shared.js';
 const CONTENT_WAIT_SECONDS = 20;
+const EXPLORE_URL = 'https://www.xiaohongshu.com/explore';
+const SEARCH_NAVIGATION_SECONDS = 10;
 /**
  * Wait for search results or login wall using MutationObserver (max 20s).
  * Returns 'content' if note items appeared, a typed wall state when login or
@@ -25,10 +26,11 @@ const WAIT_FOR_CONTENT_JS = `
       'section.note-item, section:has(a[href*="/search_result/"]), section:has(a[href*="/explore/"])'
     );
     const detect = () => {
-      if (findNoteCard()) return 'content';
       const bodyText = document.body?.innerText || '';
       if (/登录后查看搜索结果/.test(bodyText) || document.querySelector('#login-btn')) return 'login_wall';
-      if (/请求太频繁|访问频次异常|安全限制/.test(bodyText)) return 'security_block';
+      if (/请求太频繁|访问频次异常|安全限制|Requests too frequent|Scan with logged-in/i.test(bodyText) ||
+          location.pathname.startsWith('/website-login/captcha')) return 'security_block';
+      if (findNoteCard()) return 'content';
       return null;
     };
     const found = detect();
@@ -362,6 +364,75 @@ function resolveSearchFilters(kwargs) {
     });
 }
 
+function buildInSiteSearchJs(query) {
+    return `
+      (async () => {
+        const query = ${JSON.stringify(query)};
+        const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+        const visible = (element) => {
+          if (!element || element.closest('[aria-hidden="true"], [hidden], [inert]')) return false;
+          const rect = element.getBoundingClientRect();
+          if (rect.width <= 0 || rect.height <= 0) return false;
+          for (let node = element; node; node = node.parentElement) {
+            const style = element.ownerDocument.defaultView.getComputedStyle(node);
+            if (style.display === 'none' || style.visibility === 'hidden' ||
+                (style.opacity !== '' && Number(style.opacity) < 0.01)) return false;
+          }
+          return true;
+        };
+        const matches = (selector) => Array.from(document.querySelectorAll(selector)).filter(visible);
+        const blocked = () => {
+          const text = document.body?.innerText || document.body?.textContent || '';
+          if (location.pathname.startsWith('/website-login/captcha') ||
+              /请求太频繁|访问频次异常|安全限制|Requests too frequent|Scan with logged-in/i.test(text))
+            return { status: 'security_block', detail: location.pathname };
+          if (/登录后查看搜索结果/.test(text) || matches('#login-btn').length)
+            return { status: 'auth', detail: 'login_wall' };
+          return null;
+        };
+        let input = null;
+        for (let attempt = 0; attempt < 50 && !input; attempt++) {
+          const wall = blocked();
+          if (wall) return wall;
+          const inputs = matches('#search-input');
+          if (inputs.length > 1) return { status: 'layout', detail: 'ambiguous_search_input' };
+          input = inputs[0];
+          if (!input) await sleep(100);
+        }
+        if (!(input instanceof HTMLInputElement) || input.disabled || input.readOnly)
+          return { status: 'layout', detail: 'search_input_not_available' };
+        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+        input.focus();
+        setter.call(input, query);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        await sleep(200);
+        if (input.value !== query) return { status: 'layout', detail: 'search_input_not_filled' };
+        const wall = blocked();
+        if (wall) return wall;
+        const buttons = matches('.search-icon');
+        if (buttons.length !== 1) return { status: 'layout', detail: 'ambiguous_or_missing_search_button' };
+        const button = buttons[0];
+        if (button.disabled || button.getAttribute('aria-disabled') === 'true')
+          return { status: 'layout', detail: 'search_button_disabled' };
+        button.click();
+        const deadline = Date.now() + ${SEARCH_NAVIGATION_SECONDS * 1000};
+        while (Date.now() < deadline) {
+          const wall = blocked();
+          if (wall) return wall;
+          const searchRendered = document.querySelector('.search-layout__top > .filter, .filter.ai-chat-filter, section.note-item, section:has(a[href*="/search_result/"])');
+          const keyword = new URLSearchParams(location.search).get('keyword');
+          if (location.pathname === '/search_result' && keyword === query &&
+              (searchRendered || document.querySelector('.search-empty-wrapper'))) {
+            return { status: 'ok', detail: location.pathname };
+          }
+          await sleep(100);
+        }
+        return { status: 'timeout', detail: location.pathname };
+      })()
+    `;
+}
+
 function buildApplySearchFiltersJs(requestedFilters) {
     return `
       (async () => {
@@ -386,8 +457,8 @@ function buildApplySearchFiltersJs(requestedFilters) {
         const authBlocked = () => /登录后查看搜索结果/.test(document.body?.innerText || '') ||
           visible(document.querySelector('#login-btn'));
         const locationBlocked = () => /请开启浏览器地理位置权限/.test(document.body?.innerText || '');
-        const panels = () => visibleMatches(document, '.search-layout__top > .filter > .filter-panel');
-        const triggers = () => visibleMatches(document, '.search-layout__top > .filter');
+        const panels = () => visibleMatches(document, '.search-layout__top > .filter > .filter-panel, .filter.ai-chat-filter > .filter-panel');
+        const triggers = () => visibleMatches(document, '.search-layout__top > .filter, .filter.ai-chat-filter');
 
         const openPanel = async () => {
           let clicked = false;
@@ -674,7 +745,28 @@ export function buildScrollHarvestJs(webHost, targetCount, options = {}) {
           rootScroller?.clientHeight || 0,
           document.documentElement?.clientHeight || 0
         );
+        const innerScroller = () => {
+          const element = document.querySelector('.search-layout-wrapper');
+          if (!element || element.clientHeight <= 0 ||
+              element.closest('[hidden], [inert], [aria-hidden="true"]') ||
+              !/^(auto|scroll)$/.test(getComputedStyle(element).overflowY)) return null;
+          for (let node = element; node; node = node.parentElement) {
+            const style = getComputedStyle(node);
+            if (style.display === 'none' || style.visibility === 'hidden' ||
+                (style.opacity !== '' && Number(style.opacity) < 0.01)) return null;
+          }
+          return rootScrollHeight() <= rootClientHeight() + 2 ? element : null;
+        };
         const readScrollMetrics = () => {
+          const inner = innerScroller();
+          if (inner) {
+            return {
+              rootTop: inner.scrollTop,
+              scrollTop: inner.scrollTop,
+              scrollHeight: inner.scrollHeight,
+              clientHeight: inner.clientHeight,
+            };
+          }
           const rootTop = Math.max(
             window.scrollY || window.pageYOffset || 0,
             rootScroller?.scrollTop || 0,
@@ -693,7 +785,10 @@ export function buildScrollHarvestJs(webHost, targetCount, options = {}) {
           // complete virtualized frame before it is harvested.
           const viewport = metrics.clientHeight || configuredStep;
           const scrollStep = Math.max(1, Math.min(configuredStep, viewport));
-          if (typeof window.scrollBy === 'function') {
+          const inner = innerScroller();
+          if (inner) {
+            inner.scrollTop += scrollStep;
+          } else if (typeof window.scrollBy === 'function') {
             window.scrollBy(0, scrollStep);
           } else if (rootScroller) {
             rootScroller.scrollTop += scrollStep;
@@ -710,7 +805,8 @@ export function buildScrollHarvestJs(webHost, targetCount, options = {}) {
         let securityBlock = false;
         while (true) {
           round++;
-          securityBlock = /请求太频繁|访问频次异常|安全限制/.test(document.body?.innerText || '');
+          securityBlock = /请求太频繁|访问频次异常|安全限制|Requests too frequent|Scan with logged-in/i.test(document.body?.innerText || '') ||
+            window.location.pathname.startsWith('/website-login/captcha');
           if (securityBlock) {
             stopReason = 'security-block';
             metrics = readScrollMetrics();
@@ -819,6 +915,25 @@ async function collectSearchHarvest(page, limit, requestedFilters) {
     return harvest;
 }
 
+async function openSearchResults(page, query) {
+    await page.goto(EXPLORE_URL);
+    const result = unwrapEvaluateResult(await page.evaluate(buildInSiteSearchJs(query)));
+    if (!result || typeof result !== 'object' || Array.isArray(result)) {
+        throw new CommandExecutionError('Unexpected Xiaohongshu in-site search payload shape.');
+    }
+    if (result.status === 'ok') return;
+    if (result.status === 'auth') {
+        throw new AuthRequiredError('www.xiaohongshu.com', 'Xiaohongshu search results are blocked behind a login wall');
+    }
+    if (result.status === 'security_block') {
+        throw new CliError('SECURITY_BLOCK', 'Xiaohongshu search was blocked by request-frequency or security controls.', 'Wait before retrying or use a different logged-in browser session.');
+    }
+    if (result.status === 'timeout') {
+        throw new TimeoutError('xiaohongshu in-site search navigation', SEARCH_NAVIGATION_SECONDS);
+    }
+    throw new CommandExecutionError(`Xiaohongshu in-site search failed: ${result.detail || 'unknown'}`);
+}
+
 async function replaceCollapsedTab(page, url) {
     if (typeof page.getActivePage !== 'function' || typeof page.newTab !== 'function' ||
         typeof page.setActivePage !== 'function' || typeof page.selectTab !== 'function' ||
@@ -897,12 +1012,11 @@ export const command = cli({
         try {
             const limit = parseLimit(kwargs.limit);
             const requestedFilters = resolveSearchFilters(kwargs);
-            const keyword = encodeURIComponent(kwargs.query);
-            const url = `https://www.xiaohongshu.com/search_result?keyword=${keyword}&source=web_search_result_notes`;
-            await page.goto(url);
+            await openSearchResults(page, kwargs.query);
             let harvest = await collectSearchHarvest(page, limit, requestedFilters);
             if (isCollapsedRender(harvest.diag)) {
-                await replaceCollapsedTab(page, url);
+                await replaceCollapsedTab(page, EXPLORE_URL);
+                await openSearchResults(page, kwargs.query);
                 harvest = await collectSearchHarvest(page, limit, requestedFilters);
                 if (isCollapsedRender(harvest.diag)) {
                     throw new CommandExecutionError(
@@ -933,6 +1047,7 @@ export const command = cli({
 });
 export const __test__ = {
     WAIT_FOR_CONTENT_JS,
+    buildInSiteSearchJs,
     harvestOptionsForLimit,
     stripXhsAuthorDateSuffix,
 };

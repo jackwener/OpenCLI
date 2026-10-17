@@ -2902,11 +2902,22 @@
     "columns": [
       "rank",
       "time",
+      "pub_ts",
       "author",
+      "mid",
       "title",
       "type",
+      "duration",
+      "duration_sec",
+      "plays",
+      "danmaku",
       "likes",
-      "url"
+      "url",
+      "bvid",
+      "cover",
+      "face",
+      "desc",
+      "only_fans"
     ],
     "type": "js",
     "modulePath": "bilibili/feed.js",
@@ -3195,8 +3206,19 @@
       "rank",
       "title",
       "author",
+      "mid",
       "score",
-      "url"
+      "plays",
+      "likes",
+      "danmaku",
+      "favorites",
+      "duration",
+      "duration_sec",
+      "pubdate_ts",
+      "url",
+      "cover",
+      "face",
+      "desc"
     ],
     "type": "js",
     "modulePath": "bilibili/search.js",
@@ -3342,8 +3364,18 @@
       "title",
       "plays",
       "likes",
+      "likes_known",
+      "comments",
+      "danmaku",
       "date",
-      "url"
+      "created_ts",
+      "duration",
+      "duration_sec",
+      "url",
+      "bvid",
+      "cover",
+      "desc",
+      "is_pay"
     ],
     "type": "js",
     "modulePath": "bilibili/user-videos.js",
@@ -5409,6 +5441,70 @@
     "type": "js",
     "modulePath": "chatgpt/ask.js",
     "sourceFile": "chatgpt/ask.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "chatgpt",
+    "name": "ask-file",
+    "description": "Send a prompt to ChatGPT with attached local file(s) (images, documents, code) and return the assistant response",
+    "access": "write",
+    "domain": "chatgpt.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "prompt",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Prompt to send"
+      },
+      {
+        "name": "file",
+        "type": "str",
+        "required": true,
+        "help": "Local file path(s) to attach, comma-separated (e.g. \"screenshot.png,notes.txt\")"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 120,
+        "required": false,
+        "help": "Max seconds to wait for response (default: 120)"
+      },
+      {
+        "name": "new",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Start a new chat before sending"
+      },
+      {
+        "name": "conversation",
+        "type": "str",
+        "required": false,
+        "valueRequired": true,
+        "help": "Continue an existing ChatGPT conversation ID or /c/<id> URL"
+      },
+      {
+        "name": "project",
+        "type": "str",
+        "required": false,
+        "valueRequired": true,
+        "help": "Start a new chat inside a ChatGPT project ID or /g/g-p-<id> URL"
+      }
+    ],
+    "columns": [
+      "conversation_id",
+      "conversation_url",
+      "attachments",
+      "response"
+    ],
+    "defaultFormat": "plain",
+    "type": "js",
+    "modulePath": "chatgpt/ask-file.js",
+    "sourceFile": "chatgpt/ask-file.js",
     "navigateBefore": false,
     "siteSession": "persistent"
   },
@@ -36388,7 +36484,8 @@
       "url",
       "has_media",
       "media_urls",
-      "media_posters"
+      "media_posters",
+      "media_durations"
     ],
     "type": "js",
     "modulePath": "twitter/bookmark-folder.js",
@@ -36475,7 +36572,8 @@
       "url",
       "has_media",
       "media_urls",
-      "media_posters"
+      "media_posters",
+      "media_durations"
     ],
     "type": "js",
     "modulePath": "twitter/bookmarks.js",
@@ -36894,7 +36992,8 @@
       "url",
       "has_media",
       "media_urls",
-      "media_posters"
+      "media_posters",
+      "media_durations"
     ],
     "type": "js",
     "modulePath": "twitter/likes.js",
@@ -37193,16 +37292,19 @@
     "columns": [
       "id",
       "author",
+      "author_avatar",
       "bio",
       "text",
       "likes",
       "retweets",
       "replies",
+      "views",
       "created_at",
       "url",
       "has_media",
       "media_urls",
       "media_posters",
+      "media_durations",
       "card",
       "quoted_tweet"
     ],
@@ -37653,6 +37755,7 @@
     "columns": [
       "id",
       "author",
+      "author_avatar",
       "bio",
       "text",
       "created_at",
@@ -37662,6 +37765,7 @@
       "has_media",
       "media_urls",
       "media_posters",
+      "media_durations",
       "card",
       "quoted_tweet",
       "author_verified"
@@ -37705,14 +37809,17 @@
     "columns": [
       "id",
       "author",
+      "author_avatar",
       "bio",
       "text",
       "likes",
       "retweets",
+      "views",
       "url",
       "has_media",
       "media_urls",
       "media_posters",
+      "media_durations",
       "card",
       "quoted_tweet",
       "author_verified"
@@ -37771,6 +37878,7 @@
       "has_media",
       "media_urls",
       "media_posters",
+      "media_durations",
       "card",
       "quoted_tweet",
       "author_verified"
@@ -37859,6 +37967,7 @@
       "has_media",
       "media_urls",
       "media_posters",
+      "media_durations",
       "quoted_tweet"
     ],
     "type": "js",
@@ -41315,6 +41424,89 @@
   },
   {
     "site": "xiaohongshu",
+    "name": "comment",
+    "description": "在小红书笔记下发表评论（走页面自带的已签名请求层，需 --execute 才会真的发出）",
+    "access": "write",
+    "domain": "www.xiaohongshu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "note",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Full note URL with xsec_token (preferred), or a 24-char hex note ID"
+      },
+      {
+        "name": "text",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Comment text to post"
+      },
+      {
+        "name": "execute",
+        "type": "boolean",
+        "required": false,
+        "help": "Actually post the comment. Without it the command refuses to write."
+      }
+    ],
+    "columns": [
+      "status",
+      "comment_id",
+      "url",
+      "message",
+      "verified"
+    ],
+    "type": "js",
+    "modulePath": "xiaohongshu/comment.js",
+    "sourceFile": "xiaohongshu/comment.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "xiaohongshu",
+    "name": "comment-delete",
+    "description": "删除自己在小红书笔记下的评论（走页面自带的已签名请求层，需 --execute 才会真的删除）",
+    "access": "write",
+    "domain": "www.xiaohongshu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "note",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Full note URL with xsec_token (preferred), or a 24-char hex note ID"
+      },
+      {
+        "name": "comment-id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "The comment ID to delete (as printed by `xiaohongshu comment`)"
+      },
+      {
+        "name": "execute",
+        "type": "boolean",
+        "required": false,
+        "help": "Actually delete the comment. Without it the command refuses to write."
+      }
+    ],
+    "columns": [
+      "status",
+      "comment_id",
+      "note_id",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "xiaohongshu/comment-delete.js",
+    "sourceFile": "xiaohongshu/comment-delete.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "xiaohongshu",
     "name": "comments",
     "description": "获取小红书笔记评论（支持楼中楼子回复）",
     "access": "read",
@@ -43594,7 +43786,7 @@
         "type": "str",
         "required": true,
         "positional": true,
-        "help": "Channel ID (UCxxxx) or handle (@name)"
+        "help": "Channel ID (UCxxxx) or handle (@name or name)"
       },
       {
         "name": "limit",
@@ -43612,6 +43804,48 @@
     "modulePath": "youtube/channel.js",
     "sourceFile": "youtube/channel.js",
     "navigateBefore": "https://www.youtube.com"
+  },
+  {
+    "site": "youtube",
+    "name": "comment",
+    "description": "Post a top-level comment on a YouTube video (requires --execute)",
+    "access": "write",
+    "domain": "www.youtube.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "url",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "YouTube video URL or video ID"
+      },
+      {
+        "name": "text",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Comment text to post"
+      },
+      {
+        "name": "execute",
+        "type": "boolean",
+        "required": false,
+        "help": "Actually post the comment. Without it the command refuses to write."
+      }
+    ],
+    "columns": [
+      "status",
+      "comment_id",
+      "url",
+      "message",
+      "verified"
+    ],
+    "type": "js",
+    "modulePath": "youtube/comment.js",
+    "sourceFile": "youtube/comment.js",
+    "navigateBefore": false
   },
   {
     "site": "youtube",
@@ -43671,6 +43905,7 @@
       "rank",
       "title",
       "channel",
+      "channel_avatar",
       "video_id",
       "views",
       "duration",
@@ -43855,6 +44090,8 @@
       "rank",
       "title",
       "channel",
+      "channel_avatar",
+      "video_id",
       "views",
       "duration",
       "published",

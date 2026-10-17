@@ -63,8 +63,4 @@ describe('eastmoney convertible field mapping (#2109)', () => {
         }
     });
 
-    it('drops the semantically-wrong ytm sort and exposes put-trigger instead', () => {
-        expect(SORTS).not.toHaveProperty('ytm');
-        expect(SORTS['put-trigger']).toEqual({ fid: 'f239', order: 'desc' });
-    });
 });

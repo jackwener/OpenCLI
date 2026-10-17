@@ -34,19 +34,14 @@ const USER_CLIS = path.join(os.homedir(), '.opencli', 'clis');
 const argv = process.argv.slice(2);
 
 if (typeof (globalThis as { Bun?: unknown }).Bun === 'undefined' && !isSupportedNodeVersion(process.version)) {
-  process.stderr.write(
-    [
-      `OpenCLI requires Node.js >= ${MIN_SUPPORTED_NODE_MAJOR}.0.0.`,
-      `Current runtime: ${process.version}`,
-      'Upgrade Node.js, then retry the same command.',
-      '',
-    ].join('\n'),
-  );
+  const { emitFailure } = await import('./command-output.js');
+  emitFailure({ code: 'CONFIG', message: `OpenCLI requires Node.js >= ${MIN_SUPPORTED_NODE_MAJOR}.0.0; current runtime: ${process.version}.`, hint: 'Upgrade Node.js, then retry.' }, EXIT_CODES.CONFIG_ERROR);
   process.exit(EXIT_CODES.CONFIG_ERROR);
 }
 
 if (!isIgnorableDaemonPortEnv(process.env.OPENCLI_DAEMON_PORT)) {
-  process.stderr.write(`error: ${unsupportedDaemonPortEnvMessage(process.env.OPENCLI_DAEMON_PORT)}\n`);
+  const { emitFailure } = await import('./command-output.js');
+  emitFailure({ code: 'CONFIG', message: unsupportedDaemonPortEnvMessage(process.env.OPENCLI_DAEMON_PORT) }, EXIT_CODES.CONFIG_ERROR);
   process.exit(EXIT_CODES.CONFIG_ERROR);
 }
 
@@ -77,7 +72,7 @@ if (getCompIdx !== -1) {
     const rest = process.argv.slice(getCompIdx + 1);
     let cursor: number | undefined;
     const words: string[] = [];
-    for (let i = 0; i < rest.length; i++) {
+    for (let i = 0;i < rest.length;i++) {
       if (rest[i] === '--cursor' && i + 1 < rest.length) {
         cursor = parseInt(rest[i + 1], 10);
         i++;
@@ -97,85 +92,76 @@ if (getCompIdx !== -1) {
 
 // ── Full startup path ───────────────────────────────────────────────────
 // Dynamic imports: these are deferred so the fast path above never pays the cost.
-const { discoverClis, discoverPlugins, ensureUserCliCompatShims, ensureUserAdapters } = await import('./discovery.js');
-const { getCompletions } = await import('./completion.js');
-const { runCli } = await import('./cli.js');
-const { emitHook } = await import('./hooks.js');
-const { installNodeNetwork } = await import('./node-network.js');
-const { registerUpdateNoticeOnExit, checkForUpdateBackground } = await import('./update-check.js');
-
-installNodeNetwork();
-
-// Parallelise independent startup I/O:
-//  - Built-in adapter discovery has no dependency on user-dir setup.
-//  - ensureUserCliCompatShims and ensureUserAdapters operate on different paths
-//    (~/.opencli/node_modules/ vs ~/.opencli/clis/ + adapter-manifest.json).
-//  - registerCommand() overwrites on name collision (see registry.ts), so
-//    user-CLI discovery MUST run after built-in discovery to preserve the
-//    intended override order (user adapters override built-in ones).
-//  - discoverPlugins runs last: plugins may override both built-in and user CLIs.
-const skipUserDiscovery = argv[0] === 'convention-audit';
-if (skipUserDiscovery) {
-  await discoverClis(BUILTIN_CLIS);
-} else {
-  const [, ,] = await Promise.all([
-    ensureUserCliCompatShims(),
-    ensureUserAdapters(),
-    discoverClis(BUILTIN_CLIS),
-  ]);
-  await discoverClis(USER_CLIS);
-  await discoverPlugins();
-}
-
-// Register exit hook: notice appears after command output (same as npm/gh/yarn)
-registerUpdateNoticeOnExit();
-// Kick off background fetch for next run (non-blocking)
-checkForUpdateBackground();
-
-// ── Fallback completion: manifest unavailable, use full registry ─────────
-if (getCompIdx !== -1) {
-  const rest = process.argv.slice(getCompIdx + 1);
-  let cursor: number | undefined;
-  const words: string[] = [];
-  for (let i = 0; i < rest.length; i++) {
-    if (rest[i] === '--cursor' && i + 1 < rest.length) {
-      cursor = parseInt(rest[i + 1], 10);
-      i++;
-    } else {
-      words.push(rest[i]);
-    }
-  }
-  if (cursor === undefined) cursor = words.length;
-  const candidates = getCompletions(words, cursor);
-  process.stdout.write(candidates.join('\n') + '\n');
-  process.exit(EXIT_CODES.SUCCESS);
-}
-
-// Rewrite `opencli browser <session> <subcommand> ...` so commander (which
-// can't combine a parent positional with subcommand dispatch) sees the internal
-// `--session <name>` flag form. Also refuses the retired `opencli browser
-// --session foo ...` user form with a friendly usage error.
-const { rewriteBrowserArgv, BrowserSessionArgvError, escapeLeadingDashPositional } = await import('./cli-argv-preprocess.js');
 try {
-  let rewritten = rewriteBrowserArgv(process.argv.slice(2));
-  // Insert a `--` separator before a required positional whose value starts
-  // with `-` (e.g. BOSS 直聘 securityId tokens; #1160). Skipped when the
-  // manifest is unavailable so the user-cli / dev paths still work.
+  const { discoverClis, discoverPlugins, ensureUserCliCompatShims, ensureUserAdapters } = await import('./discovery.js');
+  const { getCompletions } = await import('./completion.js');
+  const { runCli } = await import('./cli.js');
+  const { emitHook } = await import('./hooks.js');
+  const { installNodeNetwork } = await import('./node-network.js');
+  const { registerUpdateNoticeOnExit, checkForUpdateBackground } = await import('./update-check.js');
+
+  installNodeNetwork();
+
+  // Parallelise independent startup I/O:
+  //  - Built-in adapter discovery has no dependency on user-dir setup.
+  //  - ensureUserCliCompatShims and ensureUserAdapters operate on different paths
+  //    (~/.opencli/node_modules/ vs ~/.opencli/clis/ + adapter-manifest.json).
+  //  - registerCommand() overwrites on name collision (see registry.ts), so
+  //    user-CLI discovery MUST run after built-in discovery to preserve the
+  //    intended override order (user adapters override built-in ones).
+  //  - discoverPlugins runs last: plugins may override both built-in and user CLIs.
+  const skipUserDiscovery = argv[0] === 'convention-audit';
+  if (skipUserDiscovery) {
+    await discoverClis(BUILTIN_CLIS);
+  } else {
+    const [, ,] = await Promise.all([
+      ensureUserCliCompatShims(),
+      ensureUserAdapters(),
+      discoverClis(BUILTIN_CLIS),
+    ]);
+    await discoverClis(USER_CLIS);
+    await discoverPlugins();
+  }
+
+  // Register exit hook: notice appears after command output (same as npm/gh/yarn)
+  registerUpdateNoticeOnExit();
+  // Kick off background fetch for next run (non-blocking)
+  checkForUpdateBackground();
+
+  // ── Fallback completion: manifest unavailable, use full registry ─────────
+  if (getCompIdx !== -1) {
+    const rest = process.argv.slice(getCompIdx + 1);
+    let cursor: number | undefined;
+    const words: string[] = [];
+    for (let i = 0;i < rest.length;i++) {
+      if (rest[i] === '--cursor' && i + 1 < rest.length) {
+        cursor = parseInt(rest[i + 1], 10);
+        i++;
+      } else {
+        words.push(rest[i]);
+      }
+    }
+    if (cursor === undefined) cursor = words.length;
+    const candidates = getCompletions(words, cursor);
+    process.stdout.write(candidates.join('\n') + '\n');
+    process.exit(EXIT_CODES.SUCCESS);
+  }
+
+  // Preserve literal leading-dash adapter arguments; browser options are parsed by Commander.
+  const { escapeLeadingDashPositional } = await import('./cli-argv-preprocess.js');
   try {
     const manifestPath = getCliManifestPath(BUILTIN_CLIS);
     if (fs.existsSync(manifestPath)) {
       const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
-      if (Array.isArray(manifest)) rewritten = escapeLeadingDashPositional(rewritten, manifest);
+      if (Array.isArray(manifest)) process.argv.splice(2, process.argv.length - 2,
+        ...escapeLeadingDashPositional(process.argv.slice(2), manifest));
     }
-  } catch { /* manifest unavailable; skip the dash escape */ }
-  process.argv.splice(2, process.argv.length - 2, ...rewritten);
-} catch (err) {
-  if (err instanceof BrowserSessionArgvError) {
-    process.stderr.write(`error: ${err.message}\n`);
-    process.exit(EXIT_CODES.GENERIC_ERROR);
-  }
-  throw err;
-}
+  } catch { /* manifest unavailable; parse the original arguments */ }
 
-await emitHook('onStartup', { command: '__startup__', args: {} });
-runCli(BUILTIN_CLIS, USER_CLIS);
+  await emitHook('onStartup', { command: '__startup__', args: {} });
+  await runCli(BUILTIN_CLIS, USER_CLIS);
+
+} catch (error) {
+  const { emitFailure } = await import('./command-output.js');
+  emitFailure(error);
+}

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { INSTAGRAM_HOME_URL, gotoInstagramHome } from './navigation.js';
+import { gotoInstagramHome } from './navigation.js';
 
 function createPageMock() {
     return {
@@ -13,10 +13,6 @@ afterEach(() => {
 });
 
 describe('instagram navigation helpers', () => {
-    it('exports the canonical instagram home URL', () => {
-        expect(INSTAGRAM_HOME_URL).toBe('https://www.instagram.com/');
-    });
-
     it('navigates to instagram home once by default', async () => {
         const page = createPageMock();
         await gotoInstagramHome(page);

@@ -39,18 +39,18 @@ npx skills add jackwener/opencli --skill opencli-browser
 Run the browser loop with a named session:
 
 ```bash
-opencli browser work open https://example.com
-opencli browser work state
-opencli browser work extract
-opencli browser work screenshot /tmp/opencli-example.png
-opencli browser work close
+opencli browser --session work open https://example.com
+opencli browser --session work state
+opencli browser --session work extract
+opencli browser --session work screenshot /tmp/opencli-example.png
+opencli browser --session work close
 ```
 
 Reuse `work` across commands to preserve the session. `state` returns interactive elements with numeric references. On a page with an interactive element, use a reference from the latest state:
 
 ```bash
-opencli browser work click 12
-opencli browser work state
+opencli browser --session work click 12
+opencli browser --session work state
 ```
 
 `12` is an illustrative reference, not a fixed element on example.com. Inspect state again after navigation or page changes. `close` releases the session's tab lease; do not assume it has the same lifecycle semantics as another tool's browser shutdown.
@@ -61,15 +61,15 @@ The agent-browser examples below follow its [upstream README](https://github.com
 
 | Task | agent-browser | OpenCLI |
 |------|---------------|---------|
-| Navigate | `agent-browser open https://example.com` | `opencli browser work open https://example.com` |
-| Inspect interactive elements | `agent-browser snapshot` | `opencli browser work state` |
-| Click an observed element | `agent-browser click @e2` | `opencli browser work click 2` |
-| Fill an input | `agent-browser fill "#email" "test@example.com"` | `opencli browser work fill "#email" "test@example.com"` |
-| Press a key | `agent-browser press Enter` | `opencli browser work keys Enter` |
-| Read page content | `agent-browser get text body` | `opencli browser work extract` |
-| Take a screenshot | `agent-browser screenshot page.png` | `opencli browser work screenshot page.png` |
-| Run page JavaScript | `agent-browser eval "document.title"` | `opencli browser work eval "document.title"` |
-| End the session | `agent-browser close` | `opencli browser work close` |
+| Navigate | `agent-browser open https://example.com` | `opencli browser --session work open https://example.com` |
+| Inspect interactive elements | `agent-browser snapshot` | `opencli browser --session work state` |
+| Click an observed element | `agent-browser click @e2` | `opencli browser --session work click 2` |
+| Fill an input | `agent-browser fill "#email" "test@example.com"` | `opencli browser --session work fill "#email" "test@example.com"` |
+| Press a key | `agent-browser press Enter` | `opencli browser --session work keys Enter` |
+| Read page content | `agent-browser get text body` | `opencli browser --session work extract` |
+| Take a screenshot | `agent-browser screenshot page.png` | `opencli browser --session work screenshot page.png` |
+| Run page JavaScript | `agent-browser eval "document.title"` | `opencli browser --session work eval "document.title"` |
+| End the session | `agent-browser close` | `opencli browser --session work close` |
 
 Use `opencli browser --help` and `opencli browser work <command> --help` for current options. Do not copy `@e2` into OpenCLI or assume reference `2` identifies the same element in both tools.
 

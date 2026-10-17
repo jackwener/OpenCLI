@@ -360,32 +360,60 @@ export async function resolveTwitterQueryId(page, operationName, fallbackId) {
  * for photos it equals the photo URL itself. Each entry is a non-null string —
  * it falls back to the media URL if a thumbnail is somehow absent, preserving
  * alignment.
+ *
+ * And `media_durations`, also index-aligned 1:1: `video_info.duration_millis`
+ * in milliseconds for videos / animated GIFs, `0` for photos (and for videos
+ * where X omits the duration). This is the only place the tweet's video length
+ * is available — the timeline row itself carries no duration.
  */
 export function extractMedia(legacy) {
     const media = legacy?.extended_entities?.media || legacy?.entities?.media;
     if (!Array.isArray(media) || media.length === 0) {
-        return { has_media: false, media_urls: [], media_posters: [] };
+        return { has_media: false, media_urls: [], media_posters: [], media_durations: [] };
     }
     const urls = [];
     const posters = [];
+    const durations = [];
     for (const m of media) {
         if (!m) continue;
         if (m.type === 'video' || m.type === 'animated_gif') {
             const variants = m.video_info?.variants || [];
-            const mp4 = variants.find((v) => v?.content_type === 'video/mp4');
-            const url = mp4?.url || m.media_url_https;
+            // X returns variants in ascending bitrate order, so picking the first mp4
+            // always yielded the lowest rendition (480x270). Take the highest bitrate.
+            let best = null;
+            for (const v of variants) {
+                if (v?.content_type !== 'video/mp4' || !v.url) continue;
+                const bitrate = Number(v.bitrate) || 0;
+                if (!best || bitrate > best.bitrate) best = { url: v.url, bitrate };
+            }
+            const url = best?.url || m.media_url_https;
             if (url) {
                 urls.push(url);
                 posters.push(m.media_url_https || url);
+                durations.push(Number(m.video_info?.duration_millis) || 0);
             }
         } else {
             if (m.media_url_https) {
                 urls.push(m.media_url_https);
                 posters.push(m.media_url_https);
+                durations.push(0);
             }
         }
     }
-    return { has_media: urls.length > 0, media_urls: urls, media_posters: posters };
+    return { has_media: urls.length > 0, media_urls: urls, media_posters: posters, media_durations: durations };
+}
+
+/**
+ * Author avatar URL from a GraphQL `user_results.result` object.
+ *
+ * Reads `legacy.profile_image_url_https` (older schema) or `avatar.image_url`
+ * (newer schema, the one that also moved `screen_name` under `core`). X serves
+ * that URL at the 48x48 `_normal` size; swapping the suffix for `_400x400`
+ * returns the same image at a usable resolution. Returns '' when absent.
+ */
+export function extractAuthorAvatar(user) {
+    const raw = user?.legacy?.profile_image_url_https || user?.avatar?.image_url || '';
+    return String(raw).replace(/_normal(\.[A-Za-z0-9]+)?(\?.*)?$/, '_400x400$1$2');
 }
 
 /**
@@ -526,6 +554,7 @@ export function extractQuotedTweet(tweet) {
         has_media: qMedia.has_media,
         media_urls: qMedia.media_urls,
         media_posters: qMedia.media_posters,
+        media_durations: qMedia.media_durations,
     };
     if (qCard) out.card = qCard;
     return out;
@@ -577,6 +606,7 @@ export const __test__ = {
     normalizeTwitterGraphqlPayload,
     normalizeTwitterScreenName,
     extractMedia,
+    extractAuthorAvatar,
     extractCard,
     extractQuotedTweet,
     parseTweetUrl,

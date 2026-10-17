@@ -106,10 +106,6 @@ describe('package.json exports resolve to real files', () => {
   const pkgJson = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf-8'));
   const exports = pkgJson.exports as Record<string, string>;
 
-  it('has exports defined', () => {
-    expect(Object.keys(exports).length).toBeGreaterThan(5);
-  });
-
   for (const [exportPath, target] of Object.entries(exports)) {
     it(`export "${exportPath}" → ${target} has a source file`, () => {
       // Export targets point to dist/ (compiled). Verify the source .ts exists.

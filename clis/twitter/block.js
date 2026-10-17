@@ -60,16 +60,13 @@ cli({
 
             // Open the more actions menu
             moreBtn.click();
-            await new Promise(r => setTimeout(r, 1000));
 
-            // Find the Block menu item
-            const menuItems = document.querySelectorAll('[role="menuitem"]');
-            let blockItem = null;
-            for (const item of menuItems) {
-                if (isBlockMenuItem(item)) {
-                    blockItem = item;
-                    break;
-                }
+            // Poll the requested action, not the first batch of menu rows.
+            const findBlockItem = () => Array.from(document.querySelectorAll('[role="menuitem"]')).find(isBlockMenuItem);
+            let blockItem = findBlockItem();
+            for (let i = 0; i < 20 && !blockItem; i++) {
+                await new Promise(r => setTimeout(r, 250));
+                blockItem = findBlockItem();
             }
 
             if (!blockItem) {
@@ -77,19 +74,26 @@ cli({
             }
 
             blockItem.click();
-            await new Promise(r => setTimeout(r, 1000));
 
             // Confirm the block in the dialog
-            const confirmBtn = document.querySelector('[data-testid="confirmationSheetConfirm"]');
+            let confirmBtn = null;
+            for (let i = 0; i < 20 && !confirmBtn; i++) {
+                await new Promise(r => setTimeout(r, 250));
+                confirmBtn = document.querySelector('[data-testid="confirmationSheetConfirm"]');
+            }
             if (!confirmBtn) {
                 return { ok: false, message: 'Block confirmation dialog did not appear.' };
             }
             writeStarted = true;
             confirmBtn.click();
-            await new Promise(r => setTimeout(r, 1500));
 
-            // Verify
-            const verify = getPrimary()?.querySelector('[data-testid$="-unblock"]');
+            // Verify. Poll: the write has already been sent at this point, so a
+            // too-early read reports it unconfirmed on a block that did land.
+            let verify = null;
+            for (let i = 0; i < 20 && !verify; i++) {
+                await new Promise(r => setTimeout(r, 250));
+                verify = getPrimary()?.querySelector('[data-testid$="-unblock"]');
+            }
             if (verify) {
                 return { ok: true, message: 'Successfully blocked @${username}.' };
             } else {

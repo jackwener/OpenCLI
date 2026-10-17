@@ -7,6 +7,7 @@
 | Command | Description |
 |---------|-------------|
 | `opencli chatgpt ask <prompt>` | Send a prompt and wait for the visible response |
+| `opencli chatgpt ask-file <prompt> --file <path>` | Attach local files and wait for the response |
 | `opencli chatgpt send <prompt>` | Send a prompt without waiting |
 | `opencli chatgpt read` | Read the current conversation |
 | `opencli chatgpt history` | List visible conversation history links from the sidebar |
@@ -22,6 +23,9 @@
 ```bash
 # Ask and wait for the answer
 opencli chatgpt ask "Summarize the tradeoffs of browser session reuse"
+
+# Ask about one or more local files
+opencli chatgpt ask-file "Summarize the attachments" --file ./notes.txt,./report.pdf --new true
 
 # Continue the same ChatGPT tab but do not wait for the answer
 opencli chatgpt send "Now turn that into a checklist"
@@ -82,9 +86,12 @@ opencli chatgpt image "a tiny watercolor fox" --sd true
 
 - ChatGPT web commands use persistent site sessions by default, so consecutive `ask` / `send` / `read` / `detail` commands continue in the same ChatGPT tab. Use `--site-session ephemeral` for one-shot isolated tabs.
 - `ask` waits for the first stable assistant response after sending. `send` submits only and returns immediately.
+- `ask-file` targets the active composer, selects a compatible document input, and waits for new, visible attachment chips with exact filenames or standard numeric deduplication suffixes. Historical filename text, existing attachments, unrelated media, pending uploads, and error chips do not confirm this upload. The prompt is not sent if readiness cannot be confirmed. Older Browser Bridge versions use the same pinned file input through a compatibility path that transfers bounded chunks before a single file assignment, limited to 25 MB per file; larger files require current native file-input support.
 - `history` reads visible `/c/<id>` links from the ChatGPT sidebar; it does not use private backend APIs.
 - `deep-research-result` opens the requested conversation and extracts completed Deep Research output from that conversation's `/backend-api/conversation/<id>` payload, especially `metadata.chatgpt_sdk.widget_state.report_message`. It does not return a success row when no completed report is present.
 - `model` switches the visible ChatGPT web intelligence level. It recognizes the current English labels (`Fast`, `Balanced`, `Advanced`, `Very High`, `Pro`), legacy labels (`Instant`, `Medium`, `High`, `Extra High`), and Chinese labels (`极速`, `均衡`, `高级`, `超高`, `专业`). Advanced and Pro first try ChatGPT's authenticated backend model preference update, then the adapter falls back to the visible picker for UI-only levels. If labels are localized differently, it only falls back to option order after confirming the guarded five-option ChatGPT intelligence picker structure.
+- On the Power slider UI, `fast`, `balanced`, `advanced`, and `very-high` select Low, Medium, High, and Extra High reasoning effort for the current model. Selection uses the visible slider and verifies its resulting value; unavailable levels fail explicitly.
+- Image polling preserves local draft conversations when their temporary IDs become persisted IDs, and returns the final conversation URL.
 - `image` opens a fresh `chatgpt.com/new` page before sending the image prompt.
 - When `--image` is provided, local images are uploaded first and the prompt is sent as an image edit request.
 - `image` output is plain `status / file / link`, not a markdown table.
@@ -102,3 +109,9 @@ opencli chatgpt image "a tiny watercolor fox" --sd true
 - This adapter targets the ChatGPT web UI, not the macOS desktop app.
 - It depends on the current browser session and can fail if ChatGPT shows login, challenge, quota, or other gating UI.
 - DOM or product changes on ChatGPT can break composer detection, image detection, or export behavior.
+
+### Consecutive prompts
+
+Identical questions and answers in separate turns are retained by the upstream content-node message reader. Reused inactive ChatGPT automation tabs are activated within their own session.
+
+After a timeout, check `opencli chatgpt read` before sending again: the original message may already have been submitted.

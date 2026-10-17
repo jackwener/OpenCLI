@@ -10,12 +10,8 @@
  * All execution logic lives in execution.ts.
  */
 
-import { normalizeOutputFormat } from './output-format.js';
 import { Command } from 'commander';
-import { log } from './logger.js';
-import yaml from 'js-yaml';
-import { type CliCommand, fullName, getRegistry } from './registry.js';
-import { render as renderOutput } from './output.js';
+import { emitFailure } from './command-output.js';
 import { executeCommand, prepareCommandArgs } from './execution.js';
 import {
   commandHelpData,
@@ -27,11 +23,10 @@ import {
   renderStructuredHelp,
   siteHelpData,
 } from './help.js';
-import {
-  CliError,
-  EXIT_CODES,
-  toEnvelope,
-} from './errors.js';
+import { log } from './logger.js';
+import { normalizeOutputFormat } from './output-format.js';
+import { render as renderOutput } from './output.js';
+import { type CliCommand, fullName, getRegistry } from './registry.js';
 
 /**
  * Register a single CliCommand as a Commander subcommand.
@@ -58,7 +53,7 @@ export function registerCommandToProgram(siteCmd: Command, cmd: CliCommand): voi
     }
   }
   subCmd
-    .option('-f, --format <fmt>', 'Output format: table, plain, json, yaml, md, csv', normalizeOutputFormat, 'table')
+    .option('-f, --format <fmt>', 'Output format: table, plain, json, yaml, md, csv', normalizeOutputFormat, 'json')
     .option('--trace <mode>', 'Trace capture: off, on, retain-on-failure', 'off')
     .option('-v, --verbose', 'Debug output', false);
   if (cmd.browser) {
@@ -110,7 +105,7 @@ export function registerCommandToProgram(siteCmd: Command, cmd: CliCommand): voi
       const kwargs = prepareCommandArgs(cmd, rawKwargs);
 
       const verbose = optionsRecord.verbose === true;
-      let format = typeof optionsRecord.format === 'string' ? optionsRecord.format : 'table';
+      const format = typeof optionsRecord.format === 'string' ? optionsRecord.format : 'json';
       const formatExplicit = subCmd.getOptionValueSource('format') === 'cli';
       if (verbose) process.env.OPENCLI_VERBOSE = '1';
       const globals = typeof subCmd.optsWithGlobals === 'function' ? subCmd.optsWithGlobals() as Record<string, unknown> : {};
@@ -123,14 +118,12 @@ export function registerCommandToProgram(siteCmd: Command, cmd: CliCommand): voi
         ...(cmd.browser && typeof optionsRecord.keepTab === 'string' ? { keepTab: optionsRecord.keepTab } : {}),
       });
       if (result === null || result === undefined) {
+        // Explicit content streaming has already written stdout (e.g. web read --stdout).
+        if (kwargs.stdout !== true) renderOutput(null, { fmt: format, fmtExplicit: formatExplicit });
         return;
       }
 
       const resolved = getRegistry().get(fullName(cmd)) ?? cmd;
-      if (!formatExplicit && format === 'table' && resolved.defaultFormat) {
-        format = resolved.defaultFormat;
-      }
-
       if (verbose && (!result || (Array.isArray(result) && result.length === 0))) {
         log.warn('Command returned an empty result.');
       }
@@ -144,47 +137,15 @@ export function registerCommandToProgram(siteCmd: Command, cmd: CliCommand): voi
         footerExtra: resolved.footerExtra?.(kwargs),
       });
     } catch (err) {
-      renderError(err, fullName(cmd), optionsRecord.verbose === true, optionsRecord.trace);
-      process.exitCode = resolveExitCode(err);
+      renderError(err, optionsRecord.verbose === true);
     }
   });
 }
 
-// ── Exit code resolution ─────────────────────────────────────────────────────
-
-function resolveExitCode(err: unknown): number {
-  if (err instanceof CliError) return err.exitCode;
-  return EXIT_CODES.GENERIC_ERROR;
-}
-
-// ── Error rendering ─────────────────────────────────────────────────────────
-
-/** Emit AutoFix hint for repairable adapter errors (skipped if trace already exported). */
-function emitAutoFixHint(envelope: string, cmdName: string, traceMode: unknown): string {
-  if (traceMode === 'on' || traceMode === 'retain-on-failure') return envelope;
-  const runnable = cmdName.replace('/', ' ');
-  return envelope
-    + `# AutoFix: re-run with --trace=retain-on-failure for trace artifact\n`
-    + `# opencli ${runnable} --trace retain-on-failure\n`;
-}
-
-function renderError(err: unknown, cmdName: string, verbose: boolean, traceMode?: unknown): void {
-  const envelope = toEnvelope(err);
-
-  // In verbose mode, include stack trace for debugging
-  if (verbose && err instanceof Error && err.stack) {
-    envelope.error.stack = err.stack;
-  }
-
-  let output = yaml.dump(envelope, { sortKeys: false, lineWidth: 120, noRefs: true });
-
-  // Append AutoFix hint for repairable errors
-  const code = envelope.error.code;
-  if (code === 'SELECTOR' || code === 'EMPTY_RESULT' || code === 'ADAPTER_LOAD' || code === 'UNKNOWN') {
-    output = emitAutoFixHint(output, cmdName, traceMode);
-  }
-
-  process.stderr.write(output);
+/** Emit a machine-readable failure and optional stderr stack. */
+function renderError(err: unknown, verbose: boolean): void {
+  emitFailure(err);
+  if (verbose && err instanceof Error && err.stack) process.stderr.write(err.stack + '\n');
 }
 
 /**

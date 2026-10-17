@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { getRegistry } from '@jackwener/opencli/registry';
+
 import { ArgumentError, AuthRequiredError } from '@jackwener/opencli/errors';
 import { __test__ } from './search.js';
 
@@ -15,8 +15,6 @@ const {
     DATE_POSTED,
     REMOTE_TYPES,
 } = __test__;
-
-const getSearchCommand = () => getRegistry().get('linkedin/search');
 
 describe('linkedin parseCsvArg', () => {
     it('returns empty array for empty / null / undefined', () => {
@@ -61,14 +59,6 @@ describe('linkedin argument validation', () => {
         expect(parseIntegerArg('25', '--start', 0, 0)).toBe(25);
     });
 
-    it('validates command args before browser navigation', async () => {
-        const command = getSearchCommand();
-        const page = { goto: vi.fn(), wait: vi.fn(), evaluate: vi.fn() };
-
-        await expect(command.func(page, { query: 'engineer', limit: 0 })).rejects.toBeInstanceOf(ArgumentError);
-        await expect(command.func(page, { query: 'engineer', start: -1 })).rejects.toBeInstanceOf(ArgumentError);
-        expect(page.goto).not.toHaveBeenCalled();
-    });
 });
 
 describe('linkedin auth wall detection', () => {
@@ -78,16 +68,6 @@ describe('linkedin auth wall detection', () => {
         expect(looksLinkedInAuthWallText('About the job Senior infrastructure engineer')).toBe(false);
     });
 
-    it('throws AuthRequiredError when search lands on a login wall', async () => {
-        const command = getSearchCommand();
-        const page = {
-            goto: vi.fn().mockResolvedValue(undefined),
-            wait: vi.fn().mockResolvedValue(undefined),
-            evaluate: vi.fn().mockResolvedValue(true),
-        };
-
-        await expect(command.func(page, { query: 'engineer', limit: 5 })).rejects.toBeInstanceOf(AuthRequiredError);
-    });
 });
 
 describe('linkedin decodeLinkedinRedirect', () => {

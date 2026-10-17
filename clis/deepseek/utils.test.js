@@ -2,9 +2,11 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { JSDOM } from 'jsdom';
 import { ArgumentError } from '@jackwener/opencli/errors';
 import {
   selectModel,
+  sendMessage,
   sendWithFile,
   parseThinkingResponse,
   parseDeepSeekConversationId,
@@ -246,6 +248,56 @@ describe('deepseek selectModel', () => {
   });
 });
 
+describe('deepseek sendMessage', () => {
+  async function runSendMessage(composerHtml) {
+    const dom = new JSDOM(
+      `<!doctype html><body><div class="composer"><textarea placeholder="Message DeepSeek"></textarea>${composerHtml}</div></body>`,
+      { runScripts: 'outside-only' },
+    );
+    const { window } = dom;
+    // jsdom has no execCommand; emulate insertText on the focused textarea.
+    window.document.execCommand = (command, _ui, value) => {
+      if (command === 'insertText') window.document.querySelector('textarea').value = value;
+      return true;
+    };
+    const clicked = [];
+    window.document.querySelectorAll('button, [role="button"]').forEach((node) => {
+      node.addEventListener('click', () => clicked.push(node.getAttribute('data-id')));
+    });
+    const keys = [];
+    window.document.querySelector('textarea').addEventListener('keydown', (event) => keys.push(event.key));
+    const page = { evaluate: vi.fn(async (script) => window.eval(script)) };
+    const result = await sendMessage(page, 'hello');
+    return { result, clicked, keys };
+  }
+
+  it('clicks the ds-button--primary send button of the current composer', async () => {
+    const { result, clicked, keys } = await runSendMessage(
+      '<div role="button" class="ds-toggle-button" data-id="think"></div>'
+      + '<button class="ds-button ds-button--primary" data-id="send"><svg></svg></button>',
+    );
+    expect(result).toEqual({ ok: true });
+    expect(clicked).toEqual(['send']);
+    expect(keys).toEqual([]);
+  });
+
+  it('falls back to Enter when the send button is disabled', async () => {
+    const { result, clicked, keys } = await runSendMessage(
+      '<button class="ds-button ds-button--primary" data-id="send" disabled><svg></svg></button>',
+    );
+    expect(result).toEqual({ ok: true, method: 'enter' });
+    expect(clicked).toEqual([]);
+    expect(keys).toEqual(['Enter']);
+  });
+
+  it('still clicks the legacy div[role=button] send button', async () => {
+    const { clicked } = await runSendMessage(
+      '<div role="button" class="ds-icon-button" data-id="send" aria-disabled="false"><svg></svg></div>',
+    );
+    expect(clicked).toEqual(['send']);
+  });
+});
+
 describe('deepseek sendWithFile Not allowed fallback', () => {
   const tempDirs = [];
 
@@ -278,6 +330,29 @@ describe('deepseek sendWithFile Not allowed fallback', () => {
     expect(page.setFileInput).toHaveBeenCalled();
     expect(page.evaluate).toHaveBeenCalledTimes(5);
     expect(result).toEqual({ ok: true });
+  });
+
+  it.each([false, true])('checks current upload send button disabled=%s before submission', async (disabled) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-deepseek-'));
+    tempDirs.push(dir);
+    const filePath = path.join(dir, 'image.png');
+    fs.writeFileSync(filePath, 'fixture');
+    const dom = new JSDOM(`<div><textarea placeholder="DeepSeek"></textarea><img src="blob:preview"><button class="ds-button--primary" ${disabled ? 'disabled' : ''}><svg></svg></button></div>`, { runScripts: 'outside-only' });
+    const { window } = dom;
+    window.setTimeout = (fn) => { fn(); return 0; };
+    window.document.execCommand = () => true;
+    const click = vi.fn();
+    window.document.querySelector('button').addEventListener('click', click);
+    const page = {
+      setFileInput: vi.fn(async () => {}),
+      wait: vi.fn(async () => {}),
+      evaluate: vi.fn(async (script) => window.eval(script)),
+    };
+    try {
+      const result = await sendWithFile(page, filePath, 'describe');
+      expect(result).toEqual(disabled ? { ok: false, reason: 'send button did not enable after upload' } : { ok: true });
+      expect(click).toHaveBeenCalledTimes(disabled ? 0 : 1);
+    } finally { window.close(); }
   });
 
   it('does not treat send-button enablement alone as image upload proof', async () => {

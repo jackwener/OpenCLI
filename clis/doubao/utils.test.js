@@ -603,32 +603,6 @@ describe('doubao receive strategy', () => {
         return dom.window.eval(__test__.getTurnsScript());
     }
 
-    it('keeps both the new skin selectors and the older structural fallbacks in the turns script', () => {
-        const turnsScript = __test__.getTurnsScript();
-        expect(turnsScript).toContain('[class*="message-list-"]');
-        expect(turnsScript).toContain('.container-PvPoAn');
-        expect(turnsScript).toContain('[data-testid="message-list"]');
-        expect(turnsScript).toContain('[class*="bg-g-receive-msg-bubble"]');
-        expect(turnsScript).toContain('[data-testid="receive_message"]');
-        expect(turnsScript).toContain('[data-foundation-type="receive-message-action-bar"]');
-        expect(turnsScript).toContain('[data-testid="union_message"]');
-        expect(turnsScript).toContain('[data-testid="message-block-container"]');
-    });
-
-    it('includes the 2026-05 doubao DOM-refactor inner-item / top-item wrappers and the flow-markdown-body assistant fallback', () => {
-        const turnsScript = __test__.getTurnsScript();
-        // New wrappers added to itemSelectors so message roots resolve under the
-        // refactored DOM where the legacy item-kDun2N / union_message / message-block-container
-        // / data-message-id selectors no longer match.
-        expect(turnsScript).toContain('[class*="inner-item-"]');
-        expect(turnsScript).toContain('[class*="top-item-"]');
-        // Assistant fallback: post-refactor doubao no longer emits receive-message /
-        // bg-g-receive-msg-bubble markup. Only signal is .flow-markdown-body content
-        // container without send-bubble.
-        expect(turnsScript).toContain('.flow-markdown-body');
-        expect(turnsScript).toContain('.md-box-root');
-    });
-
     it('extracts clean assistant turns from the 2026-05 wrapper DOM without using whole-page chrome', () => {
         const turns = runTurnsScript(`
           <main>
@@ -703,12 +677,6 @@ describe('doubao receive strategy', () => {
             { Role: 'User', Text: '当前问题' },
             { Role: 'Assistant', Text: '当前回答' },
         ]);
-    });
-
-    it('extends transcript-noise cleanup for the current zh-CN chrome copy', () => {
-        const transcriptScript = __test__.getTranscriptLinesScript();
-        expect(transcriptScript).toContain('请仔细甄别');
-        expect(transcriptScript).toContain('下载电脑版');
     });
 
     // ---------------------------------------------------------------------
@@ -881,18 +849,7 @@ describe('collectDoubaoTranscriptAdditions', () => {
         ];
         expect(collectDoubaoTranscriptAdditions(before, current, '测试一下，只回复OK', (value) => value.replace('测试一下，只回复OK', '').trim())).toBe('');
     });
-    it('treats only the exact landing-page chip string as UI noise', () => {
-        expect(__test__.clickSendButtonScript()).toContain("button#flow-end-msg-send");
-        expect(__test__.clickSendButtonScript()).toContain("getAttribute('disabled') !== null");
-        expect(__test__.clickSendButtonScript()).toContain("getAttribute('aria-disabled') === 'true'");
-        expect(__test__.clickSendButtonScript()).toContain('bestScore >= 200');
-        expect(__test__.clickSendButtonScript()).toContain("button.getAttribute('type') === 'submit') score += 1200");
-        expect(__test__.composerStateScript()).toContain("(composer.innerText || '').trim() || (composer.textContent || '').trim()");
-        expect(__test__.detectDoubaoVerificationScript()).not.toContain('document.body?.innerText');
-        expect(__test__.detectDoubaoVerificationScript()).not.toContain('[class*=\"verify\"]');
-        expect(__test__.detectDoubaoVerificationScript()).not.toContain('[class*=\"captcha\"]');
-        expect(__test__.detectDoubaoVerificationScript()).not.toContain('document.body?.children');
-    });
+
 });
 describe('waitForDoubaoResponse', () => {
     it('allows transcript fallback on local chat urls when new transcript lines appear', async () => {

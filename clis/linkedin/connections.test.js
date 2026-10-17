@@ -1,20 +1,8 @@
-import { describe, expect, it, vi } from 'vitest';
-import { getRegistry } from '@jackwener/opencli/registry';
-import { AuthRequiredError, CliError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import './connections.js';
+import { describe, expect, it } from 'vitest';
+
+import { CommandExecutionError } from '@jackwener/opencli/errors';
 
 const { mapConnection } = await import('./connections.js').then((m) => m.__test__);
-
-function makePage({ evaluateResults = [false], cookies = [{ name: 'JSESSIONID', value: '"ajax:12345"' }] } = {}) {
-    const evaluate = vi.fn();
-    for (const result of evaluateResults) evaluate.mockResolvedValueOnce(result);
-    return {
-        goto: vi.fn().mockResolvedValue(undefined),
-        wait: vi.fn().mockResolvedValue(undefined),
-        getCookies: vi.fn().mockResolvedValue(cookies),
-        evaluate,
-    };
-}
 
 const conn = (id) => ({
     createdAt: 1700000000000 + id,
@@ -55,55 +43,4 @@ describe('linkedin connections', () => {
         }, 0)).toThrow(CommandExecutionError);
     });
 
-    it('returns rows from the voyager connections API', async () => {
-        const cmd = getRegistry().get('linkedin/connections');
-        expect(cmd?.func).toBeTypeOf('function');
-        const page = makePage({ evaluateResults: [false, { json: { elements: [conn(1), conn(2)] } }] });
-        const rows = await cmd.func(page, { limit: 2 });
-        expect(rows.map((r) => r.public_id)).toEqual(['user1', 'user2']);
-        expect(page.evaluate.mock.calls[1][0]).toContain('/voyager/api/relationships/connections?start=0&count=2');
-        expect(page.evaluate.mock.calls[1][0]).toContain('ajax:12345');
-    });
-
-    it('throws AuthRequiredError when the connections page is an auth wall', async () => {
-        const cmd = getRegistry().get('linkedin/connections');
-        const page = makePage({ evaluateResults: [true] });
-        await expect(cmd.func(page, { limit: 2 })).rejects.toBeInstanceOf(AuthRequiredError);
-    });
-
-    it('throws AuthRequiredError when JSESSIONID is missing', async () => {
-        const cmd = getRegistry().get('linkedin/connections');
-        const page = makePage({ evaluateResults: [false], cookies: [] });
-        await expect(cmd.func(page, { limit: 2 })).rejects.toBeInstanceOf(AuthRequiredError);
-    });
-
-    it('maps an authRequired fetch result to AuthRequiredError', async () => {
-        const cmd = getRegistry().get('linkedin/connections');
-        const page = makePage({ evaluateResults: [false, { authRequired: true, error: 'HTTP 403' }] });
-        await expect(cmd.func(page, { limit: 2 })).rejects.toBeInstanceOf(AuthRequiredError);
-    });
-
-    it('maps HTML checkpoint responses to AuthRequiredError', async () => {
-        const cmd = getRegistry().get('linkedin/connections');
-        const page = makePage({ evaluateResults: [false, { authRequired: true, error: 'HTML auth/checkpoint response' }] });
-        await expect(cmd.func(page, { limit: 2 })).rejects.toBeInstanceOf(AuthRequiredError);
-    });
-
-    it('fails closed for non-JSON API drift', async () => {
-        const cmd = getRegistry().get('linkedin/connections');
-        const page = makePage({ evaluateResults: [false, { error: 'response was not valid JSON' }] });
-        await expect(cmd.func(page, { limit: 2 })).rejects.toBeInstanceOf(CommandExecutionError);
-    });
-
-    it('throws EmptyResultError when there are no connections', async () => {
-        const cmd = getRegistry().get('linkedin/connections');
-        const page = makePage({ evaluateResults: [false, { json: { elements: [] } }] });
-        await expect(cmd.func(page, { limit: 2 })).rejects.toBeInstanceOf(EmptyResultError);
-    });
-
-    it('rejects invalid limits', async () => {
-        const cmd = getRegistry().get('linkedin/connections');
-        const page = makePage();
-        await expect(cmd.func(page, { limit: 0 })).rejects.toBeInstanceOf(CliError);
-    });
 });

@@ -73,24 +73,20 @@ cli({
             }
 
             moreMenu.click();
-            await new Promise(r => setTimeout(r, 1000));
 
-            // Look for the "Hide reply" menu item. Menu items render at the
-            // document root, not inside the article — scope is the open menu.
-            const items = document.querySelectorAll('[role="menuitem"]');
-            let hideItem = null;
-            for (const item of items) {
+            // Do not reroute to the parent while the requested action is still hydrating.
+            const findHideItem = () => Array.from(document.querySelectorAll('[role="menuitem"]')).find((item) => {
                 const text = String(item.textContent || '');
                 const testId = item.getAttribute('data-testid');
-                if (
-                    testId === 'hideReply'
+                return testId === 'hideReply'
                     || text.includes('Hide reply')
                     || text.includes('隐藏回复')
-                    || (text.includes('隐藏') && text.includes('回复') && !text.includes('取消'))
-                ) {
-                    hideItem = item;
-                    break;
-                }
+                    || (text.includes('隐藏') && text.includes('回复') && !text.includes('取消'));
+            });
+            let hideItem = findHideItem();
+            for (let i = 0; i < 20 && !hideItem; i++) {
+                await new Promise(r => setTimeout(r, 250));
+                hideItem = findHideItem();
             }
 
             if (!hideItem) {

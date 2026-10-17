@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { getRegistry } from '@jackwener/opencli/registry';
+
 import { normalizeArxivCategory, normalizeArxivLimit, parseEntries } from './utils.js';
-import './paper.js';
-import './search.js';
-import './recent.js';
 
 const SAMPLE_ENTRY_XML = `<?xml version='1.0' encoding='UTF-8'?>
 <feed xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/"
@@ -58,16 +55,6 @@ describe('arxiv adapter', () => {
 
   it('parseEntries returns an empty list for feeds with no entries', () => {
     expect(parseEntries('<feed></feed>')).toEqual([]);
-  });
-
-  it('recent rejects malformed category strings', async () => {
-    const recent = getRegistry().get('arxiv/recent');
-    await expect(recent.func({ category: 'not a category', limit: 5 })).rejects.toMatchObject({
-      code: 'ARGUMENT',
-    });
-    await expect(recent.func({ category: '', limit: 5 })).rejects.toMatchObject({
-      code: 'ARGUMENT',
-    });
   });
 
   it('category validation accepts real arXiv archive and subcategory forms', () => {

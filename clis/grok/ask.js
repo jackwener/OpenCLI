@@ -3,6 +3,7 @@ import { CommandExecutionError, TimeoutError } from '@jackwener/opencli/errors';
 import {
     authRequired,
     ensureOnGrok,
+    getCurrentSessionId,
     getMessageBubbles,
     isLoggedIn,
     normalizeBooleanFlag,
@@ -61,7 +62,7 @@ export const askCommand = cli({
 
         const result = await waitForAnswer(page, prompt, timeoutSeconds, baselineLastAssistantId);
         if (result.status === 'ok') {
-            return [{ response: result.assistant.text }];
+            return [{ response: (await rereadFinalAnswer(page, result.assistant)) || result.assistant.text }];
         }
         // Partial: streaming was seen but did not stabilize; keep the best-effort
         // text rather than throwing — the caller asked us to wait, not to discard.
@@ -72,6 +73,40 @@ export const askCommand = cli({
     },
 });
 
+// Grok reveals a streamed answer frame by frame; a background tab gets few frames, so the text read
+// when generation ends can be cut mid-sentence. A fresh load of the conversation renders it whole.
+async function rereadFinalAnswer(page, assistant) {
+    // Positional IDs can identify a different turn after hydration.
+    if (!assistant?.id || assistant.id.startsWith('pos-')) return '';
+    try {
+        const sessionId = await getCurrentSessionId(page);
+        if (!sessionId) return '';
+        await page.goto(`https://grok.com/c/${sessionId}`);
+        let previousText = '';
+        let stableCount = 0;
+        for (let i = 0; i < 20; i += 1) {
+            await page.wait(1);
+            const target = (await getMessageBubbles(page)).find(
+                (bubble) => bubble.role === 'Assistant' && bubble.id === assistant.id,
+            );
+            const text = target?.text || '';
+            // Never replace an observed answer with an older or shorter render.
+            if (!text || text.length < assistant.text.length) {
+                previousText = '';
+                stableCount = 0;
+                continue;
+            }
+            stableCount = text === previousText ? stableCount + 1 : 0;
+            previousText = text;
+            if (stableCount >= 2) return text;
+        }
+    } catch {
+        // Reload is best-effort: the completed answer remains usable.
+    }
+    return '';
+}
+
 export const __test__ = {
     getBaselineLastAssistantId,
+    rereadFinalAnswer,
 };

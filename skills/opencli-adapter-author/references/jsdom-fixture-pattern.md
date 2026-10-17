@@ -40,9 +40,9 @@ the live extractor walks.
 
 1. **Capture** the page's HTML from a live verify run:
    ```bash
-   opencli browser open https://www.example.com/<page>
+   opencli browser --session research open https://www.example.com/<page>
    # In another shell, dump page.content():
-   opencli browser eval 'document.documentElement.outerHTML' \
+   opencli browser --session research eval 'document.documentElement.outerHTML' \
      > /tmp/raw-<command>.html
    ```
 

@@ -669,3 +669,52 @@ describe('Gemini reply state', () => {
         expect(result).toBe('OK');
     });
 });
+
+// Numeric page.wait() settles the DOM and can return after just 500ms.
+// Model reasoning can leave the DOM quiet for much longer than that.
+describe('Gemini polling timeout budget', () => {
+    function timedPage(currentAt) {
+        const page = createPageMock();
+        let elapsed = 0;
+        page.wait.mockImplementation(async (options) => {
+            elapsed += typeof options === 'number'
+                ? Math.min(options, 0.5) * 1000
+                : options.time * 1000;
+        });
+        page.evaluate.mockImplementation(async (script) =>
+            script.includes('window.location.href') && !script.includes('composerHasText')
+                ? 'https://gemini.google.com/app/test'
+                : currentAt(elapsed));
+        return { page, elapsed: () => elapsed };
+    }
+    it('keeps polling a quiet composer for the full requested submission budget', async () => {
+        const before = snapshot({ composerHasText: true });
+        const timed = timedPage(() => before);
+        expect(await waitForGeminiSubmission(timed.page, before, 60)).toBeNull();
+        expect(timed.elapsed()).toBe(60000);
+    });
+    it('keeps polling quiet model reasoning for the full requested response budget', async () => {
+        const user = { Role: 'User', Text: 'second question' };
+        const current = snapshot({ turns: [user], isGenerating: true });
+        const timed = timedPage(() => current);
+        expect(await waitForGeminiResponse(timed.page, {
+            snapshot: current, userAnchorTurn: user,
+            preSendAssistantCount: 1, reason: 'user_turn',
+        }, user.Text, 60)).toBe('');
+        expect(timed.elapsed()).toBe(60000);
+    });
+    it('returns the second reply arriving after 35 seconds without reusing the first reply', async () => {
+        const old = { Role: 'Assistant', Text: 'first reply' };
+        const user = { Role: 'User', Text: 'second question' };
+        const before = snapshot({ turns: [old, user], isGenerating: true });
+        const timed = timedPage((elapsed) => elapsed < 35000 ? before : snapshot({
+            turns: [old, user, { Role: 'Assistant', Text: 'second reply' }],
+        }));
+        expect(await waitForGeminiResponse(timed.page, {
+            snapshot: before, userAnchorTurn: user,
+            preSendAssistantCount: 1, reason: 'user_turn',
+        }, user.Text, 60)).toBe('second reply');
+        expect(timed.elapsed()).toBeGreaterThanOrEqual(35000);
+        expect(timed.elapsed()).toBeLessThanOrEqual(60000);
+    });
+});

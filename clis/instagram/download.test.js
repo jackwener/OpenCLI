@@ -6,7 +6,7 @@ import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwe
 const { mockHttpDownload, mockMkdirSync, logSpy } = vi.hoisted(() => ({
     mockHttpDownload: vi.fn(),
     mockMkdirSync: vi.fn(),
-    logSpy: vi.spyOn(console, 'log').mockImplementation(() => undefined),
+    logSpy: vi.spyOn(console, 'error').mockImplementation(() => undefined),
 }));
 vi.mock('@jackwener/opencli/download', async () => {
     const actual = await vi.importActual('@jackwener/opencli/download');

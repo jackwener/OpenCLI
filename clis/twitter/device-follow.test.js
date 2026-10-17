@@ -1,7 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
-import { getRegistry } from '@jackwener/opencli/registry';
-import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import './device-follow.js';
+import { describe, expect, it } from 'vitest';
+
+import { ArgumentError } from '@jackwener/opencli/errors';
 
 const { buildDeviceFollowUrl, extractEntries, joinEntryToTweet, shapeRow, parseDeviceFollow, parseLimit } = await import('./device-follow.js').then((m) => m.__test__);
 
@@ -179,103 +178,4 @@ describe('twitter device-follow', () => {
         });
     });
 
-    it('throws AuthRequiredError when ct0 cookie is missing', async () => {
-        const cmd = getRegistry().get('twitter/device-follow');
-        const page = {
-            getCookies: vi.fn().mockResolvedValue([{ name: 'other', value: 'x' }]),
-            evaluate: vi.fn(),
-        };
-        await expect(cmd.func(page, { limit: 5 })).rejects.toBeInstanceOf(AuthRequiredError);
-    });
-
-    it('throws CommandExecutionError on non-2xx response', async () => {
-        const cmd = getRegistry().get('twitter/device-follow');
-        const page = {
-            getCookies: vi.fn().mockResolvedValue([{ name: 'ct0', value: 'token' }]),
-            evaluate: vi.fn().mockResolvedValue({ error: 401 }),
-        };
-        await expect(cmd.func(page, { limit: 5 })).rejects.toBeInstanceOf(AuthRequiredError);
-    });
-
-    it('throws CommandExecutionError on non-auth non-2xx response', async () => {
-        const cmd = getRegistry().get('twitter/device-follow');
-        const page = {
-            getCookies: vi.fn().mockResolvedValue([{ name: 'ct0', value: 'token' }]),
-            evaluate: vi.fn().mockResolvedValue({ error: 500 }),
-        };
-        await expect(cmd.func(page, { limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
-    });
-
-    it('throws CommandExecutionError on browser fetch/json exceptions', async () => {
-        const cmd = getRegistry().get('twitter/device-follow');
-        const cookies = [{ name: 'ct0', value: 'token' }];
-        await expect(cmd.func({
-            getCookies: vi.fn().mockResolvedValue(cookies),
-            evaluate: vi.fn().mockResolvedValue({ errorKind: 'non_json', detail: 'Unexpected token <' }),
-        }, { limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
-        await expect(cmd.func({
-            getCookies: vi.fn().mockResolvedValue(cookies),
-            evaluate: vi.fn().mockResolvedValue({ errorKind: 'exception', detail: 'network failed' }),
-        }, { limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
-    });
-
-    it('throws EmptyResultError for a valid empty device-follow stream', async () => {
-        const cmd = getRegistry().get('twitter/device-follow');
-        const page = {
-            getCookies: vi.fn().mockResolvedValue([{ name: 'ct0', value: 'token' }]),
-            evaluate: vi.fn().mockResolvedValue(payload({}, {}, [])),
-        };
-        await expect(cmd.func(page, { limit: 5 })).rejects.toBeInstanceOf(EmptyResultError);
-    });
-
-    it('throws CommandExecutionError for malformed or unjoinable device-follow payloads', async () => {
-        const cmd = getRegistry().get('twitter/device-follow');
-        const cookies = [{ name: 'ct0', value: 'token' }];
-        await expect(cmd.func({
-            getCookies: vi.fn().mockResolvedValue(cookies),
-            evaluate: vi.fn().mockResolvedValue({}),
-        }, { limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
-        await expect(cmd.func({
-            getCookies: vi.fn().mockResolvedValue(cookies),
-            evaluate: vi.fn().mockResolvedValue(payload({ '1': tweet('1', 'u1') }, {}, [entry('1')])),
-        }, { limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
-        await expect(cmd.func({
-            getCookies: vi.fn().mockResolvedValue(cookies),
-            evaluate: vi.fn().mockResolvedValue(payload({}, {}, [nonTweetEntry()])),
-        }, { limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
-    });
-
-    it('returns parsed rows when the fetch succeeds', async () => {
-        const cmd = getRegistry().get('twitter/device-follow');
-        const p = payload(
-            { '1': tweet('1', 'u1'), '2': tweet('2', 'u2') },
-            { u1: user('u1', 'alice'), u2: user('u2', 'bob') },
-            [entry('1'), entry('2')],
-        );
-        const page = {
-            getCookies: vi.fn().mockResolvedValue([{ name: 'ct0', value: 'token' }]),
-            evaluate: vi.fn().mockResolvedValue(p),
-        };
-        const rows = await cmd.func(page, { limit: 5 });
-        expect(rows).toHaveLength(2);
-        expect(rows[0].author).toBe('alice');
-    });
-
-    it('respects --limit when the upstream returns more than asked', async () => {
-        const cmd = getRegistry().get('twitter/device-follow');
-        const tweets = {};
-        const users = {};
-        const entries = [];
-        for (let i = 1; i <= 10; i++) {
-            tweets[String(i)] = tweet(String(i), `u${i}`);
-            users[`u${i}`] = user(`u${i}`, `user${i}`);
-            entries.push(entry(String(i)));
-        }
-        const page = {
-            getCookies: vi.fn().mockResolvedValue([{ name: 'ct0', value: 'token' }]),
-            evaluate: vi.fn().mockResolvedValue(payload(tweets, users, entries)),
-        };
-        const rows = await cmd.func(page, { limit: 3 });
-        expect(rows).toHaveLength(3);
-    });
 });

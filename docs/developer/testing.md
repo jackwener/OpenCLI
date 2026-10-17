@@ -68,6 +68,11 @@ OPENCLI_E2E=1 npm run test:e2e
 
 # 真实 Chrome + extension contract
 OPENCLI_AX_E2E=1 npx vitest run --project e2e tests/e2e/browser-ax-chrome.test.ts
+
+# 站点槽位池（OPENCLI_SITE_SLOTS）：真实 daemon + extension + 隔离浏览器，本地 fixture；需先停掉占用 19825 的 daemon。
+# 品牌版 Google Chrome 会忽略 --load-extension，需用 CHROME_PATH 指向 Chromium / Chrome for Testing
+# 本地有界面时窗口可能被其他窗口遮挡、被系统标记为 hidden，渲染断言会不稳定，建议加 OPENCLI_E2E_HEADLESS=1
+OPENCLI_E2E_HEADLESS=1 CHROME_PATH=/path/to/chrome-for-testing OPENCLI_AX_E2E=1 npx vitest run --project e2e tests/e2e/site-slots-chrome.test.ts
 ```
 
 真实登录问题还应使用已登录浏览器，手动执行对应的只读命令验证。

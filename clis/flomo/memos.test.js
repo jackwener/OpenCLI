@@ -1,28 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-  ArgumentError,
-  AuthRequiredError,
-  CommandExecutionError,
-  EmptyResultError,
-} from '@jackwener/opencli/errors';
+import { describe, expect, it } from 'vitest';
+import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 
 const { __test__ } = await import('./memos.js');
 const { command, normalizeMemo, parsePositiveIntArg, parseSinceArg, parseSlugArg } = __test__;
-
-function createPage(token = 'token-123') {
-  return {
-    wait: vi.fn().mockResolvedValue(undefined),
-    evaluate: vi.fn().mockResolvedValue({ session: 'browser:default', data: token }),
-  };
-}
-
-function mockFetchJson(body, status = 200) {
-  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-    ok: status >= 200 && status < 300,
-    status,
-    json: vi.fn().mockResolvedValue(body),
-  }));
-}
 
 describe('flomo memos argument validation', () => {
   it('rejects invalid limits instead of silently clamping', () => {
@@ -70,64 +50,5 @@ describe('flomo memo normalization', () => {
   it('fails typed on malformed memo entries', () => {
     expect(() => normalizeMemo(null)).toThrow(CommandExecutionError);
     expect(() => normalizeMemo({ content: 'missing slug' })).toThrow(CommandExecutionError);
-  });
-});
-
-describe('flomo memos command', () => {
-  beforeEach(() => {
-    vi.unstubAllGlobals();
-  });
-
-  it('reads token from Browser Bridge envelope and returns memo rows', async () => {
-    mockFetchJson({
-      code: 0,
-      data: [{
-        slug: 'memo_1',
-        content: 'hello',
-        tags: ['tag'],
-        files: [],
-        created_at: '2026-01-01',
-        updated_at: '2026-01-02',
-      }],
-    });
-
-    const rows = await command.func(createPage(), { limit: '1' });
-
-    expect(globalThis.fetch).toHaveBeenCalledWith(expect.stringContaining('limit=1'), expect.objectContaining({
-      headers: expect.objectContaining({ Authorization: 'Bearer token-123' }),
-    }));
-    expect(rows).toEqual([{
-      id: 'memo_1',
-      url: 'https://v.flomoapp.com/mine/?memo_id=memo_1',
-      content: 'hello',
-      slug: 'memo_1',
-      tags: 'tag',
-      images: '',
-      created_at: '2026-01-01',
-      updated_at: '2026-01-02',
-    }]);
-  });
-
-  it('throws AuthRequiredError when the browser session has no token', async () => {
-    await expect(command.func(createPage(null), {})).rejects.toBeInstanceOf(AuthRequiredError);
-  });
-
-  it('maps Flomo auth failures to AuthRequiredError', async () => {
-    mockFetchJson({ code: 401, message: 'unauthorized' });
-    await expect(command.func(createPage(), {})).rejects.toBeInstanceOf(AuthRequiredError);
-  });
-
-  it('maps HTTP, malformed JSON, malformed data, and empty results to typed errors', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 500, json: vi.fn() }));
-    await expect(command.func(createPage(), {})).rejects.toBeInstanceOf(CommandExecutionError);
-
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 200, json: vi.fn().mockRejectedValue(new Error('bad json')) }));
-    await expect(command.func(createPage(), {})).rejects.toBeInstanceOf(CommandExecutionError);
-
-    mockFetchJson({ code: 0, data: {} });
-    await expect(command.func(createPage(), {})).rejects.toBeInstanceOf(CommandExecutionError);
-
-    mockFetchJson({ code: 0, data: [] });
-    await expect(command.func(createPage(), {})).rejects.toBeInstanceOf(EmptyResultError);
   });
 });

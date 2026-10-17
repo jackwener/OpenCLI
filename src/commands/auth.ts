@@ -478,7 +478,7 @@ export function registerAuthCommands(program: Command): Command {
     .option('--concurrency <n>', 'Maximum sites to check at once')
     .option('--timeout <seconds>', 'Per-site timeout in seconds')
     .addOption(new Option('--only <status>', 'Filter rows by status').choices(['all', 'logged-in', 'not-logged-in', 'unknown', 'error']).default('all'))
-    .option('-f, --format <fmt>', 'Output format: table, plain, json, yaml, md, csv', normalizeOutputFormat, 'table')
+    .option('-f, --format <fmt>', 'Output format: table, plain, json, yaml, md, csv', normalizeOutputFormat, 'json')
     .action(async (opts) => {
       const globals = typeof status.optsWithGlobals === 'function' ? status.optsWithGlobals() as Record<string, unknown> : {};
       const rows = await collectAuthStatus({
@@ -489,7 +489,7 @@ export function registerAuthCommands(program: Command): Command {
         only: opts.only,
         profile: typeof globals.profile === 'string' && globals.profile.trim() ? globals.profile.trim() : undefined,
       });
-      const fmt = typeof opts.format === 'string' ? opts.format : 'table';
+      const fmt = typeof opts.format === 'string' ? opts.format : 'json';
       renderOutput(rows, {
         fmt,
         fmtExplicit: status.getOptionValueSource('format') === 'cli',
@@ -506,7 +506,7 @@ export function registerAuthCommands(program: Command): Command {
     .option('--all', 'Ignore the 24h refresh throttle and force every selected site', false)
     .option('--concurrency <n>', 'Maximum sites to refresh at once')
     .option('--timeout <seconds>', 'Per-site timeout in seconds')
-    .option('-f, --format <fmt>', 'Output format: table, plain, json, yaml, md, csv', normalizeOutputFormat, 'table')
+    .option('-f, --format <fmt>', 'Output format: table, plain, json, yaml, md, csv', normalizeOutputFormat, 'json')
     .action(async (opts) => {
       const globals = typeof refresh.optsWithGlobals === 'function' ? refresh.optsWithGlobals() as Record<string, unknown> : {};
       const rows = await collectAuthRefresh({
@@ -516,7 +516,7 @@ export function registerAuthCommands(program: Command): Command {
         timeout: opts.timeout,
         profile: typeof globals.profile === 'string' && globals.profile.trim() ? globals.profile.trim() : undefined,
       });
-      const fmt = typeof opts.format === 'string' ? opts.format : 'table';
+      const fmt = typeof opts.format === 'string' ? opts.format : 'json';
       renderOutput(rows, {
         fmt,
         fmtExplicit: refresh.getOptionValueSource('format') === 'cli',

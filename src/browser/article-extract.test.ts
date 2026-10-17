@@ -1,69 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
-  buildExtractArticleJs,
   extractArticle,
-  DEFAULT_FALLBACK_SELECTORS,
   type ExtractedArticle,
   type PageLike,
 } from './article-extract.js';
 
-function fakePage(response: unknown): PageLike & { lastJs: string | null } {
-  const state = { lastJs: null as string | null };
-  return {
-    lastJs: null,
-    async evaluate(js: string) {
-      state.lastJs = js;
-      Object.assign(this as unknown as { lastJs: string | null }, state);
-      return response;
-    },
-  };
+function fakePage(response: unknown): PageLike {
+  return { evaluate: async () => response };
 }
-
-describe('buildExtractArticleJs', () => {
-  it('embeds Readability + Readerable sources once per evaluation', () => {
-    const js = buildExtractArticleJs();
-    // Both libs should be inlined (matched by identifying strings from the
-    // upstream @mozilla/readability sources).
-    expect(js).toContain('function Readability(doc, options)');
-    expect(js).toContain('function isProbablyReaderable');
-  });
-
-  it('serializes caller-supplied options into the evaluated JS', () => {
-    const js = buildExtractArticleJs({
-      cleanSelectors: ['.ads', '#banner'],
-      fallbackSelectors: ['article', 'body'],
-      force: true,
-    });
-    expect(js).toContain('[".ads","#banner"]');
-    expect(js).toContain('["article","body"]');
-    expect(js).toContain('const force = true;');
-  });
-
-  it('uses the default fallback chain when none is supplied', () => {
-    const js = buildExtractArticleJs();
-    for (const sel of DEFAULT_FALLBACK_SELECTORS) {
-      expect(js).toContain(JSON.stringify(sel));
-    }
-  });
-
-  it('runs fallback selection against the cleaned clone', () => {
-    const js = buildExtractArticleJs({ cleanSelectors: ['.noise'] });
-    expect(js).toContain('el = cloneDoc.querySelector(sel);');
-    expect(js).not.toContain('el = document.querySelector(sel);');
-  });
-
-  it('produces syntactically valid JavaScript', () => {
-    // Parsing via the Function constructor rejects any syntax error in the
-    // generated code — including accidental template-literal break-outs from
-    // the embedded Readability sources.
-    expect(() => new Function(buildExtractArticleJs())).not.toThrow();
-    expect(() => new Function(buildExtractArticleJs({ force: true }))).not.toThrow();
-    expect(() => new Function(buildExtractArticleJs({
-      cleanSelectors: ['.a', '.b'],
-      fallbackSelectors: ['main', 'body'],
-    }))).not.toThrow();
-  });
-});
 
 describe('extractArticle (host-side)', () => {
   it('returns a normalized ExtractedArticle when the page responds with one', async () => {

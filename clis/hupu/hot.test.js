@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url';
 import { JSDOM } from 'jsdom';
 import { describe, expect, it, vi } from 'vitest';
 import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { getRegistry } from '@jackwener/opencli/registry';
+
 import {
     HOT_LIMIT_DEFAULT,
     HOT_LIMIT_MAX,
@@ -145,21 +145,14 @@ describe('hupu/hot — extractHupuHotRowsFromDoc against frozen fixture', () => 
     });
 });
 
-describe('hupu/hot — buildHotScript invariants', () => {
-    it('embeds extractHupuHotRowsFromDoc + parseHupuCount via toString() and JSON.stringifies the limit', () => {
-        const script = __test__.buildHotScript(7);
-        expect(script).toContain('extractHupuHotRowsFromDoc');
-        expect(script).toContain('parseHupuCount');
-        expect(script).toContain('querySelectorAll');
-        // Limit must be embedded literally (JSON.stringified) so the IIFE
-        // can never be tricked into reading a parameter from the host page.
-        expect(script).toContain(', 7, parseHupuCount');
-    });
-
-    it('does NOT use document.documentElement.outerHTML regex (anti-pattern guard)', () => {
-        const script = __test__.buildHotScript(20);
-        expect(script).not.toContain('documentElement.outerHTML');
-        expect(script).not.toMatch(/regex\.exec/);
+describe('hupu/hot — generated script', () => {
+    it('extracts the fixture in an isolated page and applies the requested limit', async () => {
+        const dom = new JSDOM(HOT_FIXTURE, { url: 'https://bbs.hupu.com/', runScripts: 'outside-only' });
+        try {
+            const rows = await dom.window.eval(__test__.buildHotScript(2));
+            expect(rows).toEqual(extractHupuHotRowsFromDoc(dom.window.document, 2, parseHupuCount));
+            expect(rows).toHaveLength(2);
+        } finally { dom.window.close(); }
     });
 });
 

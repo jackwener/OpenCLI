@@ -44,7 +44,7 @@ opencli web read \
 | `--wait-until networkidle` | Start network capture before navigation and wait until captured requests are quiet. |
 | `--diagnose` | Print frame tree, empty table/list containers, and API-like XHR/fetch requests to stderr. |
 
-Cross-origin iframes are listed in diagnostics but not merged. If diagnostics reveal that the page data comes from an API endpoint, prefer a dedicated adapter or `opencli browser network --detail <key>` for structured data instead of forcing table-like data into Markdown.
+Cross-origin iframes are listed in diagnostics but not merged. If diagnostics reveal that the page data comes from an API endpoint, prefer a dedicated adapter or `opencli browser --session research network --detail <key>` for structured data instead of forcing table-like data into Markdown.
 
 ## Prerequisites
 

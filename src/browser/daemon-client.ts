@@ -5,6 +5,7 @@
  */
 
 import { sleep } from '../utils.js';
+import type { SlotGrantData, SlotPolicy } from '../site-slots.js';
 import { BrowserConnectError, SessionBusyError } from '../errors.js';
 import { COMMAND_RESULT_UNKNOWN_CODE, COMMAND_RESULT_UNKNOWN_HINT } from '../daemon-utils.js';
 import { classifyBrowserError } from './errors.js';
@@ -90,6 +91,21 @@ export async function releaseSiteSessionLease(params: {
   } catch {
     // Best-effort: TTL expiry reclaims the lease if the daemon is unreachable.
   }
+}
+
+/**
+ * Borrow one slot of a pooled site for this run. Resolves to the slot's
+ * persistent session name once the daemon's admission queue grants it. The
+ * caller must have set the run context so later execs heartbeat the slot.
+ */
+export async function acquireSiteSlot(params: SlotPolicy & {
+  site: string;
+  waitMs: number;
+  contextId?: string;
+  preferredContextId?: string;
+}): Promise<SlotGrantData> {
+  // timeoutMs lifts the client HTTP deadline past the daemon's own wait timer.
+  return await sendCommand('slot-acquire', { ...params, timeoutMs: params.waitMs }) as SlotGrantData;
 }
 
 /**
@@ -204,12 +220,18 @@ function isPreConnectFetchError(err: unknown): boolean {
   return false;
 }
 
-export interface DaemonCommand {
+export interface DaemonCommand extends Partial<SlotPolicy> {
   id: string;
-  action: 'exec' | 'navigate' | 'tabs' | 'cookies' | 'screenshot' | 'close-window' | 'set-file-input' | 'insert-text' | 'bind' | 'network-capture-start' | 'network-capture-read' | 'wait-download' | 'cdp' | 'frames' | 'lease-release';
+  action: 'chrome-call' | 'chrome-describe' | 'exec' | 'navigate' | 'tabs' | 'cookies' | 'screenshot' | 'close-window' | 'close-owned-tab' | 'set-file-input' | 'insert-text' | 'bind' | 'network-capture-start' | 'network-capture-read' | 'wait-download' | 'cdp' | 'frames' | 'lease-release' | 'slot-acquire';
+  retainIncomplete?: boolean;
+  /** slot-acquire: pooled site and queue wait budget (policy fields via SlotPolicy). */
+  site?: string;
+  waitMs?: number;
   /** Target page identity (targetId). Cross-layer contract with the extension. */
   page?: string;
   code?: string;
+  chromeMethod?: string;
+  chromeArgs?: unknown[];
   session?: string;
   surface?: 'browser' | 'adapter';
   /** Adapter site session lifecycle. Persistent site sessions do not idle-expire. */
@@ -345,6 +367,15 @@ async function sendCommandRaw(
   const contextId = routing.contextId;
   const preferredContextId = routing.preferredContextId;
   const windowMode = params.windowMode ?? envWindowMode;
+  // Override the owned session idle timeout, not the container window lifetime.
+  // Explicit close still releases ephemeral sessions; persistent adapter sessions
+  // and borrowed bound tabs ignore idle timeouts. Per-command values take priority.
+  // The extension ignores 0, so only positive integers are forwarded.
+  const rawIdleTimeout = process.env.OPENCLI_BROWSER_IDLE_TIMEOUT;
+  const envIdleTimeout = rawIdleTimeout && /^\d+$/.test(rawIdleTimeout) && Number(rawIdleTimeout) > 0
+    ? Number(rawIdleTimeout)
+    : undefined;
+  const idleTimeout = params.idleTimeout ?? envIdleTimeout;
 
   let id = generateId();
   let ensureUsed = false;
@@ -386,6 +417,7 @@ async function sendCommandRaw(
       ...(contextId && { contextId }),
       ...(preferredContextId && { preferredContextId }),
       ...(windowMode && { windowMode }),
+      ...(idleTimeout !== undefined && { idleTimeout }),
       // Carry the run identity so the daemon can acquire/refresh the write
       // lease on the persistent site session. The same runId across every exec
       // of one command is the heartbeat that keeps a long-running holder alive.
@@ -410,7 +442,7 @@ async function sendCommandRaw(
       // A second concurrent write on the same persistent site session is
       // rejected before the daemon dispatches anything — terminal, never
       // retried, and surfaced as a CliError so the busy message is the output.
-      if (result.errorCode === 'session_busy') {
+      if (result.errorCode === 'session_busy' || result.errorCode === 'slot_wait_timeout' || result.errorCode === 'slot_conflict') {
         throw new SessionBusyError(result.error ?? 'The site session is busy.', result.errorHint);
       }
 

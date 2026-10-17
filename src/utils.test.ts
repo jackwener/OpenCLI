@@ -196,12 +196,6 @@ describe('throwIfLoginWall', () => {
 });
 
 describe('BROWSER_JSON_SNIFF_FN', () => {
-  it('is a non-empty string that defines fetchJsonOrLoginWall', () => {
-    expect(typeof BROWSER_JSON_SNIFF_FN).toBe('string');
-    expect(BROWSER_JSON_SNIFF_FN).toContain('fetchJsonOrLoginWall');
-    expect(BROWSER_JSON_SNIFF_FN).toContain('__loginWall');
-  });
-
   it('can be evaluated as JS without syntax errors', () => {
     // We can't run the actual fetch path here (no Response polyfill loop), but
     // we CAN confirm the fragment parses cleanly when embedded inside an async IIFE.

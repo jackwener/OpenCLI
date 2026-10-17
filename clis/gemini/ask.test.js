@@ -128,10 +128,6 @@ function setupDiscoveryWithoutThinking(page, models = FIXTURE_MODELS) {
     vi.mocked(page.evaluate).mockResolvedValueOnce(undefined);
 }
 
-function setupFailedDiscovery(page, reason = 'Model picker button not found') {
-    vi.mocked(page.evaluate).mockResolvedValueOnce({ ok: false, reason });
-}
-
 function setupDiscoveryNonArray(page) {
     vi.mocked(page.evaluate).mockResolvedValueOnce({ ok: true });
     vi.mocked(page.evaluate).mockResolvedValueOnce({ not: 'an array' });
@@ -143,16 +139,6 @@ function setupDiscoveryEmpty(page) {
     vi.mocked(page.evaluate).mockResolvedValueOnce([]);
     vi.mocked(page.evaluate).mockResolvedValueOnce(undefined);
 }
-
-// ── Command registration ─────────────────────────────────────────────────
-
-describe('ask command registration', () => {
-    it('is registered with site=gemini and name=ask', () => {
-        expect(askCommand.site).toBe('gemini');
-        expect(askCommand.name).toBe('ask');
-    });
-
-});
 
 // ── validateAskModelValue ────────────────────────────────────────────────
 
@@ -265,9 +251,21 @@ describe('gemini ask orchestration', () => {
         mocks.waitForGeminiSubmission.mockResolvedValueOnce(submission);
         mocks.waitForGeminiResponse.mockResolvedValueOnce('');
 
-        await askCommand.func(page, { prompt: '请只回复：OK', timeout: 20, new: 'false' });
+        await expect(askCommand.func(page, { prompt: '请只回复：OK', timeout: 20, new: 'false' }))
+            .rejects.toMatchObject({ code: 'TIMEOUT', exitCode: 75 });
 
         expect(mocks.waitForGeminiResponse).toHaveBeenCalledWith(page, submission, '请只回复：OK', 0);
+    });
+
+    it('reports uncertain submission as a typed timeout and never sends twice', async () => {
+        const page = createPageMock();
+        mocks.readGeminiSnapshot.mockResolvedValueOnce(baseline);
+        mocks.sendGeminiMessage.mockResolvedValueOnce('button');
+        mocks.waitForGeminiSubmission.mockResolvedValueOnce(null);
+        await expect(askCommand.func(page, { prompt: 'test', timeout: 20, new: 'false' }))
+            .rejects.toMatchObject({ code: 'TIMEOUT', exitCode: 75 });
+        expect(mocks.sendGeminiMessage).toHaveBeenCalledTimes(1);
+        expect(mocks.waitForGeminiResponse).not.toHaveBeenCalled();
     });
 
     // ── Omitted --model (no model change) ────────────────────────────────

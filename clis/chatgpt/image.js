@@ -4,7 +4,7 @@ import * as fs from 'node:fs';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { saveBase64ToFile } from '@jackwener/opencli/utils';
 import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { clearChatGPTDraft, getChatGPTVisibleImageUrls, navigateToProject, normalizeBooleanFlag, prepareChatGPTImagePaths, sendChatGPTMessage, unwrapEvaluateResult, waitForChatGPTImages, getChatGPTImageAssets, uploadChatGPTImages } from './utils.js';
+import { ensureOnChatGPT, clearChatGPTDraft, getChatGPTVisibleImageUrls, navigateToProject, normalizeBooleanFlag, prepareChatGPTImagePaths, sendChatGPTMessage, unwrapEvaluateResult, waitForChatGPTImages, getChatGPTImageAssets, uploadChatGPTImages } from './utils.js';
 
 const CHATGPT_DOMAIN = 'chatgpt.com';
 
@@ -93,6 +93,8 @@ export const imageCommand = cli({
             throw new ArgumentError(preparedImages.reason);
         }
 
+        // Resume rendering on this session's tab before starting generation.
+        await ensureOnChatGPT(page);
         // Navigate with full reload to clear React sidebar state before editing the draft.
         if (kwargs.project) {
             await navigateToProject(page, kwargs.project);
@@ -135,7 +137,7 @@ export const imageCommand = cli({
         }
 
         const urls = await waitForChatGPTImages(page, beforeUrls, timeout, convUrl);
-        const link = convUrl;
+        const link = await currentChatGPTLink(page);
 
         if (!urls.length) {
             throw new EmptyResultError('chatgpt image', `No generated images were detected before timeout. Open ${link} and verify whether ChatGPT finished generating the image.`);

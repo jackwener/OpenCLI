@@ -1,3 +1,4 @@
+import { JSDOM } from 'jsdom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { getRegistry } from '@jackwener/opencli/registry';
@@ -42,6 +43,33 @@ describe('deepseek send', () => {
     expect(rows).toEqual([{ Status: 'Success', InjectedText: 'hello' }]);
     expect(page.goto).toHaveBeenCalledWith(`https://chat.deepseek.com/a/chat/s/${id}`);
     expect(page.nativeType).toHaveBeenCalledWith('hello');
+  });
+
+  it.each(['', 'disabled', 'aria-disabled="true"'])('runs the current composer submission with %s state', async (disabled) => {
+    const dom = new JSDOM(`<textarea placeholder="DeepSeek"></textarea><button class="ds-button--primary" ${disabled}><svg></svg></button>`, { runScripts: 'outside-only' });
+    const { window } = dom;
+    window.setTimeout = (fn) => { fn(); return 0; };
+    const button = window.document.querySelector('button');
+    const click = vi.fn(() => {
+      const bubble = window.document.createElement('div');
+      bubble.className = 'ds-message user extra';
+      bubble.innerText = 'hello';
+      window.document.body.append(bubble);
+    });
+    button.addEventListener('click', click);
+    const page = createPage({
+      evaluate: vi.fn(async (script) => window.eval(script)),
+      nativeType: vi.fn(async (text) => { window.document.querySelector('textarea').value = text; }),
+    });
+    try {
+      if (disabled) {
+        await expect(command.func(page, { id, prompt: 'hello' })).rejects.toThrow('send button stayed disabled');
+        expect(click).not.toHaveBeenCalled();
+      } else {
+        await expect(command.func(page, { id, prompt: 'hello' })).resolves.toEqual([{ Status: 'Success', InjectedText: 'hello' }]);
+        expect(click).toHaveBeenCalledTimes(1);
+      }
+    } finally { window.close(); }
   });
 
   it('throws when the textarea never mounts within the readiness timeout', async () => {

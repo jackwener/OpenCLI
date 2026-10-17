@@ -1,5 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { apiGet, payloadData, resolveUid, stripHtml } from './utils.js';
+import { apiGet, httpsUrl, parseCountText, parseDurationText, payloadData, resolveUid, stripHtml } from './utils.js';
 
 /** Map bilibili dynamic type to readable short name */
 const TYPE_MAP = {
@@ -59,7 +59,34 @@ function parseItem(item) {
     const likes = stat.like?.count ?? 0;
     const comments = stat.comment?.count ?? 0;
 
-    return { title, url, itemType, author: authorModule.name ?? '', time, likes, comments };
+    // 视频动态在 major.archive 里自带时长 / 播放 / 封面 / bvid，不用再去打 view 接口。
+    // 非视频动态（专栏、图文、纯文字）这些字段就是空的，按 0 / '' 输出。
+    const archive = major.archive ?? {};
+    const durationText = archive.duration_text ?? '';
+
+    return {
+        title,
+        url,
+        itemType,
+        author: authorModule.name ?? '',
+        mid: String(authorModule.mid ?? ''),
+        face: httpsUrl(authorModule.face),
+        // time 是 "3小时前" / "昨天 20:15" 这种展示串（保留不动），pub_ts 才是 unix 秒。
+        // 实测接口把 pub_ts 返成字符串（"1788582060"），统一成数字。
+        time,
+        pub_ts: Number(authorModule.pub_ts) || 0,
+        bvid: archive.bvid ?? '',
+        cover: httpsUrl(archive.cover),
+        duration: durationText,
+        duration_sec: parseDurationText(durationText),
+        // stat.play / stat.danmaku 是 "1.2万" 这种展示文本，解析成数字。
+        plays: parseCountText(archive.stat?.play),
+        danmaku: parseCountText(archive.stat?.danmaku),
+        desc: archive.desc ?? '',
+        only_fans: !!item.basic?.is_only_fans,
+        likes,
+        comments,
+    };
 }
 
 cli({
@@ -75,7 +102,7 @@ cli({
         { name: 'type', default: 'all', help: 'Filter: all, video, article, draw, text' },
         { name: 'pages', type: 'int', default: 1, help: 'Number of pages to fetch (each ~20 items)' },
     ],
-    columns: ['rank', 'time', 'author', 'title', 'type', 'likes', 'url'],
+    columns: ['rank', 'time', 'pub_ts', 'author', 'mid', 'title', 'type', 'duration', 'duration_sec', 'plays', 'danmaku', 'likes', 'url', 'bvid', 'cover', 'face', 'desc', 'only_fans'],
     func: async (page, kwargs) => {
         const maxResults = Number(kwargs.limit) || 20;
         const maxPages = Number(kwargs.pages) || 1;
@@ -116,11 +143,22 @@ cli({
                 rows.push({
                     rank: rows.length + 1,
                     time: parsed.time,
+                    pub_ts: parsed.pub_ts,
                     author: parsed.author,
+                    mid: parsed.mid,
                     title: parsed.title,
                     type: parsed.itemType,
+                    duration: parsed.duration,
+                    duration_sec: parsed.duration_sec,
+                    plays: parsed.plays,
+                    danmaku: parsed.danmaku,
                     likes: parsed.likes,
                     url: parsed.url,
+                    bvid: parsed.bvid,
+                    cover: parsed.cover,
+                    face: parsed.face,
+                    desc: parsed.desc,
+                    only_fans: parsed.only_fans,
                 });
             }
 

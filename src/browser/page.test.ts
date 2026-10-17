@@ -173,6 +173,16 @@ describe('Page network capture compatibility', () => {
     }));
   });
 
+  it('forwards the opt-in incomplete-capture retention flag', async () => {
+    sendCommandMock.mockResolvedValueOnce([]);
+    const page = new Page('suno', undefined, undefined, undefined, 'adapter');
+    await page.readNetworkCapture({ retainIncomplete: true });
+    expect(sendCommandMock).toHaveBeenCalledWith('network-capture-read', expect.objectContaining({
+      session: 'suno',
+      retainIncomplete: true,
+    }));
+  });
+
   it('rethrows unrelated network capture failures', async () => {
     sendCommandMock.mockRejectedValueOnce(new Error('Extension disconnected'));
 
@@ -532,5 +542,28 @@ describe('Page.getCookies error classification', () => {
   it('preserves a valid empty cookie jar', async () => {
     sendCommandMock.mockReset().mockResolvedValue([]);
     await expect(new Page('auth').getCookies({ url: 'https://example.com' })).resolves.toEqual([]);
+  });
+});
+
+describe('Page.evaluateOnce', () => {
+  beforeEach(() => { sendCommandMock.mockReset(); });
+
+  it('never replays a write when the target navigates after dispatch', async () => {
+    let writes = 0;
+    const error = Object.assign(new Error('Inspected target navigated or closed'), { code: 'target_navigated' });
+    sendCommandMock.mockImplementation(async () => { writes++; throw error; });
+    const page = new Page('site:youtube', undefined, undefined, undefined, 'adapter');
+    await expect(page.evaluateOnce('publishComment()')).rejects.toBe(error);
+    expect(writes).toBe(1);
+  });
+
+  it('preserves routing and returns the write result', async () => {
+    sendCommandMock.mockResolvedValue({ commentId: 'created' });
+    const page = new Page('site:youtube', 60, 'profile', 'background', 'adapter', 'persistent');
+    await expect(page.evaluateOnce('publishComment()')).resolves.toEqual({ commentId: 'created' });
+    expect(sendCommandMock).toHaveBeenCalledWith('exec', expect.objectContaining({
+      session: 'site:youtube', contextId: 'profile', windowMode: 'background',
+      surface: 'adapter', siteSession: 'persistent', idleTimeout: 60,
+    }));
   });
 });
