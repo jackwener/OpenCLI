@@ -780,6 +780,20 @@ async function waitForDoubaoUserBubble(page, sentText, intervalMs, windowMs) {
         await page.wait(intervalMs / 1000);
     }
 }
+/**
+ * Insert `text` into the Doubao composer, submit it, and confirm delivery.
+ * Delivery is confirmed by content — the conversation's last user bubble must
+ * equal `text` (whitespace-normalized) within the verification window — because
+ * the conversation is a virtualized list whose rendered bubble count changes
+ * with scrolling, so a count is not a stable signal. Throws
+ * CommandExecutionError when the message did not land.
+ *
+ * @param {{ evaluate: Function, wait: Function, nativeType?: Function, nativeKeyPress?: Function }} page
+ * @param {string} text
+ * @param {{ verifyIntervalMs?: number, verifyWindowMs?: number }} [options]
+ *     Test hook: pass 0/0 to skip the delivery wait entirely.
+ * @returns {Promise<'button'|'enter'>} how the message was submitted
+ */
 export async function sendDoubaoMessage(page, text, options = {}) {
     const verifyIntervalMs = options.verifyIntervalMs ?? DOUBAO_SEND_VERIFY_INTERVAL_MS;
     const verifyWindowMs = options.verifyWindowMs ?? DOUBAO_SEND_VERIFY_WINDOW_MS;
