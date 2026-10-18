@@ -44741,6 +44741,56 @@
   },
   {
     "site": "zhihu",
+    "name": "answer-comments-visible",
+    "description": "Read only currently rendered answer comments; no API fallback or reply expansion",
+    "access": "read",
+    "domain": "www.zhihu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Answer ID, URL, or answer:<qid>:<aid>"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 5,
+        "required": false,
+        "help": "Maximum visible root comments (1..20)"
+      },
+      {
+        "name": "replies-limit",
+        "type": "int",
+        "default": 1,
+        "required": false,
+        "help": "Maximum already-visible descendants per root (0..10)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "parent_id",
+      "depth",
+      "author",
+      "content",
+      "content_kind",
+      "has_unexpanded_replies",
+      "reader",
+      "order",
+      "complete",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "zhihu/answer-comments-visible.js",
+    "sourceFile": "zhihu/answer-comments-visible.js",
+    "navigateBefore": "https://www.zhihu.com"
+  },
+  {
+    "site": "zhihu",
     "name": "answer-detail",
     "description": "知乎单个回答完整内容（按 answer ID 获取）",
     "access": "read",
