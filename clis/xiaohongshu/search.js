@@ -907,7 +907,7 @@ export function buildScrollHarvestJs(webHost, targetCount, options = {}) {
     `;
 }
 
-async function collectSearchHarvest(page, limit, requestedFilters) {
+export async function waitForSearchContent(page) {
     const waitResult = unwrapEvaluateResult(await page.evaluate(WAIT_FOR_CONTENT_JS));
     if (waitResult === 'login_wall') {
         throw new AuthRequiredError('www.xiaohongshu.com', 'Xiaohongshu search results are blocked behind a login wall');
@@ -921,6 +921,10 @@ async function collectSearchHarvest(page, limit, requestedFilters) {
     if (waitResult !== 'content') {
         throw new CommandExecutionError('Unexpected Xiaohongshu search wait payload shape.');
     }
+}
+
+async function collectSearchHarvest(page, limit, requestedFilters) {
+    await waitForSearchContent(page);
     requireFilterApplication(await page.evaluate(buildApplySearchFiltersJs(requestedFilters)));
     const harvestOptions = harvestOptionsForLimit(limit);
     const harvest = requireHarvestPayload(await page.evaluate(buildScrollHarvestJs('www.xiaohongshu.com', limit, harvestOptions)), 'www.xiaohongshu.com');
@@ -930,7 +934,7 @@ async function collectSearchHarvest(page, limit, requestedFilters) {
     return harvest;
 }
 
-async function openSearchResults(page, query) {
+export async function openSearchResults(page, query) {
     await page.goto(EXPLORE_URL);
     const result = unwrapEvaluateResult(await page.evaluate(buildInSiteSearchJs(query)));
     if (!result || typeof result !== 'object' || Array.isArray(result)) {
