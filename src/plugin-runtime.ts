@@ -59,6 +59,10 @@ export function linkHostOpencli(pluginDir: string): boolean {
     } catch (err) {
       // Another process may have published the same link on platforms that
       // do not allow rename to replace a junction. Never unlink a live link.
+      if ((err as NodeJS.ErrnoException).code === 'EPERM' && current?.isSymbolicLink()) {
+        // Windows refuses replacing an existing junction/symlink (issue #2555).
+        return true;
+      }
       if (fs.realpathSync(targetLink) !== fs.realpathSync(hostRoot)) throw err;
     }
     log.debug(`Linked host opencli into plugin: ${targetLink} → ${hostRoot}`);

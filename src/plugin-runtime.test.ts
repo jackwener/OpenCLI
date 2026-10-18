@@ -61,4 +61,14 @@ describe('plugin host link repair', () => {
     expect(fs.realpathSync(link)).toBe(fs.realpathSync(oldHost));
     expect(fs.readdirSync(path.dirname(link))).toEqual(['opencli']);
   });
+
+  it('accepts an existing link when Windows refuses replacement', () => {
+    const { root, link } = fixture();
+    const oldHost = path.join(root, 'old-host');
+    fs.mkdirSync(oldHost);
+    fs.symlinkSync(oldHost, link, type);
+    vi.spyOn(fs, 'renameSync').mockImplementation(() => { const error = new Error('EPERM') as NodeJS.ErrnoException; error.code = 'EPERM'; throw error; });
+    expect(linkHostOpencli(root)).toBe(true);
+    expect(fs.realpathSync(link)).toBe(fs.realpathSync(oldHost));
+  });
 });
