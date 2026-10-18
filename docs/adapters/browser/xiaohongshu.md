@@ -82,7 +82,7 @@ opencli xiaohongshu delete-note 6a08ba0b000000000702a893
 opencli xiaohongshu delete-note 6a08ba0b000000000702a893 --execute
 ```
 
-`search` supports the same visible filter-panel choices as the website: `--sort comprehensive|latest|most-liked|most-commented|most-collected`, `--note-type all|video|image`, `--publish-time anytime|day|week|half-year`, `--scope all|seen|unseen|following`, and `--location all|same-city|nearby`. Account-scoped and location filters fail explicitly when the logged-in browser session lacks the required account or geolocation capability.
+`search` supports the same visible filter-panel choices as the website: `--sort comprehensive|latest|most-liked|most-commented|most-collected`, `--note-type all|video|image`, `--publish-time anytime|day|week|half-year`, `--scope all|seen|unseen|following`, and `--location all|same-city|nearby`. Account-scoped and location filters fail explicitly when the logged-in browser session lacks the required account or geolocation capability. The query is submitted through whichever search control the homepage renders: the classic `#search-input` box, or the AI-search homepage's textarea (submitted with Enter, landing on `/search_result_ai`).
 
 > Note: `note` and `comments` now require a full signed note URL with `xsec_token`. `download` accepts either a signed note URL or an `xhslink` short link. Bare note IDs are no longer reliable on xiaohongshu.
 > With `comments --with-replies`, `reply_to` is the direct reply target displayed by the page. Replies without an explicit `回复 <name>` marker target the enclosing top-level comment.
