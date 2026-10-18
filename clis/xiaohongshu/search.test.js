@@ -464,6 +464,81 @@ describe('xiaohongshu search', () => {
         }
     });
 
+    function createAiLayoutSearchDom({ routeKeyword = '测试' } = {}) {
+        // AI-search homepage: the classic input/button exist but render at 0x0; the live control is a
+        // textarea with a near-transparent honeypot clone stacked under it. Submit is Enter, and the
+        // SPA lands on /search_result_ai with the keyword percent-encoded twice.
+        const dom = new JSDOM(`
+          <body>
+            <input id="search-input">
+            <div class="search-icon"></div>
+            <div class="textarea-wrapper">
+              <textarea name="aiSearchTextarea" aria-hidden="true" tabindex="-1" style="opacity: 1e-05"></textarea>
+              <textarea id="search-input-in-feeds" name="aiSearchTextarea" data-hp-bound="1"></textarea>
+            </div>
+          </body>
+        `, { url: 'https://www.xiaohongshu.com/explore' });
+        const { document } = dom.window;
+        const [clone, textarea] = document.querySelectorAll('textarea');
+        markVisible(clone);
+        markVisible(textarea);
+        const classicClick = vi.fn();
+        document.querySelector('.search-icon').addEventListener('click', classicClick);
+        const cloneEvents = vi.fn();
+        for (const type of ['input', 'keydown', 'click']) clone.addEventListener(type, cloneEvents);
+        let inputEvents = 0;
+        textarea.addEventListener('input', () => inputEvents++);
+        const submit = vi.fn((event) => {
+            if (event.key !== 'Enter') return;
+            dom.window.history.pushState({}, '', `/search_result_ai?keyword=${encodeURIComponent(encodeURIComponent(routeKeyword))}&source=web_explore_feed`);
+            const filter = document.createElement('div');
+            filter.className = 'filter ai-chat-filter';
+            document.body.append(filter);
+        });
+        textarea.addEventListener('keydown', submit);
+        return { dom, document, textarea, classicClick, cloneEvents, submit, inputEvents: () => inputEvents };
+    }
+
+    function runInSiteSearch(dom, document, query) {
+        return Function('document', 'location', 'HTMLInputElement', 'Event', 'setTimeout',
+            `return (${__test__.buildInSiteSearchJs(query)})`)(
+            document, dom.window.location, dom.window.HTMLInputElement, dom.window.Event, setTimeout,
+        );
+    }
+
+    it('submits through the AI-layout textarea with Enter and accepts the double-encoded /search_result_ai route', async () => {
+        vi.useFakeTimers();
+        const fixture = createAiLayoutSearchDom();
+        try {
+            const pending = runInSiteSearch(fixture.dom, fixture.document, '测试');
+            await vi.runAllTimersAsync();
+            await expect(pending).resolves.toMatchObject({ status: 'ok', detail: '/search_result_ai' });
+            expect(fixture.textarea.value).toBe('测试');
+            expect(fixture.inputEvents()).toBe(1);
+            expect(fixture.submit).toHaveBeenCalledTimes(1);
+            expect(fixture.classicClick).not.toHaveBeenCalled();
+            expect(fixture.cloneEvents).not.toHaveBeenCalled();
+        }
+        finally {
+            fixture.dom.window.close();
+            vi.useRealTimers();
+        }
+    });
+
+    it('still times out when the AI route carries a different keyword', async () => {
+        vi.useFakeTimers();
+        const fixture = createAiLayoutSearchDom({ routeKeyword: '别的' });
+        try {
+            const pending = runInSiteSearch(fixture.dom, fixture.document, '测试');
+            await vi.runAllTimersAsync();
+            await expect(pending).resolves.toMatchObject({ status: 'timeout', detail: '/search_result_ai' });
+        }
+        finally {
+            fixture.dom.window.close();
+            vi.useRealTimers();
+        }
+    });
+
     it('rejects invalid limit before browser navigation', async () => {
         const cmd = getRegistry().get('xiaohongshu/search');
         const page = createPageMock([]);
@@ -530,7 +605,7 @@ describe('xiaohongshu search', () => {
         ]);
         const result = await cmd.func(page, { query: '特斯拉', limit: 1 });
         expect(page.goto).toHaveBeenCalledWith('https://www.xiaohongshu.com/explore');
-        expect(page.evaluate).toHaveBeenCalledWith(expect.stringContaining('HTMLInputElement.prototype'));
+        expect(page.evaluate).toHaveBeenCalledWith(expect.stringContaining("getOwnPropertyDescriptor(Object.getPrototypeOf(input), 'value')"));
         // Search does not navigate to individual note details.
         expect(page.goto.mock.calls).toHaveLength(1);
         expect(result).toEqual([
