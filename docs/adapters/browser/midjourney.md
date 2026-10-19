@@ -89,6 +89,17 @@ opencli midjourney generate "quiet reading room" --profile <profile-or-moodboard
 
 Every paid generation clears any manually pinned/stale web-composer references first. This prevents a no-reference CLI call from inheriting hidden browser state.
 
+Local reference files go through the reference panel, matched by heading (`Image Prompts`, `Style reference`), ignoring case. Every drop is verified before anything is submitted:
+
+- The slot must show exactly one new thumbnail per dropped file — the dropped image among them (size variants like `..._384_N.png` match). A drop that silently misses leaves the previous thumbnail behind and fails the command.
+- Uploading also pins the file under the panel's `Attach to prompt` heading. Before the paid submit, every pinned image must be one this command uploaded; stale pinned images stop the submission.
+- When the Browser Bridge supports response capture, the captured submit request is cross-checked: it must mention every uploaded reference. A mismatch is reported together with the submitted job ids.
+
+Known limits, observed on the web panel on 2026-09-30 with V8.2 selected:
+
+- The panel has no Omni Reference slot, so a local `--omni-ref` file fails with `Could not locate Midjourney Omni Reference slot after upload`. It was not checked whether the slot returns when V7 is selected.
+- An HTTPS or `/jobs/<uuid>` reference is written into the prompt and does not go through the panel, so the panel verification does not apply to it.
+
 ## Creation Actions and video
 
 Image jobs support:

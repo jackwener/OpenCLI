@@ -23545,7 +23545,7 @@
     "sourceFile": "midjourney/action.js",
     "navigateBefore": "https://www.midjourney.com/imagine",
     "siteSession": "persistent",
-    "defaultWindowMode": "foreground"
+    "defaultWindowMode": "background"
   },
   {
     "site": "midjourney",
