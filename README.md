@@ -242,6 +242,7 @@ When the site you need is not yet covered, use the `opencli-adapter-author` skil
 | **gemini** | `new` `ask` `image` `deep-research` `deep-research-result` |
 | **notebooklm** | `status` `list` `open` `current` `get` `history` `summary` `note-list` `notes-get` `source-list` `source-get` `source-fulltext` `source-guide` |
 | **amazon** | `bestsellers` `search` `product` `offer` `discussion` `movers-shakers` `new-releases` `rankings` |
+| **unicloud** | `spaces` `renew` |
 | **upwork** | `search` `feed` `detail` |
 | **slock** | `message-send` `message-read` `message-search` `channel-list` `channel-info` `channel-create` `channel-members` `channel-join` `task-list` `task-create` `task-claim` `task-status` `task-convert` `task-delete` `thread-list` `thread-follow` `attachment-upload` `attachment-download` `bookmark-add` `inbox` `dm-list` `server-list` `server-use` `whoami` |
 | **huodongxing** | `events` |
