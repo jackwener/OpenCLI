@@ -1,11 +1,14 @@
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { JSDOM } from 'jsdom';
 import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 import {
     DEFAULT_FORMATS,
     SUPPORTED_FORMATS,
     SUNO_MODELS,
+    LEGACY_SUNO_MODELS,
+    resolveSunoModelName,
     clampSlider,
     normalizeBooleanFlag,
     requireNonNegativeInt,
@@ -17,6 +20,8 @@ import {
     pollSunoClips,
     ensureSunoSession,
     parseSunoBillingInfo,
+    submitSunoGeneration,
+    waitForSunoSessionToken,
 } from './utils.js';
 
 describe('suno utils — parseFormats', () => {
@@ -200,6 +205,28 @@ describe('suno utils — parseSunoBillingInfo', () => {
         expect(parsed.totalCreditsAvailable).toBe(2400);
     });
 
+    it('prefers the active plan and exposes usable v6 model keys', () => {
+        const parsed = parseSunoBillingInfo({
+            subscription_type: true,
+            plan: { id: 'pro-plan', plan_key: 'pro' },
+            plans: [{ id: 'free-plan', plan_key: 'free' }],
+            models: [
+                { name: 'v6', external_key: 'chirp-hawk', can_use: true, is_default_model: true },
+                { name: 'v6-wild', external_key: 'chirp-hawk-wild', can_use: false },
+                { name: 'v6-mini', external_key: 'chirp-goose', can_use: true, is_default_free_model: true },
+            ],
+        });
+        expect(parsed.planId).toBe('pro-plan');
+        expect(parsed.planKey).toBe('pro');
+        // isDefault (account default) and isDefaultFree (free-plan fallback)
+        // stay distinct: a paid account must not inherit the free default.
+        expect(parsed.models).toEqual([
+            { name: 'v6', externalKey: 'chirp-hawk', canUse: true, isDefault: true, isDefaultFree: false },
+            { name: 'v6-wild', externalKey: 'chirp-hawk-wild', canUse: false, isDefault: false, isDefaultFree: false },
+            { name: 'v6-mini', externalKey: 'chirp-goose', canUse: true, isDefault: false, isDefaultFree: true },
+        ]);
+    });
+
     it('falls back to subscription_type as planKey when plans[] lookup misses', () => {
         const parsed = parseSunoBillingInfo({
             subscription_type: 'enterprise',
@@ -240,10 +267,21 @@ describe('suno utils — parseSunoBillingInfo', () => {
 });
 
 describe('suno utils — ensureSunoSession typed failures', () => {
+    it('waits for a delayed legacy Clerk runtime', async () => {
+        let checks = 0;
+        let waits = 0;
+        const page = {
+            evaluate: async () => ++checks === 3,
+            wait: async () => { waits++; },
+        };
+        expect(await waitForSunoSessionToken(page)).toBe(true);
+        expect(checks).toBe(3);
+        expect(waits).toBe(2);
+    });
     function createSessionPage(sessionCheckResult) {
         const evaluate = async (script) => {
             if (script.includes('querySelectorAll')) return undefined;
-            if (script.includes('!!(window.Clerk && window.Clerk.session)')) return true;
+            if (script.startsWith('!!(document.cookie.split')) return true;
             if (script.includes('suno_device_id')) return 'device-id';
             if (script.includes('/api/billing/info/')) return sessionCheckResult;
             throw new Error(`unexpected evaluate script: ${script.slice(0, 80)}`);
@@ -299,10 +337,21 @@ describe('suno utils — ensureSunoSession typed failures', () => {
 });
 
 describe('suno utils — model + format exports', () => {
-    it('exposes the four shipping models with chirp-fenix first', () => {
-        expect(SUNO_MODELS).toContain('chirp-fenix');
-        expect(SUNO_MODELS).toContain('chirp-bluejay');
-        expect(SUNO_MODELS[0]).toBe('chirp-fenix');
+    it('exposes the current public model choices', () => {
+        expect(SUNO_MODELS).toEqual(['v6', 'v6-wild', 'v6-mini']);
+    });
+
+    it('resolves retired chirp-* names to the v6 default and rejects unknowns', () => {
+        expect(resolveSunoModelName('v6-wild')).toEqual({ name: 'v6-wild', legacy: null });
+        for (const legacy of Object.keys(LEGACY_SUNO_MODELS)) {
+            expect(resolveSunoModelName(legacy)).toEqual({ name: 'v6', legacy });
+            expect(LEGACY_SUNO_MODELS[legacy]).toBe('v6');
+        }
+        expect(resolveSunoModelName('  chirp-fenix ')).toEqual({ name: 'v6', legacy: 'chirp-fenix' });
+        expect(resolveSunoModelName('Chirp-V3-5')).toEqual({ name: 'v6', legacy: 'Chirp-V3-5' });
+        expect(resolveSunoModelName('gpt-4o')).toBeNull();
+        expect(resolveSunoModelName(null)).toBeNull();
+        expect(resolveSunoModelName('')).toBeNull();
     });
 
     it('declares mp3 + metadata as the default download set', () => {
@@ -310,7 +359,70 @@ describe('suno utils — model + format exports', () => {
     });
 });
 
+describe('suno direct API single-shot submission', () => {
+    it('prefers a refreshed Clerk token over a stale first-party cookie', async () => {
+        const dom = new JSDOM('', { runScripts: 'outside-only', url: 'https://suno.com/create' });
+        dom.window.document.cookie = '__session=expired';
+        dom.window.Clerk = { session: { getToken: async () => 'legacy.jwt' } };
+        dom.window.fetch = async (_url, request) => {
+            expect(request.headers.Authorization).toBe('Bearer legacy.jwt');
+            return { ok: true, status: 200, text: async () => JSON.stringify({ clips: [{ id: 'clip-a' }] }) };
+        };
+        const page = { evaluate: js => dom.window.eval(js) };
+        const result = await submitSunoGeneration(page, { mode: 'simple', model: 'chirp-hawk', description: 'test',
+            makeInstrumental: false, weirdness: 0.5, styleWeight: 0.5,
+            userTier: 'plan', createSessionToken: 'session', transactionUuid: 'legacy-transaction', deviceId: 'device' });
+        expect(result.clips).toHaveLength(1);
+        dom.window.close();
+    });
+    it('never repeats a POST when page.evaluate re-executes after the first write', async () => {
+        const dom = new JSDOM('', { runScripts: 'outside-only', url: 'https://suno.com/create' });
+        dom.window.document.cookie = '__session=header.payload.signature';
+        let posts = 0;
+        dom.window.fetch = async (_url, request) => {
+            posts++;
+            expect(request.headers.Authorization).toBe('Bearer header.payload.signature');
+            return { ok: true, status: 200, text: async () => JSON.stringify({ clips: [{ id: 'clip-a' }, { id: 'clip-b' }] }) };
+        };
+        const page = { evaluate: async js => {
+            await dom.window.eval(js);
+            return dom.window.eval(js);
+        } };
+        const payload = { mode: 'simple', model: 'chirp-hawk', description: 'test',
+            makeInstrumental: false, weirdness: 0.5, styleWeight: 0.5,
+            userTier: 'plan', createSessionToken: 'session', transactionUuid: 'transaction', deviceId: 'device' };
+        await expect(submitSunoGeneration(page, payload)).rejects.toThrow('may already have run');
+        expect(posts).toBe(1);
+        dom.window.close();
+    });
+});
+
 describe('suno utils — pollSunoClips', () => {
+    it('retries a read-only 429 without resubmitting generation', async () => {
+        let calls = 0;
+        const page = {
+            evaluate: async () => ++calls === 1
+                ? { status: 429, retryAfter: '1', body: { detail: 'slow down' } }
+                : { status: 200, body: { clips: [{ id: 'clip-a', status: 'complete' }] } },
+            wait: async () => {},
+        };
+        expect(await pollSunoClips(page, ['clip-a'], 2, 'device-id', 0)).toHaveLength(1);
+        expect(calls).toBe(2);
+    });
+    it.each(['75', 'http-date'])('respects a long Retry-After %s', async format => {
+        const retryAfter = format === 'http-date' ? new Date(Date.now() + 60_000).toUTCString() : '75';
+        let calls = 0;
+        const waits = [];
+        const page = {
+            evaluate: async () => ++calls === 1
+                ? { status: 429, retryAfter, body: null }
+                : { status: 200, body: { clips: [{ id: 'clip-a', status: 'complete' }] } },
+            wait: async options => { waits.push(options.time); },
+        };
+        await pollSunoClips(page, ['clip-a'], 120, 'device-id');
+        expect(waits[0]).toBeGreaterThan(format === 'http-date' ? 55 : 74);
+        expect(calls).toBe(2);
+    });
     it('fails typed on malformed feed JSON while polling generation status', async () => {
         const page = {
             evaluate: async () => ({ status: 200, body: null }),

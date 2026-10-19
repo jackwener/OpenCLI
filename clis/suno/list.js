@@ -12,6 +12,7 @@ import {
     ensureSunoSession,
     requireNonNegativeInt,
     requirePositiveInt,
+    sunoHeadersJs,
     unwrapEvaluateResult,
 } from './utils.js';
 
@@ -38,13 +39,8 @@ export const listCommand = cli({
         const deviceId = session.deviceId;
 
         const result = unwrapEvaluateResult(await page.evaluate(`(async () => {
-            const browserToken = JSON.stringify({ token: btoa(JSON.stringify({ timestamp: Date.now() })) });
             const res = await fetch('${STUDIO_API}/api/feed/v2?page=${pageOffset}', {
-                headers: {
-                    'Authorization': 'Bearer ' + (await window.Clerk.session.getToken()),
-                    'browser-token': browserToken,
-                    'device-id': ${JSON.stringify(deviceId)},
-                },
+                headers: ${sunoHeadersJs(deviceId)},
             });
             if (!res.ok) return { ok: false, status: res.status };
             const data = await res.json().catch(() => null);
