@@ -15,18 +15,18 @@ const demo = provider => ({
     expires_at: provider === 'aliyun' ? '2026-10-25 00:00:00' : '2026-10-23 23:59:59',
 });
 
-/** 根据官方订单确认页渲染代码构造的模拟契约；尚未创建真实订单取样。 */
-const paymentHTML = '<main class="pc-pay"><div class="pc-pay-order-detial-content"><div class="content-item-latest">服务空间续费</div></div><div class="pc-pay-order-detial-code-info-subtitle">0.00元</div><uni-button class="order-btn">确认开通</uni-button></main>';
+/** 支付宝云实际0元续期确认页的最小脱敏DOM和订单状态；阿里云变体复用已实测字段映射。 */
+const paymentHTML = fixture('free-confirmation');
+const paymentState = JSON.parse(readFileSync(new URL('./__fixtures__/free-confirmation-state.json', import.meta.url), 'utf8'));
+/** 从真实脱敏状态复制订单，只替换当前测试的服务商、空间和订单编号。 */
 function hydratePayment(dom, provider, orderId = 'test-order-1') {
     const space = demo(provider);
-    dom.window.document.querySelector('.pc-pay').__vueParentComponent = { proxy: {
-        complete: true, uniPay: { loading: false, order_id: orderId }, orderInfo: {
-            product_code: provider === 'aliyun' ? 'ali_cloud_space' : 'alipay_cloud_space',
-            skuInfo: { version: { value: provider === 'aliyun' ? 'free' : 'public_cloudd_cd_cn_free_bag' } },
-            total_amount: '0.00', real_amount: '0.00',
-            expand_info: { buyType: 2, businessType: 1, spaceId: space.space_id, spaceName: space.name, provider, duration: 1 },
-        },
-    } };
+    const state = structuredClone(paymentState);
+    state.uniPay.order_id = orderId;
+    state.orderInfo.product_code = provider === 'aliyun' ? 'ali_cloud_space' : 'alipay_cloud_space';
+    state.orderInfo.skuInfo.version.value = provider === 'aliyun' ? 'free' : 'public_cloudd_cd_cn_free_bag';
+    Object.assign(state.orderInfo.expand_info, { spaceId: space.space_id, spaceName: space.name, provider });
+    dom.window.document.querySelector('.pc-pay').__vueParentComponent = { proxy: state };
 }
 
 /** 重放脱敏真实 DOM；执行真正的浏览器函数，避免仅模拟返回值掩盖解析错误。 */
