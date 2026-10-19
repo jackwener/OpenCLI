@@ -59,7 +59,7 @@ opencli arxiv search "LLM" -f json
 
 `paper` returns the full abstract and full author list. `search`/`recent` are list-style outputs that omit the abstract for readability — pipe an id into `paper` for the full record.
 
-`since` counts calendar days in UTC and reports the window true match count when it exceeds `--limit`; arXiv indexes submissions with a lag, so the newest day or two can legitimately come back empty. `bibtex` returns the record verbatim from arxiv.org, and `pdf` verifies the payload really is a PDF before reporting success.
+`since` counts calendar days in UTC and reports the window true match count when it exceeds `--limit`; arXiv indexes submissions with a lag, so the newest day or two can legitimately come back empty. `bibtex` returns the record verbatim from arxiv.org. `pdf` downloads to a temporary file, verifies the `%PDF-` signature, and only then atomically installs it, so a failed or non-PDF response never replaces an existing valid copy.
 
 ## Common Categories
 
