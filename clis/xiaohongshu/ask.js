@@ -44,7 +44,7 @@ export function parseAskTimeout(raw) {
 }
 
 export function parseAskLimit(raw) {
-    return parseBoundedInteger(raw, 10, 1, 50, '--source-limit');
+    return parseBoundedInteger(raw, 50, 1, 50, '--source-limit');
 }
 
 function cleanText(value) {
@@ -520,7 +520,7 @@ export const command = cli({
     site: 'xiaohongshu',
     name: 'ask',
     access: 'write',
-    description: 'Ask 小红书点点 and return the answer with citation sources.',
+    description: 'Ask 小红书点点 and attempt to add signed citation links without opening or verifying source pages.',
     domain: XHS_WEB_HOST,
     strategy: Strategy.COOKIE,
     browser: true,
@@ -528,7 +528,7 @@ export const command = cli({
     args: [
         { name: 'query', positional: true, required: true, help: 'Question for 点点' },
         { name: 'timeout', type: 'int', default: 90, help: 'Seconds to wait for the 点点 answer' },
-        { name: 'source-limit', type: 'int', default: 10, help: 'Maximum citation sources to return' },
+        { name: 'source-limit', type: 'int', default: 50, help: 'Maximum citation sources to return' },
     ],
     columns: ASK_COLUMNS,
     func: async (page, kwargs) => {

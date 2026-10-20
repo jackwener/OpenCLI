@@ -41,9 +41,13 @@ describe('xiaohongshu ask', () => {
             'message_id',
             'conversation_id',
         ]);
+        expect(cmd.args.find((arg) => arg.name === 'source-limit')).toMatchObject({
+            default: 50,
+        });
     });
 
     it('rejects invalid timeout and source-limit values', () => {
+        expect(parseAskLimit(undefined)).toBe(50);
         expect(() => parseAskTimeout(0)).toThrow('--timeout');
         expect(() => parseAskTimeout(181)).toThrow('--timeout');
         expect(() => parseAskTimeout('1e2')).toThrow('--timeout');
