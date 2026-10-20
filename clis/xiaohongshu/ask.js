@@ -105,6 +105,7 @@ function parseTrustedSourceLink(value) {
         return {
             noteId: xhsDiscoverMatch[1],
             xsecToken: url?.searchParams.get('xsec_token') || url?.searchParams.get('xsecToken') || '',
+            xsecSource: url?.searchParams.get('xsec_source') ?? '',
             href: raw,
         };
     }
@@ -117,15 +118,20 @@ function parseTrustedSourceLink(value) {
     if (
         !url
         || url.protocol !== 'https:'
+        || url.port
+        || url.username
+        || url.password
         || (host !== XHS_WEB_HOST && host !== 'xiaohongshu.com')
     ) {
         return null;
     }
     const match = url.pathname.match(/^\/(?:explore|search_result|note)\/([0-9a-f]{24})\/?$/i);
     if (!match) return null;
+    url.pathname = `/explore/${match[1]}`;
     return {
         noteId: match[1],
         xsecToken: url.searchParams.get('xsec_token') || url.searchParams.get('xsecToken') || '',
+        xsecSource: url.searchParams.get('xsec_source') ?? '',
         href: url.toString(),
     };
 }
@@ -141,13 +147,11 @@ function extractNoteId(source) {
     return '';
 }
 
-export function buildNoteUrl(noteId, xsecToken) {
-    if (!/^[0-9a-f]{24}$/i.test(String(noteId || ''))) return '';
+export function buildNoteUrl(noteId, xsecToken, xsecSource = '') {
+    if (!/^[0-9a-f]{24}$/i.test(String(noteId || '')) || !xsecToken) return '';
     const url = new URL(`https://${XHS_WEB_HOST}/explore/${noteId}`);
-    if (xsecToken) {
-        url.searchParams.set('xsec_token', xsecToken);
-        url.searchParams.set('xsec_source', '');
-    }
+    url.searchParams.set('xsec_token', xsecToken);
+    url.searchParams.set('xsec_source', xsecSource);
     return url.toString();
 }
 
@@ -164,16 +168,18 @@ function extractQuote(source) {
 }
 
 export function normalizeAskSource(source, index) {
-    const trustedLink = [source?.textLink, source?.link, source?.url]
-        .map(parseTrustedSourceLink)
-        .find(Boolean);
     const noteId = extractNoteId(source);
+    const trustedLinks = [source?.textLink, source?.link, source?.url]
+        .map(parseTrustedSourceLink)
+        .filter((link) => link && (!noteId || link.noteId === noteId));
+    const trustedLink = trustedLinks.find((link) => link.xsecToken) || trustedLinks[0] || null;
     const xsecToken = trustedLink?.xsecToken || '';
+    const trustedWebUrl = trustedLink?.href?.startsWith('https://') && xsecToken ? trustedLink.href : '';
     const normalized = {
         rank: index + 1,
         type: 'note',
         title: firstNonEmpty(source?.title, source?.displayTitle, source?.name),
-        url: buildNoteUrl(noteId, xsecToken),
+        url: trustedWebUrl || buildNoteUrl(noteId, xsecToken, trustedLink?.xsecSource ?? ''),
         note_id: noteId,
         xsec_token: xsecToken,
         author: firstNonEmpty(source?.nickName, source?.nickname, source?.author, source?.userName),
@@ -188,7 +194,9 @@ export function normalizeAskSource(source, index) {
     if (publishedAt) normalized.published_at = publishedAt;
     const quote = extractQuote(source);
     if (quote) normalized.quote = quote;
-    if (trustedLink?.href) normalized.deeplink = trustedLink.href;
+    if (trustedLink?.href && (xsecToken || trustedLink.href.startsWith('xhsdiscover://'))) {
+        normalized.deeplink = trustedLink.href;
+    }
     return normalized;
 }
 
@@ -365,14 +373,101 @@ export function buildAskEvaluateJs(query, timeoutSeconds, sourceLimit) {
             sourceError = String(err?.message || err || '');
           }
 
-          const rawSources = Array.isArray(detail?.items) ? detail.items.slice(0, sourceLimit).map(slimSource) : [];
+          const sourceItems = Array.isArray(detail?.items) ? detail.items.slice(0, sourceLimit) : [];
+          const rawSources = sourceItems.map(slimSource);
+          let signingWarning = '';
+          try {
+            const requestedIds = [...new Set(rawSources
+              .map((source) => String(source?.id || ''))
+              .filter((id) => /^[0-9a-f]{24}$/i.test(id)))];
+            const needsToken = new Set(requestedIds.filter((id) => {
+              const source = rawSources.find((item) => item.id === id);
+              const candidates = [source?.textLink, source?.link, source?.url];
+              return !candidates.some((value) => {
+                try {
+                  const raw = String(value || '');
+                  const deeplink = raw.match(/^xhsdiscover:\\\/\\\/item\\\/([0-9a-f]{24})(?=[?#/]|$)/i);
+                  const parsed = new URL(raw, location.origin);
+                  if (deeplink) {
+                    return deeplink[1] === id
+                      && Boolean(parsed.searchParams.get('xsec_token') || parsed.searchParams.get('xsecToken'));
+                  }
+                  const match = parsed.pathname.match(/^\\\/(?:explore|search_result|note)\\\/([0-9a-f]{24})\\\/?$/i);
+                  return parsed.protocol === 'https:'
+                    && !parsed.port
+                    && !parsed.username
+                    && !parsed.password
+                    && (parsed.hostname === '${XHS_WEB_HOST}' || parsed.hostname === 'xiaohongshu.com')
+                    && match?.[1] === id
+                    && Boolean(parsed.searchParams.get('xsec_token') || parsed.searchParams.get('xsecToken'));
+                } catch { return false; }
+              });
+            }));
+            if (needsToken.size > 0) {
+              const looksLikeNoteDetailModule = (id, candidate) => {
+                let source = '';
+                try { source = webpackRequire.m?.[id]?.toString() || ''; } catch { return false; }
+                return candidate
+                  && typeof candidate.p === 'function'
+                  && source.includes('/api/sns/agentspark/web/note/detail')
+                  && source.includes('xsecToken');
+              };
+              let noteDetailModule = null;
+              for (const id of Object.keys(webpackRequire.m || {})) {
+                let source = '';
+                try { source = webpackRequire.m[id].toString(); } catch { continue; }
+                if (!source.includes('/api/sns/agentspark/web/note/detail') || !source.includes('xsecToken')) continue;
+                try {
+                  const candidate = webpackRequire(id);
+                  if (looksLikeNoteDetailModule(id, candidate)) { noteDetailModule = candidate; break; }
+                } catch { /* not loadable, keep looking */ }
+              }
+              if (!noteDetailModule) {
+                signingWarning = 'citation link signing unavailable: note-detail module not found';
+              } else {
+                const signedUrls = new Map();
+                let failedBatchCount = 0;
+                const noteIds = [...needsToken];
+                const batchSize = 20;
+                for (let offset = 0; offset < noteIds.length; offset += batchSize) {
+                  const batch = noteIds.slice(offset, offset + batchSize);
+                  try {
+                    const signedDetail = await noteDetailModule.p({ noteIds: batch });
+                    const xsecSource = typeof signedDetail?.xsecSource === 'string' ? signedDetail.xsecSource : '';
+                    if (!Array.isArray(signedDetail?.contentDetailList)) continue;
+                    for (const item of signedDetail.contentDetailList) {
+                      const id = String(item?.id || '');
+                      const token = String(item?.xsecToken || '');
+                      if (!batch.includes(id) || !needsToken.has(id) || !token) continue;
+                      const url = new URL('/explore/' + id, location.origin);
+                      url.searchParams.set('xsec_token', token);
+                      url.searchParams.set('xsec_source', xsecSource);
+                      signedUrls.set(id, url.toString());
+                    }
+                  } catch {
+                    failedBatchCount += 1;
+                  }
+                }
+                for (const source of rawSources) {
+                  const signedUrl = signedUrls.get(source.id);
+                  if (signedUrl) source.url = signedUrl;
+                }
+                if (signedUrls.size < needsToken.size) {
+                  signingWarning = 'citation link signing incomplete: ' + signedUrls.size + '/' + needsToken.size;
+                  if (failedBatchCount > 0) signingWarning += ' (' + failedBatchCount + ' batch failed)';
+                }
+              }
+            }
+          } catch {
+            signingWarning = 'citation link signing failed';
+          }
           return {
             ok: true,
             query: prompt,
             answer,
             source_total_text: detail?.baseInfo?.totalCnt || aiMessage?.querySource?.text || aiMessage?.querySource?.oneboxText || '',
             sources: rawSources,
-            warning: sourceError,
+            warning: [sourceError, signingWarning].filter(Boolean).join('; '),
             message_id: msgId,
             conversation_id: conversationId,
           };
