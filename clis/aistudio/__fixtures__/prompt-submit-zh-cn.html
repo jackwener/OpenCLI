@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="zh-CN">
+  <body>
+    <ms-prompt-box>
+      <textarea aria-label="Enter a prompt" placeholder="输入提示"></textarea>
+      <ms-add-media-button>
+        <button data-test="selectMediaMenu" aria-label="Insert images, videos, or files" aria-expanded="true">添加媒体</button>
+      </ms-add-media-button>
+      <input data-test-upload-file-input type="file" accept="image/*">
+      <button aria-label="Remove media">移除</button>
+      <ms-run-button>
+        <button type="submit" aria-disabled="false"><span>Run</span><span>keyboard_return</span></button>
+      </ms-run-button>
+    </ms-prompt-box>
+    <ms-chat-turn id="user-1">
+      <div class="chat-turn-container user">
+        <ms-prompt-chunk>一段较长的提示文本，包含参考图和输出要求。</ms-prompt-chunk>
+      </div>
+    </ms-chat-turn>
+    <ms-chat-turn id="model-1">
+      <div class="chat-turn-container model">
+        <ms-prompt-chunk>生成中的响应</ms-prompt-chunk>
+        <img src="data:image/png;base64,aGVsbG8=" width="1024" height="1024" alt="generated image">
+        <button aria-label="停止生成">停止生成</button>
+      </div>
+    </ms-chat-turn>
+    <div role="alert">配额限制，请稍后重试</div>
+  </body>
+</html>
