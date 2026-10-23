@@ -17992,6 +17992,54 @@
   },
   {
     "site": "jd",
+    "name": "promotion-link",
+    "description": "使用已登录京东联盟的网站及推广位生成商品推广长链接",
+    "access": "write",
+    "domain": "union.jd.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "sku",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "京东商品 SKU ID"
+      },
+      {
+        "name": "website",
+        "type": "str",
+        "required": true,
+        "help": "已有网站媒体的完整名称（所属网站）"
+      },
+      {
+        "name": "position",
+        "type": "str",
+        "required": true,
+        "help": "该网站下已有推广位的完整名称（推广位名称）"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": "等待页面和转链结果的总秒数（1–120）"
+      }
+    ],
+    "columns": [
+      "sku",
+      "website",
+      "position",
+      "sourceUrl",
+      "promotionUrl"
+    ],
+    "type": "js",
+    "modulePath": "jd/promotion-link.js",
+    "sourceFile": "jd/promotion-link.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "jd",
     "name": "reviews",
     "description": "京东商品评价",
     "access": "read",
