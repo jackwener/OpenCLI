@@ -540,6 +540,26 @@ function clearFrameTarget(targetId: string): void {
   frameTargetKeys.delete(targetId);
 }
 
+/**
+ * List frame targets for one tab via the chrome.debugger API.
+ *
+ * CDP `Target.getTargets` is rejected for extension clients (the handler runs
+ * auto-attach-only), but `chrome.debugger.getTargets()` does list OOPIF frame
+ * targets — surfaced as `type: "other"`, because `type: "iframe"` is not a
+ * chrome.debugger TargetInfo value at all. See issue #2223.
+ */
+export async function getIframeTargets(tabId: number): Promise<Array<{ targetId: string; url: string; name: string }>> {
+  const targets = await chrome.debugger.getTargets();
+  return targets
+    .filter((candidate) => candidate.tabId === tabId && (candidate.type === 'iframe' || candidate.type === 'other'))
+    .map((candidate) => ({
+      targetId: String(candidate.id || ''),
+      url: String(candidate.url || ''),
+      name: String(candidate.title || ''),
+    }))
+    .filter((candidate) => candidate.targetId);
+}
+
 async function ensureFrameTarget(
   tabId: number,
   frameId: string,
@@ -552,13 +572,6 @@ async function ensureFrameTarget(
   const existing = frameTargets.get(key);
   if (existing) return existing;
 
-  await sendDebuggerCommand({ tabId }, 'Target.setDiscoverTargets', { discover: true }).catch(() => {});
-  await sendDebuggerCommand({ tabId }, 'Target.setAutoAttach', {
-    autoAttach: true,
-    waitForDebuggerOnStart: false,
-    flatten: true,
-    filter: [{ type: 'iframe', exclude: false }],
-  }).catch(() => {});
   const targetId = await resolveFrameTargetId(tabId, frameId, targetUrl);
   try {
     await chrome.debugger.attach({ targetId } as chrome.debugger.Debuggee, '1.3');
@@ -572,23 +585,16 @@ async function ensureFrameTarget(
 }
 
 async function resolveFrameTargetId(tabId: number, frameId: string, targetUrl?: string): Promise<string> {
-  const result = await sendDebuggerCommand({ tabId }, 'Target.getTargets').catch(() => null) as
-    | { targetInfos?: Array<{ targetId?: string; id?: string; type?: string; url?: string }> }
-    | null;
-  const targets = result?.targetInfos ?? [];
-  const frameTarget = targets.find((candidate) => {
-    const candidateId = candidate.targetId || candidate.id;
-    return candidate.type === 'iframe'
-      && (
-        candidateId === frameId
-        || (!!targetUrl && candidate.url === targetUrl)
-      );
-  });
-  const targetId = frameTarget?.targetId || frameTarget?.id;
-  if (targetId) return targetId;
+  const targets = await getIframeTargets(tabId);
+  // Exact id only: for ordinary RenderFrame OOPIF targets the DOM owner's
+  // frameId and the target id derive from the same DevTools frame token, so
+  // they are equal. Never fall back by URL — a same-src sibling frame in this
+  // tab would make a URL match ambiguous, and a stale frame must not be
+  // silently reidentified. See issue #2223.
+  const match = targets.find((candidate) => candidate.targetId === frameId);
+  if (match) return match.targetId;
   const candidates = targets
-    .filter((target) => target.type === 'iframe')
-    .map((target) => `${target.targetId || target.id || '?'} ${target.url || ''}`)
+    .map((target) => `${target.targetId} ${target.url}`)
     .join('; ');
   throw new Error(`No iframe target found for frame ${frameId}${targetUrl ? ` (${targetUrl})` : ''}. Candidates: ${candidates || 'none'}`);
 }
