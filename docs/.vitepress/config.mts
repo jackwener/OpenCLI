@@ -113,6 +113,7 @@ export default defineConfig({
                 { text: 'Medium', link: '/adapters/browser/medium' },
                 { text: 'Mercury', link: '/adapters/browser/mercury' },
                 { text: 'Mubu', link: '/adapters/browser/mubu' },
+                { text: 'Threads', link: '/adapters/browser/threads' },
                 { text: 'TikTok', link: '/adapters/browser/tiktok' },
                 { text: 'Web (Generic)', link: '/adapters/browser/web' },
                 { text: 'Weixin', link: '/adapters/browser/weixin' },

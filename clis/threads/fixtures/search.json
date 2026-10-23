@@ -1,0 +1,260 @@
+{
+ "scripts": [
+  {
+   "require": [
+    [
+     "ScheduledServerJS",
+     "handle",
+     [
+      {
+       "__bbox": {
+        "require": [
+         [
+          "RelayPrefetchedStreamCache",
+          "next",
+          [],
+          [
+           {
+            "__bbox": {
+             "result": {
+              "data": {
+               "searchResults": {
+                "edges": [
+                 {
+                  "node": {
+                   "thread": {
+                    "thread_items": [
+                     {
+                      "post": {
+                       "pk": "9000000001",
+                       "code": "CODE01",
+                       "user": {
+                        "pk": "USERPK01",
+                        "username": "user_02"
+                       },
+                       "caption": {
+                        "text": "placeholder text 01"
+                       },
+                       "like_count": 10536,
+                       "taken_at": 1881835071,
+                       "text_post_app_info": {
+                        "direct_reply_count": 30,
+                        "repost_count": 698,
+                        "quote_count": 48,
+                        "is_reply": false,
+                        "reply_to_author": null
+                       },
+                       "id": "MEDIA_ID_01"
+                      }
+                     }
+                    ]
+                   },
+                   "__typename": "XDTSearchThread"
+                  },
+                  "cursor": "CURSOR_01"
+                 },
+                 {
+                  "node": {
+                   "thread": {
+                    "thread_items": [
+                     {
+                      "post": {
+                       "pk": "9000000002",
+                       "code": "CODE02",
+                       "user": {
+                        "pk": "USERPK03",
+                        "username": "user_04"
+                       },
+                       "caption": {
+                        "text": "placeholder text 02"
+                       },
+                       "like_count": 1800,
+                       "taken_at": 1889668598,
+                       "text_post_app_info": {
+                        "direct_reply_count": 492,
+                        "repost_count": 11,
+                        "quote_count": 1,
+                        "is_reply": false,
+                        "reply_to_author": null
+                       },
+                       "id": "MEDIA_ID_02"
+                      }
+                     }
+                    ]
+                   },
+                   "__typename": "XDTSearchThread"
+                  },
+                  "cursor": "CURSOR_01"
+                 },
+                 {
+                  "node": {
+                   "thread": {
+                    "thread_items": [
+                     {
+                      "post": {
+                       "pk": "9000000003",
+                       "code": "CODE03",
+                       "user": {
+                        "pk": "USERPK05",
+                        "username": "user_06"
+                       },
+                       "caption": {
+                        "text": "placeholder text 03"
+                       },
+                       "like_count": 4,
+                       "taken_at": 1889429079,
+                       "text_post_app_info": {
+                        "direct_reply_count": 3,
+                        "repost_count": 0,
+                        "quote_count": 0,
+                        "is_reply": false,
+                        "reply_to_author": null
+                       },
+                       "id": "MEDIA_ID_03"
+                      }
+                     }
+                    ]
+                   },
+                   "__typename": "XDTSearchThread"
+                  },
+                  "cursor": "CURSOR_01"
+                 }
+                ],
+                "page_info": {
+                 "end_cursor": "CURSOR_02",
+                 "has_next_page": true,
+                 "has_previous_page": false,
+                 "start_cursor": null
+                }
+               }
+              }
+             }
+            }
+           }
+          ]
+         ]
+        ]
+       }
+      }
+     ]
+    ]
+   ]
+  }
+ ],
+ "xhr": [
+  {
+   "data": {
+    "searchResults": {
+     "edges": [
+      {
+       "node": {
+        "thread": {
+         "thread_items": [
+          {
+           "post": {
+            "pk": "9000000004",
+            "code": "CODE04",
+            "user": {
+             "pk": "USERPK07",
+             "username": "user_08"
+            },
+            "caption": {
+             "text": "placeholder text 04"
+            },
+            "like_count": 373,
+            "taken_at": 1888463141,
+            "text_post_app_info": {
+             "direct_reply_count": 8,
+             "repost_count": 91,
+             "quote_count": 14,
+             "is_reply": false,
+             "reply_to_author": null
+            },
+            "id": "MEDIA_ID_04"
+           }
+          }
+         ]
+        },
+        "__typename": "XDTSearchThread"
+       },
+       "cursor": "CURSOR_01"
+      },
+      {
+       "node": {
+        "thread": {
+         "thread_items": [
+          {
+           "post": {
+            "pk": "9000000001",
+            "code": "CODE01",
+            "user": {
+             "pk": "USERPK01",
+             "username": "user_02"
+            },
+            "caption": {
+             "text": "placeholder text 01"
+            },
+            "like_count": 10536,
+            "taken_at": 1881835071,
+            "text_post_app_info": {
+             "direct_reply_count": 30,
+             "repost_count": 698,
+             "quote_count": 48,
+             "is_reply": false,
+             "reply_to_author": null
+            },
+            "id": "MEDIA_ID_01"
+           }
+          }
+         ]
+        },
+        "__typename": "XDTSearchThread"
+       },
+       "cursor": "CURSOR_01"
+      },
+      {
+       "node": {
+        "thread": {
+         "thread_items": [
+          {
+           "post": {
+            "pk": "9000000005",
+            "code": "CODE05",
+            "user": {
+             "pk": "USERPK09",
+             "username": "user_10"
+            },
+            "caption": {
+             "text": "placeholder text 05"
+            },
+            "like_count": 159,
+            "taken_at": 1887002414,
+            "text_post_app_info": {
+             "direct_reply_count": 13,
+             "repost_count": 9,
+             "quote_count": 3,
+             "is_reply": false,
+             "reply_to_author": null
+            },
+            "id": "MEDIA_ID_05"
+           }
+          }
+         ]
+        },
+        "__typename": "XDTSearchThread"
+       },
+       "cursor": "CURSOR_01"
+      }
+     ],
+     "page_info": {
+      "end_cursor": "CURSOR_03",
+      "has_next_page": true,
+      "has_previous_page": false,
+      "start_cursor": null
+     }
+    }
+   },
+   "status": "ok"
+  }
+ ]
+}
