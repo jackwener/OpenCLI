@@ -68,6 +68,21 @@ Skills: Generative AI, Next.js, TypeScript`, 'https://www.linkedin.com/in/me/', 
     });
   });
 
+  it('parses grouped company experience layout without shifting title and company', () => {
+    const text = `Full-time · 4 yrs 9 mos
+UX Designer II at Microsoft AI
+Sep 2022 – Present · 4 yrs
+Redmond, Washington, United States · Hybrid
+Designing AI-driven user experiences.`;
+    const parsed = parseExperienceText(text, 'https://www.linkedin.com/in/me/', 0, 1);
+    expect(parsed.title).toBe('UX Designer II at Microsoft AI');
+    expect(parsed.employment_type).toBe('Full-time');
+    expect(parsed.company).toBe('Microsoft AI');
+    expect(parsed.location).toBe('Redmond, Washington, United States');
+    expect(parsed.location_type).toBe('Hybrid');
+    expect(parsed.description).toBe('Designing AI-driven user experiences.');
+  });
+
   it('parses a LinkedIn experience section rendered as one section', () => {
     const rows = parseExperienceSectionText(`Experience
 
