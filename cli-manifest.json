@@ -41423,7 +41423,7 @@
   {
     "site": "xiaohongshu",
     "name": "ask",
-    "description": "Ask 小红书点点 and return the answer with citation sources.",
+    "description": "Ask 小红书点点 and attempt to add signed citation links without opening or verifying source pages.",
     "access": "write",
     "domain": "www.xiaohongshu.com",
     "strategy": "cookie",
@@ -41446,7 +41446,7 @@
       {
         "name": "source-limit",
         "type": "int",
-        "default": 10,
+        "default": 50,
         "required": false,
         "help": "Maximum citation sources to return"
       }
