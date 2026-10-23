@@ -8,6 +8,7 @@
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { downloadArticle } from '@jackwener/opencli/download/article-download';
+import { ArgumentError } from '@jackwener/opencli/errors';
 // ============================================================
 // URL Normalization
 // ============================================================
@@ -213,6 +214,31 @@ export function buildDetectWechatAccessIssueJs() {
         return '';
     }.toString()})`;
 }
+
+const WECHAT_VERIFICATION_TIMEOUT_MS = 15000;
+const WECHAT_VERIFICATION_POLL_INTERVAL_S = 1;
+
+/**
+ * WeChat's article captcha ("环境异常 / 完成验证后即可继续访问") normally clears
+ * itself after a few seconds: the page reloads into the article with no user
+ * interaction (#2045). Poll the extraction until the gate clears or the
+ * caller's time budget runs out instead of treating the first gate as terminal.
+ */
+export async function awaitWechatArticle(extract, wait, options = {}) {
+    const timeoutMs = options.timeoutMs ?? WECHAT_VERIFICATION_TIMEOUT_MS;
+    const pollIntervalS = options.pollIntervalS ?? WECHAT_VERIFICATION_POLL_INTERVAL_S;
+    let data = await extract();
+    if (data?.errorHint !== 'environment verification required')
+        return data;
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+        await wait(pollIntervalS);
+        data = await extract();
+        if (data?.errorHint !== 'environment verification required')
+            return data;
+    }
+    return data;
+}
 // ============================================================
 // CLI Registration
 // ============================================================
@@ -227,6 +253,7 @@ cli({
         { name: 'url', required: true, help: 'WeChat article URL (mp.weixin.qq.com/s/xxx)' },
         { name: 'output', default: './weixin-articles', help: 'Output directory' },
         { name: 'download-images', type: 'boolean', default: true, help: 'Download images locally' },
+        { name: 'verification-timeout', type: 'int', default: 15, help: 'Seconds to wait for the WeChat captcha to auto-resolve before failing (0 disables the wait)' },
     ],
     columns: ['title', 'author', 'publish_time', 'status', 'size', 'saved'],
     func: async (page, kwargs) => {
@@ -235,11 +262,18 @@ cli({
         if (!url.startsWith('https://mp.weixin.qq.com/')) {
             return [{ title: 'Error', author: '-', publish_time: '-', status: 'invalid URL', size: '-', saved: '-' }];
         }
+        const verificationTimeoutS = Number(kwargs['verification-timeout'] ?? 15);
+        if (!Number.isInteger(verificationTimeoutS) || verificationTimeoutS < 0 || verificationTimeoutS > 120) {
+            throw new ArgumentError('--verification-timeout must be an integer between 0 and 120 seconds');
+        }
         // Navigate and wait for content to load
         await page.goto(url);
         await page.wait(5);
-        // Extract article data in browser context
-        const data = await page.evaluate(`
+        // Extract article data in browser context. WeChat's verification gate
+        // normally clears itself after a few seconds (#2045), so wait through it
+        // (bounded by --verification-timeout) instead of failing on first sight.
+        const data = await awaitWechatArticle(
+            () => page.evaluate(`
       (() => {
         const result = {
           title: '',
@@ -338,13 +372,16 @@ cli({
         result.contentHtml = contentEl.innerHTML;
         return result;
       })()
-    `);
+    `),
+            (seconds) => page.wait(seconds),
+            { timeoutMs: verificationTimeoutS * 1000 },
+        );
         if (data?.errorHint === 'environment verification required') {
             return [{
                     title: 'Error',
                     author: '-',
                     publish_time: '-',
-                    status: 'failed — verification required in WeChat browser page',
+                    status: `failed — WeChat verification did not clear within ${verificationTimeoutS}s; open the page in Chrome, complete verification, then retry`,
                     size: '-',
                     saved: '-',
                 }];
