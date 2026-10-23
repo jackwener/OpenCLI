@@ -1021,7 +1021,7 @@ describe('ctrip buildTrainListUrl', () => {
         expect(qs.get('dStationName')).toBe('北京');
         expect(qs.get('aStationName')).toBe('上海');
         expect(qs.get('dDate')).toBe('2026-08-01');
-        expect(qs.get('ticketType')).toBe('1');
+        expect(qs.get('ticketType')).toBe('0');
     });
 });
 
@@ -1079,7 +1079,8 @@ describe('ctrip train command (registry-level)', () => {
         const url = page.goto.mock.calls[0][0];
         expect(url).toContain('dStationName=%E5%8C%97%E4%BA%AC');
         expect(url).toContain('dDate=2026-08-01');
-        expect(url).toContain('ticketType=1');
+        expect(url).toContain('ticketType=0');
+        expect(page.goto).toHaveBeenCalledWith(expect.any(String), { waitUntil: 'none' });
     });
 
     it('maps DOM-extracted rows, joins seats, and respects --limit', async () => {
