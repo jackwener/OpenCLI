@@ -50,9 +50,11 @@ export function evalExpr(expr: string, ctx: RenderContext): unknown {
     return result;
   }
 
-  // Fast path: quoted string literal — skip VM overhead
-  const strLit = expr.match(/^(['"])(.*)\1$/);
-  if (strLit) return strLit[2];
+  // Fast path: quoted string literal — skip VM overhead.
+  // The body must not contain its own quote or a backslash, otherwise
+  // `'a' + item.x + 'b'` would be returned verbatim instead of evaluated.
+  const strLit = expr.match(/^'([^'\\]*)'$|^"([^"\\]*)"$/);
+  if (strLit) return strLit[1] ?? strLit[2];
 
   // Fast path: numeric literal
   if (/^\d+(\.\d+)?$/.test(expr)) return Number(expr);
