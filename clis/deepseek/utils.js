@@ -407,7 +407,7 @@ export async function sendWithFile(page, filePath, prompt) {
             uploaded = true;
         } catch (err) {
             const msg = String(err?.message || err);
-            if (!msg.includes('Unknown action') && !msg.includes('not supported') && !msg.includes('Not allowed')) {
+            if (!msg.includes('Unknown action') && !msg.includes('not supported') && !msg.includes('Not allowed') && !msg.includes('fileChooserOpened not received')) {
                 throw err;
             }
         }
