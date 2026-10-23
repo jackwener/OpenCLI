@@ -338,6 +338,18 @@ const ownedContainers: Record<OwnedWindowRole, {
 // StoredRegistry) and restored by reconcileTargetLeaseRegistry().
 const interactiveGroupLedger = new Set<number>();
 
+// A browser restart, or an extension update/reload, empties the session
+// registry while the previous owned interactive window survives: session
+// restore reopens it with its "OpenCLI Browser" group, or the browser simply
+// kept running. Set by onStartup / onInstalled('update') and cleared once an
+// interactive container is established in this browser session. While set,
+// collectOwnedGroupCandidates may adopt that window instead of opening a
+// second one and leaving the restored window behind as an orphan (#2202).
+// Ownership comes from the restart signal plus a window that holds nothing but
+// that group, never from stored ids. Persisted in the session registry so an
+// MV3 worker restart keeps it.
+let restoredContainerAdoptionPending = false;
+
 type StoredLease = Omit<TargetLease, 'idleTimer' | 'idleDeadlineAt'> & {
   idleDeadlineAt: number;
   updatedAt: number;
@@ -359,7 +371,7 @@ type StoredRegistry = {
   version: 2;
   contextId: BrowserContextId;
   ownedContainers: {
-    interactive: { windowId: number | null; groupIds: number[] };
+    interactive: { windowId: number | null; groupIds: number[]; adoptRestored: boolean };
     automation: { windowId: number | null };
   };
   leases: Record<string, StoredLease>;
@@ -498,6 +510,7 @@ function emptyRegistry(): StoredRegistry {
       interactive: {
         windowId: ownedContainers.interactive.windowId,
         groupIds: [...interactiveGroupLedger],
+        adoptRestored: restoredContainerAdoptionPending,
       },
       automation: { windowId: ownedContainers.automation.windowId },
     },
@@ -524,6 +537,7 @@ async function readRegistry(): Promise<StoredRegistry> {
           groupIds: Array.isArray(storedContainers.interactive?.groupIds)
             ? storedContainers.interactive.groupIds.filter((id): id is number => typeof id === 'number')
             : [],
+          adoptRestored: storedContainers.interactive?.adoptRestored === true,
         },
         automation: {
           windowId: typeof storedContainers.automation?.windowId === 'number' ? storedContainers.automation.windowId : null,
@@ -569,6 +583,7 @@ async function persistRuntimeState(): Promise<void> {
       interactive: {
         windowId: ownedContainers.interactive.windowId,
         groupIds: [...interactiveGroupLedger],
+        adoptRestored: restoredContainerAdoptionPending,
       },
       automation: { windowId: ownedContainers.automation.windowId },
     },
@@ -689,6 +704,35 @@ function isMissingTabGroupError(err: unknown): boolean {
   return err instanceof Error && /No group with id|group no longer exists/i.test(err.message);
 }
 
+/**
+ * The previous owned interactive window as a browser restart or an extension
+ * update leaves it: a normal window whose every tab sits in one orange
+ * "OpenCLI Browser" group. When several exist (older versions opened a new
+ * window after each restart), the lowest window id wins and the rest are left
+ * alone.
+ */
+async function findRestoredInteractiveContainerGroup(): Promise<chrome.tabGroups.TabGroup | null> {
+  const groups = await chrome.tabGroups.query({
+    title: CONTAINER_TAB_GROUP_TITLE.interactive,
+    color: OWNED_TAB_GROUP_COLOR,
+  });
+  const restored: chrome.tabGroups.TabGroup[] = [];
+  for (const group of groups) {
+    let chromeWindow: chrome.windows.Window;
+    try {
+      chromeWindow = await chrome.windows.get(group.windowId);
+    } catch (err) {
+      if (err instanceof Error && classifyExtensionError(err.message) === 'tab_gone') continue;
+      throw err;
+    }
+    if (chromeWindow.incognito || (chromeWindow.type !== undefined && chromeWindow.type !== 'normal')) continue;
+    const windowTabs = await chrome.tabs.query({ windowId: group.windowId });
+    if (windowTabs.length > 0 && windowTabs.every((tab) => tab.groupId === group.id)) restored.push(group);
+  }
+  restored.sort((a, b) => (a.windowId - b.windowId) || (a.id - b.id));
+  return restored[0] ?? null;
+}
+
 async function collectOwnedGroupCandidates(role: OwnedWindowRole): Promise<OwnedContainerGroupCandidate[]> {
   if (role === 'automation') return [];
 
@@ -768,6 +812,16 @@ async function collectOwnedGroupCandidates(role: OwnedWindowRole): Promise<Owned
         groupsById.set(group.id, group);
       }
     }
+  }
+
+  // 5th layer: the window a browser restart or an extension update left behind
+  // (see restoredContainerAdoptionPending). Only while nothing else in this
+  // browser session is owned, and only a window made of the single
+  // "OpenCLI Browser" group: a user window that reopened a saved OpenCLI group
+  // also holds the user's own tabs and is never considered (#2364).
+  if (restoredContainerAdoptionPending && groupsById.size === 0) {
+    const restored = await findRestoredInteractiveContainerGroup();
+    if (restored) groupsById.set(restored.id, restored);
   }
 
   const candidates = await Promise.all([...groupsById.values()].map(toOwnedContainerGroupCandidate));
@@ -923,8 +977,12 @@ async function ensureOwnedContainerGroupUnlocked(
     if (canonical) {
       ownedContainers[role].windowId = canonical.windowId;
       ownedContainers[role].groupId = canonical.id;
-      // Adopt groups recovered through leases into the session ledger.
-      if (!interactiveGroupLedger.has(canonical.id)) {
+      // This browser session now owns an interactive container, so a restored
+      // window is no longer a candidate (see restoredContainerAdoptionPending).
+      const adoptionSettled = restoredContainerAdoptionPending;
+      restoredContainerAdoptionPending = false;
+      // Adopt groups recovered through leases (or a restored window) into the session ledger.
+      if (!interactiveGroupLedger.has(canonical.id) || adoptionSettled) {
         interactiveGroupLedger.add(canonical.id);
         await persistRuntimeState();
       }
@@ -1242,12 +1300,32 @@ function initialize(): void {
   console.log('[opencli] OpenCLI extension initialized');
 }
 
-chrome.runtime.onInstalled.addListener(() => {
+/**
+ * Browser startup and extension update/reload both empty the session registry
+ * while the previous owned interactive window may still exist. Arms the
+ * restored-window layer of collectOwnedGroupCandidates and adopts that window
+ * right away when it is already there; otherwise the first browser command
+ * adopts it, or opens a new window when there is none.
+ */
+async function armRestoredContainerAdoption(): Promise<void> {
+  await workerReady;
+  restoredContainerAdoptionPending = true;
+  await persistRuntimeState();
+  try {
+    await ensureOwnedContainerGroup('interactive', null, []);
+  } catch (err) {
+    console.warn(`[opencli] Restored window adoption failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
+chrome.runtime.onInstalled.addListener((details) => {
   initialize();
+  if (details?.reason === 'update') void armRestoredContainerAdoption();
 });
 
 chrome.runtime.onStartup.addListener(() => {
   initialize();
+  void armRestoredContainerAdoption();
 });
 
 // MV3 service workers can be started by events other than install/startup
@@ -2246,6 +2324,7 @@ async function reconcileTargetLeaseRegistry(): Promise<void> {
   // clean number[]).
   interactiveGroupLedger.clear();
   for (const id of registry.ownedContainers.interactive.groupIds) interactiveGroupLedger.add(id);
+  restoredContainerAdoptionPending = registry.ownedContainers.interactive.adoptRestored;
   // Restore container window ids; group ownership is re-established from the
   // browser-session ledger and owned lease tabs during convergence.
   for (const role of Object.keys(ownedContainers) as OwnedWindowRole[]) {
@@ -2380,6 +2459,8 @@ export const __test__ = {
   sessionOverrides,
   reconcileTargetLeaseRegistry,
   ensureOwnedContainerGroup,
+  armRestoredContainerAdoption,
+  isRestoredContainerAdoptionPending: () => restoredContainerAdoptionPending,
   getInteractiveContainer: () => ({
     windowId: ownedContainers.interactive.windowId,
     groupId: ownedContainers.interactive.groupId,

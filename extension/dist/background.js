@@ -1100,6 +1100,7 @@ const ownedContainers = {
   automation: { windowId: null, groupId: null, promise: null, groupPromise: null }
 };
 const interactiveGroupLedger = /* @__PURE__ */ new Set();
+let restoredContainerAdoptionPending = false;
 class CommandFailure extends Error {
   constructor(code, message, hint) {
     super(message);
@@ -1200,7 +1201,8 @@ function emptyRegistry() {
     ownedContainers: {
       interactive: {
         windowId: ownedContainers.interactive.windowId,
-        groupIds: [...interactiveGroupLedger]
+        groupIds: [...interactiveGroupLedger],
+        adoptRestored: restoredContainerAdoptionPending
       },
       automation: { windowId: ownedContainers.automation.windowId }
     },
@@ -1221,7 +1223,8 @@ async function readRegistry() {
       ownedContainers: {
         interactive: {
           windowId: typeof storedContainers.interactive?.windowId === "number" ? storedContainers.interactive.windowId : null,
-          groupIds: Array.isArray(storedContainers.interactive?.groupIds) ? storedContainers.interactive.groupIds.filter((id) => typeof id === "number") : []
+          groupIds: Array.isArray(storedContainers.interactive?.groupIds) ? storedContainers.interactive.groupIds.filter((id) => typeof id === "number") : [],
+          adoptRestored: storedContainers.interactive?.adoptRestored === true
         },
         automation: {
           windowId: typeof storedContainers.automation?.windowId === "number" ? storedContainers.automation.windowId : null
@@ -1263,7 +1266,8 @@ async function persistRuntimeState() {
     ownedContainers: {
       interactive: {
         windowId: ownedContainers.interactive.windowId,
-        groupIds: [...interactiveGroupLedger]
+        groupIds: [...interactiveGroupLedger],
+        adoptRestored: restoredContainerAdoptionPending
       },
       automation: { windowId: ownedContainers.automation.windowId }
     },
@@ -1354,6 +1358,27 @@ function selectOwnedContainerGroupCandidate(candidates) {
 function isMissingTabGroupError(err) {
   return err instanceof Error && /No group with id|group no longer exists/i.test(err.message);
 }
+async function findRestoredInteractiveContainerGroup() {
+  const groups = await chrome.tabGroups.query({
+    title: CONTAINER_TAB_GROUP_TITLE.interactive,
+    color: OWNED_TAB_GROUP_COLOR
+  });
+  const restored = [];
+  for (const group of groups) {
+    let chromeWindow;
+    try {
+      chromeWindow = await chrome.windows.get(group.windowId);
+    } catch (err) {
+      if (err instanceof Error && classifyExtensionError(err.message) === "tab_gone") continue;
+      throw err;
+    }
+    if (chromeWindow.incognito || chromeWindow.type !== void 0 && chromeWindow.type !== "normal") continue;
+    const windowTabs = await chrome.tabs.query({ windowId: group.windowId });
+    if (windowTabs.length > 0 && windowTabs.every((tab) => tab.groupId === group.id)) restored.push(group);
+  }
+  restored.sort((a, b) => a.windowId - b.windowId || a.id - b.id);
+  return restored[0] ?? null;
+}
 async function collectOwnedGroupCandidates(role) {
   if (role === "automation") return [];
   const container = ownedContainers[role];
@@ -1413,6 +1438,10 @@ async function collectOwnedGroupCandidates(role) {
         groupsById.set(group.id, group);
       }
     }
+  }
+  if (restoredContainerAdoptionPending && groupsById.size === 0) {
+    const restored = await findRestoredInteractiveContainerGroup();
+    if (restored) groupsById.set(restored.id, restored);
   }
   const candidates = await Promise.all([...groupsById.values()].map(toOwnedContainerGroupCandidate));
   return candidates.filter((candidate) => candidate !== null);
@@ -1521,7 +1550,9 @@ async function ensureOwnedContainerGroupUnlocked(role, fallbackWindowId, ids) {
     if (canonical) {
       ownedContainers[role].windowId = canonical.windowId;
       ownedContainers[role].groupId = canonical.id;
-      if (!interactiveGroupLedger.has(canonical.id)) {
+      const adoptionSettled = restoredContainerAdoptionPending;
+      restoredContainerAdoptionPending = false;
+      if (!interactiveGroupLedger.has(canonical.id) || adoptionSettled) {
         interactiveGroupLedger.add(canonical.id);
         await persistRuntimeState();
       }
@@ -1757,11 +1788,23 @@ function initialize() {
   void workerReady.then(() => connect());
   console.log("[opencli] OpenCLI extension initialized");
 }
-chrome.runtime.onInstalled.addListener(() => {
+async function armRestoredContainerAdoption() {
+  await workerReady;
+  restoredContainerAdoptionPending = true;
+  await persistRuntimeState();
+  try {
+    await ensureOwnedContainerGroup("interactive", null, []);
+  } catch (err) {
+    console.warn(`[opencli] Restored window adoption failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+chrome.runtime.onInstalled.addListener((details) => {
   initialize();
+  if (details?.reason === "update") void armRestoredContainerAdoption();
 });
 chrome.runtime.onStartup.addListener(() => {
   initialize();
+  void armRestoredContainerAdoption();
 });
 initialize();
 chrome.alarms.onAlarm.addListener(async (alarm) => {
@@ -2589,6 +2632,7 @@ async function reconcileTargetLeaseRegistry() {
   const registry = await readRegistry();
   interactiveGroupLedger.clear();
   for (const id of registry.ownedContainers.interactive.groupIds) interactiveGroupLedger.add(id);
+  restoredContainerAdoptionPending = registry.ownedContainers.interactive.adoptRestored;
   for (const role of Object.keys(ownedContainers)) {
     ownedContainers[role].windowId = registry.ownedContainers[role]?.windowId ?? null;
     const windowId = ownedContainers[role].windowId;
