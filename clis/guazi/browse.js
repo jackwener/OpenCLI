@@ -68,6 +68,7 @@ export function parseListings(html, limit) {
 
 cli({
     site: 'guazi',
+    domain: 'guazi.com',
     name: 'browse',
     access: 'read',
     aliases: ['list'],

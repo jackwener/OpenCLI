@@ -11,6 +11,7 @@ import { fetchSuggest, mapSuggestRow, parseLimit } from './utils.js';
 
 cli({
     site: 'ctrip',
+    domain: 'ctrip.com',
     name: 'hotel-suggest',
     access: 'read',
     description: '搜索携程酒店上下文联想：城市、商圈、单酒店匹配',

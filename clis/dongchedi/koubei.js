@@ -54,6 +54,7 @@ export function parseKoubei(reviewListData, limit) {
 
 cli({
     site: 'dongchedi',
+    domain: 'dongchedi.com',
     name: 'koubei',
     access: 'read',
     aliases: ['reviews'],
