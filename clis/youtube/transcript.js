@@ -242,6 +242,60 @@ cli({
             || tracklist[0];
         }
 
+        async function fetchCaptionsViaInnertube() {
+          const cfg = window.ytcfg?.data_ || {};
+          const apiKey = cfg.INNERTUBE_API_KEY || window.ytcfg?.get?.('INNERTUBE_API_KEY');
+          if (!apiKey) return null;
+          const clients = [
+            { clientName: 'ANDROID', clientVersion: '20.10.36', androidSdkVersion: 34 },
+            { clientName: 'IOS', clientVersion: '20.10.2' },
+          ];
+          for (const c of clients) {
+            try {
+              const resp = await fetch('/youtubei/v1/player?key=' + apiKey + '&prettyPrint=false', {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  context: {
+                    client: {
+                      clientName: c.clientName,
+                      clientVersion: c.clientVersion,
+                      ...(c.androidSdkVersion ? { androidSdkVersion: c.androidSdkVersion } : {}),
+                      hl: langPref || 'en',
+                      gl: 'US',
+                    },
+                  },
+                  videoId: targetVideoId,
+                }),
+              });
+              if (!resp.ok) continue;
+              const data = await resp.json();
+              const tracks = data?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+              const track = pickTrack(tracks);
+              if (!track?.baseUrl) continue;
+
+              const timedtextUrl = track.baseUrl + (track.baseUrl.includes('?') ? '&' : '?') + 'fmt=json3';
+              const ttResp = await fetch(timedtextUrl);
+              if (!ttResp.ok) continue;
+              const text = await ttResp.text();
+              if (!text) continue;
+              const parsed = parseJson3(text);
+              if (parsed && !parsed.error && Array.isArray(parsed.rows) && parsed.rows.length > 0) {
+                return parsed.rows;
+              }
+            } catch {
+              // try next client
+            }
+          }
+          return null;
+        }
+
+        const innertubeRows = await fetchCaptionsViaInnertube();
+        if (Array.isArray(innertubeRows) && innertubeRows.length > 0) {
+          return innertubeRows;
+        }
+
         function findTimedtextUrl(track) {
           const urls = performance.getEntriesByType('resource')
             .map(entry => entry.name)
