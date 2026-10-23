@@ -14199,6 +14199,111 @@
   },
   {
     "site": "grok",
+    "name": "bot-transcript",
+    "description": "Read a Grok bot's whole transcript, including archived history",
+    "access": "read",
+    "example": "opencli grok bot-transcript 0e3b9a52-6d4f-4c1e-8a27-93f5b1c0d6e4 -f json",
+    "domain": "grok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Bot ID (UUID) or full https://grok.com/bot/<id> URL"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Max seconds for the whole read"
+      }
+    ],
+    "columns": [
+      "index",
+      "id",
+      "kind",
+      "type",
+      "role",
+      "text",
+      "createdAt",
+      "requestId",
+      "entryVersion",
+      "replyTo",
+      "extras"
+    ],
+    "type": "js",
+    "modulePath": "grok/bot-transcript.js",
+    "sourceFile": "grok/bot-transcript.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "grok",
+    "name": "bots",
+    "description": "List the account's Grok bots (grok.com/bot/<id>)",
+    "access": "read",
+    "example": "opencli grok bots -f json",
+    "domain": "grok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "index",
+      "id",
+      "name",
+      "description",
+      "isGroup",
+      "createdAt",
+      "updatedAt",
+      "lastActivityAt",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "grok/bots.js",
+    "sourceFile": "grok/bots.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "grok",
+    "name": "conversations",
+    "description": "List every Grok chat in the account through grok.com's own API",
+    "access": "read",
+    "example": "opencli grok conversations -f json",
+    "domain": "grok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Max conversations, in the order grok.com lists them; 0 lists all"
+      }
+    ],
+    "columns": [
+      "index",
+      "id",
+      "title",
+      "createdAt",
+      "updatedAt",
+      "starred",
+      "temporary",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "grok/conversations.js",
+    "sourceFile": "grok/conversations.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "grok",
     "name": "delete",
     "description": "Delete a Grok conversation by ID. Grok takes effect immediately with no confirmation dialog — require --yes to actually delete.",
     "access": "write",
@@ -14628,6 +14733,52 @@
     "type": "js",
     "modulePath": "grok/status.js",
     "sourceFile": "grok/status.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "grok",
+    "name": "transcript",
+    "description": "Read a full Grok chat, including edit branches, reasoning steps and tool calls",
+    "access": "read",
+    "example": "opencli grok transcript 7c4197f2-10a1-4ebb-a84a-fea89f4f1d06 -f json",
+    "domain": "grok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Conversation ID (UUID) or full https://grok.com/c/<id> URL"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 120,
+        "required": false,
+        "help": "Max seconds for the whole read"
+      }
+    ],
+    "columns": [
+      "index",
+      "id",
+      "parentId",
+      "role",
+      "text",
+      "model",
+      "effort",
+      "createdAt",
+      "partial",
+      "thinkingStartTime",
+      "thinkingEndTime",
+      "steps",
+      "attachments"
+    ],
+    "type": "js",
+    "modulePath": "grok/transcript.js",
+    "sourceFile": "grok/transcript.js",
     "navigateBefore": false,
     "siteSession": "persistent"
   },
