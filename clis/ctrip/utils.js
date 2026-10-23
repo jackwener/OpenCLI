@@ -531,7 +531,7 @@ export function buildTrainListUrl(fromName, toName, date) {
         dStationName: fromName,
         aStationName: toName,
         dDate: date,
-        ticketType: '1',
+        ticketType: '0',
     });
     return `https://trains.ctrip.com/webapp/train/list?${params.toString()}`;
 }
