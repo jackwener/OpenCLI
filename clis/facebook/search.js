@@ -23,6 +23,72 @@ function unwrapBrowserResult(value) {
   return value;
 }
 
+// The /search/top SPA can take tens of seconds to render its result cards and
+// navigation intermittently fails with Chromium's "Navigation rejected." —
+// both observed live in #2650. Poll the extraction instead of trusting one
+// fixed settle window, and recycle rejected navigation targets the same way
+// clis/google/images.js does.
+const SEARCH_SETTLE_MS = 8000;
+const SEARCH_RENDER_POLL_ATTEMPTS = 15;
+const SEARCH_RENDER_POLL_INTERVAL_S = 2;
+const SEARCH_EARLY_EXIT_ROW_CAP = 5;
+
+function isNavigationRejected(error) {
+  return /Navigation rejected/i.test(String(error?.message || error));
+}
+
+/**
+ * Navigate, retrying only the recoverable "Navigation rejected." failure:
+ * recycle the automation window first, then fall back to a dedicated tab.
+ * Any other error propagates unchanged.
+ */
+async function navigateWithRetry(page, url, options) {
+  try {
+    await page.goto(url, options);
+    return;
+  } catch (error) {
+    if (!isNavigationRejected(error)) throw error;
+  }
+
+  if (typeof page.closeWindow === 'function') {
+    await page.closeWindow().catch(() => {});
+  }
+  try {
+    await page.goto(url, options);
+    return;
+  } catch (error) {
+    if (!isNavigationRejected(error)) throw error;
+  }
+
+  if (typeof page.newTab === 'function' && typeof page.setActivePage === 'function') {
+    const pageId = await page.newTab(url);
+    if (pageId) {
+      await page.setActivePage(pageId);
+      return;
+    }
+  }
+  throw new CommandExecutionError(`facebook search navigation was rejected repeatedly: ${url}`);
+}
+
+/**
+ * Extract results, re-running the (cheap) in-page extraction until enough
+ * rows render or the bounded poll window expires. Early exit at
+ * min(limit, SEARCH_EARLY_EXIT_ROW_CAP) keeps the common case at one roundtrip.
+ */
+async function extractSearchRows(page, limit) {
+  const earlyExitAt = limit < SEARCH_EARLY_EXIT_ROW_CAP ? limit : SEARCH_EARLY_EXIT_ROW_CAP;
+  let payload;
+  for (let attempt = 0; attempt < SEARCH_RENDER_POLL_ATTEMPTS; attempt += 1) {
+    payload = unwrapBrowserResult(await page.evaluate(buildSearchExtractScript(limit)));
+    if (!payload || typeof payload !== 'object' || !Array.isArray(payload.rows)) return payload;
+    if (payload.status === 'auth' || payload.rows.length >= earlyExitAt) return payload;
+    if (attempt < SEARCH_RENDER_POLL_ATTEMPTS - 1) {
+      await page.sleep(SEARCH_RENDER_POLL_INTERVAL_S);
+    }
+  }
+  return payload;
+}
+
 // Modern facebook.com /search/top renders results inside [role="feed"] as
 // entity/content links (people, pages, groups, posts) — [role="article"] /
 // [role="listitem"] no longer wrap them — and FB seeds scrambled hidden-char
@@ -144,8 +210,8 @@ async function searchFacebook(page, kwargs) {
   // Navigate home first so the SPA is warm, then to the search results.
   // Regression guard for #625: extraction must run *after* this navigation.
   try {
-    await page.goto(FACEBOOK_HOME);
-    await page.goto(`https://www.facebook.com/search/top?q=${encodeURIComponent(query)}`, { settleMs: 4000 });
+    await navigateWithRetry(page, FACEBOOK_HOME);
+    await navigateWithRetry(page, `https://www.facebook.com/search/top?q=${encodeURIComponent(query)}`, { settleMs: SEARCH_SETTLE_MS });
   } catch (err) {
     throw new CommandExecutionError(
       `Failed to open facebook search: ${err instanceof Error ? err.message : err}`,
@@ -155,7 +221,7 @@ async function searchFacebook(page, kwargs) {
 
   let payload;
   try {
-    payload = unwrapBrowserResult(await page.evaluate(buildSearchExtractScript(limit)));
+    payload = await extractSearchRows(page, limit);
   } catch (err) {
     throw new CommandExecutionError(
       `Failed to read facebook search results: ${err instanceof Error ? err.message : err}`,
