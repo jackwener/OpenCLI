@@ -182,6 +182,7 @@ cli({
 - `opencli-plugin-rubysec`：RubySec 漏洞归档与单篇漏洞文章读取
 - [`opencli-plugin-taobao`](https://github.com/vecyang1/opencli-plugin-taobao)：淘宝买家聊天记录、历史订单、已购店铺、收藏夹与基于关键词的聊天摘要
 - [`opencli-plugin-x-article-publisher`](https://github.com/genoooool/opencli-plugin-x-article-publisher)：通过 OpenCLI 与 xPoster 将带本地图片的 Markdown 发布为 X 长文
+- [`opencli-plugin-multcloud`](https://github.com/vecyang1/opencli-plugin-multcloud)：MultCloud 云盘互传、同步、备份、离线下载（HTTP/磁力）与云端文件管理
 
 ### 社区 adapter 集合
 
