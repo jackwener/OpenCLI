@@ -7,7 +7,7 @@
  * Requires a full Xiaohongshu note URL with xsec_token.
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { AuthRequiredError, EmptyResultError } from '@jackwener/opencli/errors';
+import { AuthRequiredError, CliError, EmptyResultError } from '@jackwener/opencli/errors';
 import { parseNoteId, buildNoteUrl } from './note-helpers.js';
 import { readXhsDetailPage } from './risk-control.js';
 /**
@@ -62,6 +62,22 @@ export const NOTE_EXTRACT_JS = `
         return { pageUrl: location.href, securityBlock, loginWall, notFound, title, desc, author, likes, collects, comments, tags }
       })()
     `;
+// A loaded bar renders a zero collect/comment count as its label, but a zero
+// like count as either '赞' or an empty string. So an empty like count only
+// means 0 once the other two counts have loaded; anything else unrecognised is
+// unknown, never 0 — the body can render before the bar.
+const ZERO_LABELS = { likes: '赞', collects: '收藏', comments: '评论' };
+const COUNT_FIELDS = Object.keys(ZERO_LABELS);
+const COUNT_POLL_ATTEMPTS = 10;
+const COUNT_POLL_INTERVAL_S = 1;
+function unloadedCounts(d) {
+    const recognised = (field) => /^\d/.test(d[field] || '') || d[field] === ZERO_LABELS[field];
+    const missing = ['collects', 'comments'].filter((field) => !recognised(field));
+    if (!recognised('likes') && (missing.length || d.likes))
+        missing.unshift('likes');
+    return missing;
+}
+const countValue = (v) => /^\d/.test(v) ? v : '0';
 export const command = cli({
     site: 'xiaohongshu',
     name: 'note',
@@ -98,21 +114,34 @@ export const command = cli({
             throw new EmptyResultError('xiaohongshu/note', `Note ${noteId} not found or unavailable — it may have been deleted or restricted`);
         }
         const d = data;
-        // XHS renders placeholder text like "赞"/"收藏"/"评论" when count is 0;
-        // normalize to '0' unless the value looks numeric.
-        const numOrZero = (v) => /^\d+/.test(v) ? v : '0';
         // A note may legitimately have no title, but a real note page always
         // renders an author. If both are missing, the page failed to load.
         if (!d.title && !d.author) {
             throw new EmptyResultError('xiaohongshu/note', 'The note page loaded without visible content. The note may be deleted or restricted.');
         }
+        for (let i = 0; i < COUNT_POLL_ATTEMPTS && unloadedCounts(d).length; i++) {
+            await page.wait({ time: COUNT_POLL_INTERVAL_S });
+            const fresh = await page.evaluate(NOTE_EXTRACT_JS);
+            if (fresh && typeof fresh === 'object') {
+                for (const field of COUNT_FIELDS)
+                    d[field] = fresh[field];
+            }
+        }
+        const missing = unloadedCounts(d);
+        if (missing.length) {
+            throw new CliError(
+                'COUNTS_NOT_LOADED',
+                `xiaohongshu note: the interaction bar did not load ${missing.join(', ')}`,
+                'Keep the browser automation window visible (not minimized or covered) and retry later.',
+            );
+        }
         const rows = [
             { field: 'title', value: d.title || '' },
             { field: 'author', value: d.author || '' },
             { field: 'content', value: d.desc || '' },
-            { field: 'likes', value: numOrZero(d.likes || '') },
-            { field: 'collects', value: numOrZero(d.collects || '') },
-            { field: 'comments', value: numOrZero(d.comments || '') },
+            { field: 'likes', value: countValue(d.likes || '') },
+            { field: 'collects', value: countValue(d.collects || '') },
+            { field: 'comments', value: countValue(d.comments || '') },
         ];
         if (d.tags?.length) {
             rows.push({ field: 'tags', value: d.tags.join(', ') });
