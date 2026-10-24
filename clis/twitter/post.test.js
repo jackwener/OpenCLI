@@ -113,10 +113,116 @@ describe('twitter post command', () => {
         await expect(command.func(page, { text: 'hi', images: 'missing.png' })).rejects.toThrow('Not a valid file');
     });
 
-    it('throws on unsupported image format', async () => {
+    it('throws on unsupported media format', async () => {
         const command = getCommand();
         const page = makePage();
-        await expect(command.func(page, { text: 'hi', images: 'photo.bmp' })).rejects.toThrow('Unsupported image format');
+        await expect(command.func(page, { text: 'hi', images: 'photo.bmp' })).rejects.toThrow('Unsupported media format');
+    });
+
+    it('throws when a video is mixed with images', async () => {
+        const command = getCommand();
+        const page = makePage();
+        await expect(command.func(page, { text: 'hi', images: 'clip.mp4,a.png' })).rejects.toThrow('Cannot mix a video with images');
+        expect(page.goto).not.toHaveBeenCalled();
+    });
+
+    it('throws when more than one video is attached', async () => {
+        const command = getCommand();
+        const page = makePage();
+        await expect(command.func(page, { text: 'hi', images: 'a.mp4,b.mov' })).rejects.toThrow('Too many videos: 2 (max 1)');
+    });
+
+    it('uploads a video through the native file input', async () => {
+        const command = getCommand();
+        const page = makePage([
+            { ok: true, previewCount: 1 }, // upload polling
+            { ok: true }, // focus composer
+            { ok: true }, // verify native insertText
+            { ok: true }, // click post
+            { ok: true, message: 'Tweet posted successfully.' },
+        ]);
+
+        const result = await command.func(page, { text: 'with video', images: 'clip.mp4', timeout: 240 });
+
+        expect(result).toEqual([{ status: 'success', message: 'Tweet posted successfully.', text: 'with video' }]);
+        expect(page.setFileInput).toHaveBeenCalledWith(['/abs/clip.mp4'], 'input[type="file"][data-testid="fileInput"]');
+        // A video must never be read into memory and embedded in page JS.
+        for (const [script] of page.evaluate.mock.calls) {
+            expect(script).not.toContain('atob(');
+        }
+    });
+
+    it('falls back to the shared upload primitive for video, never to base64', async () => {
+        const command = getCommand();
+        const uploadFiles = vi.fn().mockResolvedValue({ ok: true });
+        const page = makePage([
+            { ok: true, previewCount: 1 }, // upload polling
+            { ok: true }, // focus composer
+            { ok: true }, // verify native insertText
+            { ok: true }, // click post
+            { ok: true, message: 'Tweet posted successfully.' },
+        ], { setFileInput: undefined, uploadFiles });
+
+        await command.func(page, { text: 'with video', images: 'clip.mp4', timeout: 240 });
+
+        expect(uploadFiles).toHaveBeenCalledWith('input[type="file"][data-testid="fileInput"]', ['/abs/clip.mp4']);
+        for (const [script] of page.evaluate.mock.calls) {
+            expect(script).not.toContain('atob(');
+        }
+    });
+
+    it('keeps the image base64 fallback when the shared primitive fails', async () => {
+        const command = getCommand();
+        const uploadFiles = vi.fn().mockRejectedValue(new Error('not supported'));
+        const page = makePage([
+            { ok: true }, // DataTransfer fallback
+            { ok: true, previewCount: 1 }, // upload polling
+            { ok: true }, // focus composer
+            { ok: true }, // verify native insertText
+            { ok: true }, // click post
+            { ok: true, message: 'Tweet posted successfully.' },
+        ], { setFileInput: undefined, uploadFiles });
+
+        await command.func(page, { text: 'with image', images: 'a.png' });
+
+        expect(uploadFiles).toHaveBeenCalled();
+        expect(page.evaluate.mock.calls[0][0]).toContain('atob(');
+    });
+
+    it('surfaces the native failure for video instead of falling back to base64', async () => {
+        const command = getCommand();
+        const uploadFiles = vi.fn().mockRejectedValue(new Error('DOM.setFileInputFiles failed'));
+        const page = makePage([], { setFileInput: undefined, uploadFiles });
+
+        await expect(command.func(page, { text: 'with video', images: 'clip.mp4', timeout: 240 }))
+            .rejects.toThrow('DOM.setFileInputFiles failed');
+        for (const [script] of page.evaluate.mock.calls) {
+            expect(script).not.toContain('atob(');
+        }
+    });
+
+    it('refuses a video when the backend has no native file input', async () => {
+        const command = getCommand();
+        const page = makePage([], { setFileInput: undefined });
+
+        await expect(command.func(page, { text: 'with video', images: 'clip.mp4', timeout: 240 }))
+            .rejects.toThrow('Video upload needs a backend with native file-input support');
+    });
+
+    it('still uses the base64 composer fallback for images', async () => {
+        const command = getCommand();
+        const page = makePage([
+            { ok: true }, // DataTransfer fallback
+            { ok: true, previewCount: 1 }, // upload polling
+            { ok: true }, // focus composer
+            { ok: true }, // verify native insertText
+            { ok: true }, // click post
+            { ok: true, message: 'Tweet posted successfully.' },
+        ], { setFileInput: undefined });
+
+        await command.func(page, { text: 'with image', images: 'a.png' });
+
+        expect(page.evaluate.mock.calls[0][0]).toContain('atob(');
     });
 
     it('falls back to DataTransfer upload when page.setFileInput is not available', async () => {
@@ -455,18 +561,57 @@ describe('twitter post command', () => {
         expect(submitScript).toContain('data-opencli-before-submit-toast');
     });
 
-    it('typed-fails when image upload times out', async () => {
+    it('typed-fails when media upload times out', async () => {
         const command = getCommand();
-        const page = makePage([
-            { ok: false, message: 'Image upload timed out (30s).' },
-        ]);
+        const page = makePage();
+        page.evaluate.mockResolvedValue({ ok: false, previewCount: 0 });
 
-        await expect(command.func(page, { text: 'timeout', images: 'a.png' })).rejects.toMatchObject({
+        await expect(command.func(page, { text: 'timeout', images: 'a.png', timeout: 40 })).rejects.toMatchObject({
             name: 'TimeoutError',
             code: 'TIMEOUT',
             exitCode: 75,
         });
         expect(page.insertText).not.toHaveBeenCalled();
+    });
+
+    // The advertised wait has to be one the transport can actually deliver:
+    // direct CDP rejects a Runtime.evaluate after 30s and the Browser Bridge
+    // daemon closes a command at 120s, so the poll runs from Node -- one
+    // instantaneous check per evaluate -- and its budget comes from --timeout.
+    it('polls from Node so no single evaluate carries the upload deadline', async () => {
+        const command = getCommand();
+        const page = makePage();
+        let polls = 0;
+        page.evaluate.mockImplementation(async (script) => {
+            if (!script.includes('Twitter') && script.includes('previewCount')) {
+                polls += 1;
+                return polls >= 3 ? { ok: true, previewCount: 1 } : { ok: false, previewCount: 0 };
+            }
+            return { ok: true, message: 'Tweet posted successfully.' };
+        });
+
+        await command.func(page, { text: 'slow upload', images: 'clip.mp4', timeout: 240 });
+
+        expect(polls).toBe(3);
+        // Each poll is a plain synchronous check: no in-page sleep loop.
+        const pollScript = page.evaluate.mock.calls.find(([s]) => s.includes('previewCount'))[0];
+        expect(pollScript).not.toContain('setTimeout');
+        expect(pollScript).not.toContain('Media upload timed out');
+        // The pacing sleep happens on the Node side instead.
+        expect(page.wait).toHaveBeenCalledWith(0.5);
+    });
+
+    it('derives the upload budget from --timeout and says so when video runs out', async () => {
+        const command = getCommand();
+        const page = makePage();
+        page.evaluate.mockResolvedValue({ ok: false, previewCount: 0 });
+
+        // 60s command budget minus the 30s reserved for compose/submit.
+        await expect(command.func(page, { text: 'slow', images: 'clip.mp4', timeout: 60 })).rejects.toMatchObject({
+            name: 'TimeoutError',
+            message: expect.stringContaining('30'),
+            hint: expect.stringContaining('--timeout'),
+        });
     });
 
     it('typed-fails with a non-zero exit code when the post never goes out', async () => {
