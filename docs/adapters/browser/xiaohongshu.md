@@ -7,6 +7,7 @@
 | Command | Description |
 |---------|-------------|
 | `opencli xiaohongshu search` | Search notes by keyword (returns title, author, likes, URL) |
+| `opencli xiaohongshu suggest` | Query expansion from the search results page: refinement tags and “大家都在搜” trending queries |
 | `opencli xiaohongshu ask` | Ask 点点 and return its answer with citation sources (`sources[]` in JSON) |
 | `opencli xiaohongshu note` | Read full note content (title, author, description, likes, collects, comments, tags) |
 | `opencli xiaohongshu comments` | Read comments from a note (`--with-replies` for nested 楼中楼 replies) |
@@ -36,6 +37,9 @@ opencli xiaohongshu search 美食 --limit 10
 
 # Combine visible search-panel filters
 opencli xiaohongshu search 美食 --sort latest --note-type video --publish-time week
+
+# Expand a keyword: refinement tags (type=refinement) and 大家都在搜 (type=trending)
+opencli xiaohongshu suggest 明快打字机 --limit 30
 
 # Ask 点点 and keep the citation audit trail
 opencli xiaohongshu ask "上海露营需要注意什么？" -f json
@@ -82,7 +86,9 @@ opencli xiaohongshu delete-note 6a08ba0b000000000702a893
 opencli xiaohongshu delete-note 6a08ba0b000000000702a893 --execute
 ```
 
-`search` supports the same visible filter-panel choices as the website: `--sort comprehensive|latest|most-liked|most-commented|most-collected`, `--note-type all|video|image`, `--publish-time anytime|day|week|half-year`, `--scope all|seen|unseen|following`, and `--location all|same-city|nearby`. Account-scoped and location filters fail explicitly when the logged-in browser session lacks the required account or geolocation capability.
+`search` supports the same visible filter-panel choices as the website: `--sort comprehensive|latest|most-liked|most-commented|most-collected`, `--note-type all|video|image`, `--publish-time anytime|day|week|half-year`, `--scope all|seen|unseen|following`, and `--location all|same-city|nearby`. Account-scoped and location filters fail explicitly when the logged-in browser session lacks the required account or geolocation capability. The query is submitted through whichever search control the homepage renders: the classic `#search-input` box, or the AI-search homepage's textarea (submitted with Enter, landing on `/search_result_ai`).
+
+`suggest` opens the same search results page and reads what it renders around the notes: the refinement tab row under the filter bar (`type=refinement`; the active base tab is skipped) and the “大家都在搜” blocks interleaved with the first screen of results (`type=trending`). It is a read of the initial render, not an exhaustive scroll, and fails with `EMPTY_RESULT` when the page shows neither block.
 
 > Note: `note` and `comments` now require a full signed note URL with `xsec_token`. `download` accepts either a signed note URL or an `xhslink` short link. Bare note IDs are no longer reliable on xiaohongshu.
 > With `comments --with-replies`, `reply_to` is the direct reply target displayed by the page. Replies without an explicit `回复 <name>` marker target the enclosing top-level comment.
