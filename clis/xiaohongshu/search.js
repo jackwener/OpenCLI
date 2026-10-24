@@ -433,10 +433,13 @@ function buildInSiteSearchJs(query) {
     `;
 }
 
-function buildApplySearchFiltersJs(requestedFilters) {
-    return `
-      (async () => {
-        const requestedFilters = ${JSON.stringify(requestedFilters)};
+// In-page helpers shared by the filter stages. The filter panel is instrumented
+// by the site's anti-automation layer: every chip has a near-transparent clone
+// (aria-hidden, opacity 1e-5, z-index -1) stacked under it, and the real chip
+// records any untrusted click (see __fixtures__/search-filter-honeypot.html).
+// So locating and clicking are split: the page only resolves the real chip and
+// hit-tests its center, and the click itself is dispatched natively by Node.
+const FILTER_STAGE_HELPERS_JS = `
         const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
         const text = (element) => (element?.textContent || '').replace(/\\s+/g, '').trim();
         const visible = (element) => {
@@ -499,6 +502,39 @@ function buildApplySearchFiltersJs(requestedFilters) {
           document,
           '.search-layout__main [aria-busy="true"], .search-layout__main [class*="skeleton"], .search-layout__main [class*="loading"]',
         ).length > 0;
+`;
+
+function buildLocateFilterOptionJs(request) {
+    return `
+      (async () => {
+        const request = ${JSON.stringify(request)};
+        ${FILTER_STAGE_HELPERS_JS}
+        const opened = await openPanel();
+        if (opened.status !== 'ok') return opened;
+        const found = findOption(opened.panel, request);
+        if (found.status !== 'ok') {
+          if (request.capability === 'location') return { status: 'location', detail: found.detail };
+          if (request.capability === 'account') return { status: 'capability', detail: found.detail };
+          return found;
+        }
+        if (isActive(found.option)) return { status: 'active' };
+        const rect = found.option.getBoundingClientRect();
+        const x = Math.round(rect.left + rect.width / 2);
+        const y = Math.round(rect.top + rect.height / 2);
+        const at = document.elementFromPoint(x, y);
+        if (!at || (at !== found.option && !found.option.contains(at))) {
+          return { status: 'layout', detail: 'hit_target_mismatch' };
+        }
+        return { status: 'click', x, y };
+      })()
+    `;
+}
+
+function buildAwaitFilterAppliedJs(request) {
+    return `
+      (async () => {
+        const request = ${JSON.stringify(request)};
+        ${FILTER_STAGE_HELPERS_JS}
         const snapshot = () => {
           const rows = visibleMatches(document, 'section.note-item, section:has(a[href*="/search_result/"]), section:has(a[href*="/explore/"])')
             .map((row) => {
@@ -514,77 +550,81 @@ function buildApplySearchFiltersJs(requestedFilters) {
           ]);
         };
 
-        for (const request of requestedFilters) {
-          const opened = await openPanel();
-          if (opened.status !== 'ok') return opened;
-          let found = findOption(opened.panel, request);
-          if (found.status !== 'ok') {
-            if (request.capability === 'location') return { status: 'location', detail: found.detail };
-            if (request.capability === 'account') return { status: 'capability', detail: found.detail };
-            return found;
+        const clickedAt = Date.now();
+        let found;
+        let becameActive = false;
+        while (Date.now() - clickedAt < 2500) {
+          if (authBlocked()) return { status: 'auth', detail: 'login_wall' };
+          if (locationBlocked()) return { status: 'location', detail: 'geolocation_denied' };
+          const currentPanels = panels();
+          if (currentPanels.length === 1) {
+            found = findOption(currentPanels[0], request);
+            if (found.status === 'ok' && isActive(found.option)) {
+              becameActive = true;
+              break;
+            }
           }
-          if (isActive(found.option)) {
-            continue;
-          }
+          await sleep(100);
+        }
+        if (!becameActive) {
+          if (request.capability === 'location') return { status: 'location', detail: 'chip_not_active' };
+          if (request.capability === 'account') return { status: 'capability', detail: 'chip_not_active' };
+          return { status: 'inactive', detail: request.group + '/' + request.option };
+        }
 
-          const clickedAt = Date.now();
-          found.option.click();
-          let becameActive = false;
-          while (Date.now() - clickedAt < 2500) {
-            if (authBlocked()) return { status: 'auth', detail: 'login_wall' };
-            if (locationBlocked()) return { status: 'location', detail: 'geolocation_denied' };
-            const currentPanels = panels();
-            if (currentPanels.length === 1) {
-              found = findOption(currentPanels[0], request);
-              if (found.status === 'ok' && isActive(found.option)) {
-                becameActive = true;
-                break;
-              }
-            }
-            await sleep(100);
+        let stableSamples = 0;
+        let previousSnapshot = '';
+        while (Date.now() - clickedAt < ${FILTER_SETTLE_SECONDS * 1000}) {
+          const currentSnapshot = snapshot();
+          if (Date.now() - clickedAt >= 1500 && ready() && !busy()) {
+            stableSamples = currentSnapshot === previousSnapshot ? stableSamples + 1 : 1;
+            previousSnapshot = currentSnapshot;
+            if (stableSamples >= 3) break;
           }
-          if (!becameActive) {
-            if (request.capability === 'location') return { status: 'location', detail: 'chip_not_active' };
-            if (request.capability === 'account') return { status: 'capability', detail: 'chip_not_active' };
-            return { status: 'inactive', detail: request.group + '/' + request.option };
+          else {
+            stableSamples = 0;
+            previousSnapshot = '';
           }
-
-          let stableSamples = 0;
-          let previousSnapshot = '';
-          while (Date.now() - clickedAt < ${FILTER_SETTLE_SECONDS * 1000}) {
-            const currentSnapshot = snapshot();
-            if (Date.now() - clickedAt >= 1500 && ready() && !busy()) {
-              stableSamples = currentSnapshot === previousSnapshot ? stableSamples + 1 : 1;
-              previousSnapshot = currentSnapshot;
-              if (stableSamples >= 3) break;
-            }
-            else {
-              stableSamples = 0;
-              previousSnapshot = '';
-            }
-            await sleep(200);
-          }
-          if (stableSamples < 3) {
-            return { status: 'timeout', detail: request.group + '/' + request.option };
-          }
-          const finalPanels = panels();
-          const finalFound = finalPanels.length === 1 ? findOption(finalPanels[0], request) : null;
-          if (!finalFound || finalFound.status !== 'ok' || !isActive(finalFound.option)) {
-            return { status: 'inactive', detail: request.group + '/' + request.option };
-          }
+          await sleep(200);
+        }
+        if (stableSamples < 3) {
+          return { status: 'timeout', detail: request.group + '/' + request.option };
+        }
+        const finalPanels = panels();
+        const finalFound = finalPanels.length === 1 ? findOption(finalPanels[0], request) : null;
+        if (!finalFound || finalFound.status !== 'ok' || !isActive(finalFound.option)) {
+          return { status: 'inactive', detail: request.group + '/' + request.option };
         }
         return { status: 'ok' };
       })()
     `;
 }
 
-function requireFilterApplication(payload) {
+async function applySearchFilters(page, requestedFilters) {
+    for (const request of requestedFilters) {
+        const located = requireFilterStage(await page.evaluate(buildLocateFilterOptionJs(request)), ['active', 'click']);
+        if (located.status === 'active') continue;
+        if (typeof page.nativeClick !== 'function') {
+            throw new CommandExecutionError(
+                'Xiaohongshu search filters require a trusted click, but this page backend has no native click support.',
+                'Run the command through Browser Bridge or a direct CDP endpoint; synthetic DOM clicks on the filter chips are flagged by the site.',
+            );
+        }
+        await page.nativeClick(located.x, located.y);
+        requireFilterStage(await page.evaluate(buildAwaitFilterAppliedJs(request)), ['ok']);
+    }
+}
+
+function requireFilterStage(payload, okStatuses) {
     const result = unwrapEvaluateResult(payload);
     if (!result || typeof result !== 'object' || Array.isArray(result) || typeof result.status !== 'string') {
         throw new CommandExecutionError('Unexpected Xiaohongshu search filter result shape.');
     }
-    if (result.status === 'ok') {
-        return;
+    if (okStatuses.includes(result.status)) {
+        if (result.status === 'click' && !(Number.isFinite(result.x) && Number.isFinite(result.y))) {
+            throw new CommandExecutionError('Unexpected Xiaohongshu search filter result shape.');
+        }
+        return result;
     }
     const detail = typeof result.detail === 'string' ? result.detail : 'unknown';
     if (result.status === 'auth') {
@@ -906,7 +946,7 @@ async function collectSearchHarvest(page, limit, requestedFilters) {
     if (waitResult !== 'content') {
         throw new CommandExecutionError('Unexpected Xiaohongshu search wait payload shape.');
     }
-    requireFilterApplication(await page.evaluate(buildApplySearchFiltersJs(requestedFilters)));
+    await applySearchFilters(page, requestedFilters);
     const harvestOptions = harvestOptionsForLimit(limit);
     const harvest = requireHarvestPayload(await page.evaluate(buildScrollHarvestJs('www.xiaohongshu.com', limit, harvestOptions)), 'www.xiaohongshu.com');
     if (harvest.diag.securityBlock) {
@@ -1048,6 +1088,7 @@ export const command = cli({
 export const __test__ = {
     WAIT_FOR_CONTENT_JS,
     buildInSiteSearchJs,
+    buildLocateFilterOptionJs,
     harvestOptionsForLimit,
     stripXhsAuthorDateSuffix,
 };
