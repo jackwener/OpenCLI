@@ -1,4 +1,98 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
+
+/**
+ * Generate an image in the Jimeng web app.
+ *
+ * The prompt goes in through a native InputEvent instead of
+ * `document.execCommand`, and completion is detected from image `src` changes
+ * instead of counting `<img>` nodes: the result feed is virtualized, so the
+ * image count can stay flat while the rendered src values rotate (#2421).
+ */
+export async function generateJimengImage(input) {
+    const doc = input.document;
+    const sleep = input.sleep;
+    const now = input.now;
+    const makeInputEvent = input.makeInputEvent;
+    const prompt = String(input.prompt || '');
+    const waitSec = Number(input.waitSec) > 0 ? Number(input.waitSec) : 40;
+    const IMAGE_SELECTOR = 'img[src*="dreamina-sign"], img[src*="tb4s082cfz"]';
+    const GENERATING_TEXT = /生成中|正在生成|generating/i;
+
+    const collectImages = () => Array.from(doc.querySelectorAll(IMAGE_SELECTOR));
+    const imageSources = () => collectImages().map((img) => img.src).filter(Boolean);
+    const generateButton = () => doc.querySelector('.lv-btn.lv-btn-primary[class*="circle"]');
+    const bodyText = () => {
+        if (!doc.body) return '';
+        return doc.body.innerText || doc.body.textContent || '';
+    };
+    const isGenerating = () => {
+        const button = generateButton();
+        if (button && GENERATING_TEXT.test(button.textContent || '')) return true;
+        return GENERATING_TEXT.test(bodyText());
+    };
+
+    const beforeSources = new Set(imageSources());
+    const editors = doc.querySelectorAll('[contenteditable="true"]');
+    const editor = editors[0];
+    if (!editor) {
+        return [{ status: 'failed', prompt: prompt, image_count: 0, image_urls: 'Editor not found' }];
+    }
+
+    editor.focus();
+    await sleep(200);
+    editor.textContent = prompt;
+    editor.dispatchEvent(makeInputEvent({
+        bubbles: true,
+        cancelable: true,
+        inputType: 'insertText',
+        data: prompt,
+    }));
+    await sleep(500);
+
+    const button = generateButton();
+    if (!button) {
+        return [{ status: 'failed', prompt: prompt, image_count: 0, image_urls: 'Generate button not found' }];
+    }
+    button.click();
+
+    // State machine: wait for the 生成中 indicator to appear and clear. A
+    // changed image src also counts as completion so a fast generation that
+    // never surfaces the indicator is still detected.
+    const deadline = now() + waitSec * 1000;
+    let started = false;
+    while (now() < deadline) {
+        await sleep(500);
+        const generating = isGenerating();
+        const changed = imageSources().some((src) => !beforeSources.has(src));
+        if (generating) {
+            started = true;
+            continue;
+        }
+        if (started || changed) break;
+    }
+
+    // The feed may hydrate the generated image one frame after the indicator
+    // clears; keep a short bounded window before declaring a timeout.
+    let fresh = imageSources().filter((src) => !beforeSources.has(src));
+    const settleDeadline = now() + 3000;
+    while (fresh.length === 0 && now() < settleDeadline) {
+        await sleep(250);
+        fresh = imageSources().filter((src) => !beforeSources.has(src));
+    }
+
+    if (fresh.length === 0) {
+        return [{ status: 'timeout', prompt: prompt.substring(0, 80), image_count: 0, image_urls: 'Generation may still be in progress' }];
+    }
+    return [{
+        status: 'success',
+        prompt: prompt.substring(0, 80),
+        image_count: fresh.length,
+        image_urls: fresh.join('\n'),
+    }];
+}
+
+export const __test__ = { generateJimengImage };
+
 cli({
     site: 'jimeng',
     name: 'generate',
@@ -22,58 +116,16 @@ cli({
         { navigate: 'https://jimeng.jianying.com/ai-tool/generate?type=image&workspace=0' },
         { wait: 3 },
         { evaluate: `(async () => {
-  const prompt = \${{ args.prompt | json }};
-  const waitSec = \${{ args.wait }};
-  
-  // Step 1: Count existing images before generation
-  const beforeImgs = document.querySelectorAll('img[src*="dreamina-sign"], img[src*="tb4s082cfz"]').length;
-  
-  // Step 2: Clear and set prompt
-  const editors = document.querySelectorAll('[contenteditable="true"]');
-  const editor = editors[0];
-  if (!editor) return [{ status: 'failed', prompt: prompt, image_count: 0, image_urls: 'Editor not found' }];
-  
-  editor.focus();
-  await new Promise(r => setTimeout(r, 200));
-  document.execCommand('selectAll');
-  await new Promise(r => setTimeout(r, 100));
-  document.execCommand('delete');
-  await new Promise(r => setTimeout(r, 200));
-  document.execCommand('insertText', false, prompt);
-  await new Promise(r => setTimeout(r, 500));
-  
-  // Step 3: Click generate
-  const btn = document.querySelector('.lv-btn.lv-btn-primary[class*="circle"]');
-  if (!btn) return [{ status: 'failed', prompt: prompt, image_count: 0, image_urls: 'Generate button not found' }];
-  btn.click();
-  
-  // Step 4: Wait for new images to appear
-  let newImgs = [];
-  for (let i = 0; i < waitSec; i++) {
-    await new Promise(r => setTimeout(r, 1000));
-    const allImgs = document.querySelectorAll('img[src*="dreamina-sign"], img[src*="tb4s082cfz"]');
-    if (allImgs.length > beforeImgs) {
-      // New images appeared — generation complete
-      newImgs = Array.from(allImgs).slice(0, allImgs.length - beforeImgs);
-      break;
-    }
-  }
-  
-  if (newImgs.length === 0) {
-    return [{ status: 'timeout', prompt: prompt, image_count: 0, image_urls: 'Generation may still be in progress' }];
-  }
-  
-  // Step 5: Extract image URLs (use thumbnail URLs which are accessible)
-  const urls = newImgs.map(img => img.src);
-  
-  return [{ 
-    status: 'success', 
-    prompt: prompt.substring(0, 80), 
-    image_count: urls.length, 
-    image_urls: urls.join('\\n')
-  }];
-})()
-` },
+  const generateJimengImage = ${generateJimengImage.toString()};
+  return generateJimengImage({
+    document,
+    sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    now: () => Date.now(),
+    makeInputEvent: (init) => new InputEvent('input', init),
+    prompt: \${{ args.prompt | json }},
+    waitSec: \${{ args.wait }},
+  });
+})()` },
         { map: {
                 status: '${{ item.status }}',
                 prompt: '${{ item.prompt }}',
