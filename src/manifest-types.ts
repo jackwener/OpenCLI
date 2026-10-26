@@ -19,6 +19,8 @@ export interface ManifestEntry {
   browser: boolean;
   args: Array<{
     name: string;
+    /** Single-letter short alias for a named option (e.g. 'l' → -l); see registry Arg.short. */
+    short?: string;
     type?: string;
     default?: unknown;
     required?: boolean;
