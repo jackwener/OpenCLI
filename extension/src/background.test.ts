@@ -342,6 +342,106 @@ describe('background tab isolation', () => {
     ]);
   });
 
+  it('appends out-of-process iframe targets the page frame tree cannot see (#2223)', async () => {
+    const { chrome } = createChromeMock();
+    chrome.debugger.sendCommand = vi.fn(async (_target: unknown, method: string) => {
+      if (method === 'Page.getFrameTree') {
+        // A genuine OOPIF never appears in the parent target's frame tree.
+        return { frameTree: { frame: { id: 'root', url: 'http://localhost:8000/oopif.html' } } };
+      }
+      return {};
+    });
+    // chrome.debugger.getTargets lists OOPIFs as type "other"; the tab's own
+    // page target must not leak in, and another tab's frame must be excluded.
+    (chrome.debugger.getTargets as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { id: 'target-1', type: 'page', url: 'http://localhost:8000/oopif.html', tabId: 1 },
+      { id: 'oopif-abc', type: 'other', url: 'https://example.com/', title: 'Example Domain', tabId: 1 },
+      { id: 'oopif-other-tab', type: 'other', url: 'https://elsewhere.test/', tabId: 2 },
+    ]);
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    mod.__test__.setAutomationWindowId(adapterKey('twitter'), 1);
+
+    const result = await mod.__test__.handleCommand({ id: 'frames', action: 'frames', session: 'twitter', surface: 'adapter' });
+
+    expect(result.ok).toBe(true);
+    expect(result.data).toEqual([
+      { index: 0, frameId: 'oopif-abc', url: 'https://example.com/', name: 'Example Domain' },
+    ]);
+  });
+
+  it('orders appended OOPIF targets deterministically by target id (#2223)', async () => {
+    const { chrome } = createChromeMock();
+    chrome.debugger.sendCommand = vi.fn(async (_target: unknown, method: string) => {
+      if (method === 'Page.getFrameTree') {
+        return { frameTree: { frame: { id: 'root', url: 'https://main.example/' } } };
+      }
+      return {};
+    });
+    (chrome.debugger.getTargets as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { id: 'zzz-frame', type: 'other', url: 'https://z.example/', tabId: 1 },
+      { id: 'aaa-frame', type: 'other', url: 'https://a.example/', tabId: 1 },
+    ]);
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    mod.__test__.setAutomationWindowId(adapterKey('twitter'), 1);
+
+    const first = await mod.__test__.handleCommand({ id: 'frames-1', action: 'frames', session: 'twitter', surface: 'adapter' });
+    const second = await mod.__test__.handleCommand({ id: 'frames-2', action: 'frames', session: 'twitter', surface: 'adapter' });
+
+    expect(first.data).toEqual(second.data);
+    expect(first.data.map((frame: { frameId: string }) => frame.frameId)).toEqual(['aaa-frame', 'zzz-frame']);
+  });
+
+  it('routes exec frameIndex into an out-of-process iframe target by exact id (#2223)', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const evaluateInFrame = vi.fn(async () => 'oopif-result');
+    vi.doMock('./cdp', () => ({
+      registerListeners: vi.fn(),
+      getIframeTargets: vi.fn(async () => [
+        { targetId: 'oopif-abc', url: 'https://example.com/', name: 'Example Domain' },
+      ]),
+      registerFrameTracking: vi.fn(),
+      hasActiveNetworkCapture: vi.fn(() => false),
+      detach: vi.fn(async () => {}),
+      evaluateAsync: vi.fn(async () => 'main-result'),
+      evaluateInFrame,
+      getFrameTree: vi.fn(async () => ({
+        frameTree: { frame: { id: 'root', url: 'http://localhost:8000/oopif.html' } },
+      })),
+      screenshot: vi.fn(),
+      setFileInputFiles: vi.fn(),
+      insertText: vi.fn(),
+      startNetworkCapture: vi.fn(),
+      readNetworkCapture: vi.fn(async () => []),
+      ensureAttached: vi.fn(),
+    }));
+
+    const mod = await import('./background');
+    mod.__test__.setAutomationWindowId(adapterKey('twitter'), 1);
+
+    const listResult = await mod.__test__.handleCommand({ id: 'frames', action: 'frames', session: 'twitter', surface: 'adapter' });
+    const execResult = await mod.__test__.handleCommand({
+      id: 'exec-in-oopif',
+      action: 'exec',
+      code: 'location.href',
+      frameIndex: 0,
+      session: 'twitter',
+      surface: 'adapter',
+    });
+
+    expect(listResult.ok).toBe(true);
+    expect(listResult.data).toEqual([
+      { index: 0, frameId: 'oopif-abc', url: 'https://example.com/', name: 'Example Domain' },
+    ]);
+    expect(execResult.ok).toBe(true);
+    expect(evaluateInFrame).toHaveBeenCalledWith(1, 'location.href', 'oopif-abc', false, undefined);
+  });
+
   it('does not parse lease-key separators from command session fields', async () => {
     const { chrome } = createChromeMock();
     vi.stubGlobal('chrome', chrome);
@@ -443,6 +543,7 @@ describe('background tab isolation', () => {
     const sendCommandInFrameTarget = vi.fn(async () => ({ nodes: [] }));
     vi.doMock('./cdp', () => ({
       registerListeners: vi.fn(),
+      getIframeTargets: vi.fn(async () => []),
       registerFrameTracking: vi.fn(),
       hasActiveNetworkCapture: vi.fn(() => false),
       detach: vi.fn(async () => {}),
@@ -488,6 +589,7 @@ describe('background tab isolation', () => {
     }));
     vi.doMock('./cdp', () => ({
       registerListeners: vi.fn(),
+      getIframeTargets: vi.fn(async () => []),
       registerFrameTracking: vi.fn(),
       hasActiveNetworkCapture: vi.fn(() => false),
       detach: vi.fn(async () => {}),
@@ -524,6 +626,7 @@ describe('background tab isolation', () => {
     const evaluateInFrame = vi.fn(async () => 'frame-result');
     vi.doMock('./cdp', () => ({
       registerListeners: vi.fn(),
+      getIframeTargets: vi.fn(async () => []),
       registerFrameTracking: vi.fn(),
       hasActiveNetworkCapture: vi.fn(() => false),
       detach: vi.fn(async () => {}),
@@ -583,6 +686,7 @@ describe('background tab isolation', () => {
     const evaluateAsync = vi.fn(async () => 'main-result');
     vi.doMock('./cdp', () => ({
       registerListeners: vi.fn(),
+      getIframeTargets: vi.fn(async () => []),
       registerFrameTracking: vi.fn(),
       hasActiveNetworkCapture: vi.fn(() => false),
       detach: vi.fn(async () => {}),
@@ -1126,6 +1230,7 @@ describe('background tab isolation', () => {
     const detachMock = vi.fn(async () => {});
     vi.doMock('./cdp', () => ({
       registerListeners: vi.fn(),
+      getIframeTargets: vi.fn(async () => []),
       hasActiveNetworkCapture: vi.fn(() => true),
       detach: detachMock,
     }));
@@ -1355,6 +1460,7 @@ describe('background tab isolation', () => {
     let maxInFlight = 0;
     vi.doMock('./cdp', () => ({
       registerListeners: vi.fn(),
+      getIframeTargets: vi.fn(async () => []),
       evaluateAsync: vi.fn(async (tabId: number, code: string) => {
         inFlight++;
         maxInFlight = Math.max(maxInFlight, inFlight);
@@ -1393,6 +1499,7 @@ describe('background tab isolation', () => {
     let maxInFlight = 0;
     vi.doMock('./cdp', () => ({
       registerListeners: vi.fn(),
+      getIframeTargets: vi.fn(async () => []),
       evaluateAsync: vi.fn(async (tabId: number, code: string) => {
         inFlight++;
         maxInFlight = Math.max(maxInFlight, inFlight);
@@ -2481,6 +2588,7 @@ describe('background tab isolation', () => {
     vi.stubGlobal('chrome', chrome);
     vi.doMock('./cdp', () => ({
       registerListeners: vi.fn(),
+      getIframeTargets: vi.fn(async () => []),
       registerFrameTracking: vi.fn(),
       hasActiveNetworkCapture: vi.fn(() => false),
       detach: vi.fn(async () => {}),

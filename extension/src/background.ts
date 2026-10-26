@@ -1720,7 +1720,7 @@ async function handleExec(cmd: Command, leaseKey: string): Promise<Result> {
     const aggressive = getSurfaceFromKey(leaseKey) === 'browser';
     if (cmd.frameIndex != null) {
       const tree = await executor.getFrameTree(tabId);
-      const frames = enumerateCrossOriginFrames(tree);
+      const frames = await withFrameTargets(tabId, enumerateCrossOriginFrames(tree));
       if (cmd.frameIndex < 0 || cmd.frameIndex >= frames.length) {
         return { id: cmd.id, ok: false, error: `Frame index ${cmd.frameIndex} out of range (${frames.length} cross-origin frames available)` };
       }
@@ -1739,10 +1739,33 @@ async function handleFrames(cmd: Command, leaseKey: string): Promise<Result> {
   const tabId = await resolveTabId(cmdTabId, leaseKey);
   try {
     const tree = await executor.getFrameTree(tabId);
-    return { id: cmd.id, ok: true, data: enumerateCrossOriginFrames(tree) };
+    const frames = await withFrameTargets(tabId, enumerateCrossOriginFrames(tree));
+    return { id: cmd.id, ok: true, data: frames };
   } catch (err) {
     return errorResult(cmd.id, err);
   }
+}
+
+/**
+ * Append out-of-process frame targets (OOPIF) that the page target's
+ * Page.getFrameTree cannot see: that tree is built from LocalFrames only, and
+ * a cross-process child frame is a RemoteFrame in the parent renderer, so it
+ * never appears as childFrames. Appending keeps every existing index stable;
+ * appended entries are sorted by target id so ordering is deterministic
+ * across calls. See issue #2223.
+ */
+async function withFrameTargets(
+  tabId: number,
+  frames: Array<{ index: number; frameId: string; url: string; name: string }>,
+): Promise<Array<{ index: number; frameId: string; url: string; name: string }>> {
+  const oopif = await executor.getIframeTargets(tabId).catch(() => []);
+  const known = new Set(frames.map((frame) => frame.frameId));
+  const merged = [...frames];
+  for (const target of [...oopif].sort((a, b) => a.targetId.localeCompare(b.targetId))) {
+    if (known.has(target.targetId)) continue;
+    merged.push({ index: merged.length, frameId: target.targetId, url: target.url, name: target.name });
+  }
+  return merged;
 }
 
 function preferOwnedTab(leaseKey: string, tabId: number): void {
