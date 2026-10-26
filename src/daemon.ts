@@ -12,16 +12,21 @@
  *   3. No CORS headers on command endpoints — only /ping is readable from the
  *      Browser Bridge extension origin so the extension can probe daemon reachability
  *   4. Body size limit — 1 MB max to prevent OOM
- *   5. WebSocket verifyClient — reject upgrade before connection is established
+ *   5. WebSocket upgrade origin check — reject the upgrade before the
+ *      connection is established
  *
  * Lifecycle:
  *   - Auto-spawned by opencli on first browser command
  *   - Persistent — stays alive until explicit shutdown, SIGTERM, or uninstall
- *   - Listens on localhost:19825
+ *   - Listens on 127.0.0.1:19825 and [::1]:19825 — both loopback families, so
+ *     hosts where localhost resolves to ::1 (Windows) can reach it via either
+ *     address the CLI, extension, and old extension builds use
  */
 
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import type { Duplex } from 'node:stream';
 import { WebSocketServer, WebSocket, type RawData } from 'ws';
+import { listenDaemonLoopback } from './daemon-listen.js';
 import { DEFAULT_DAEMON_PORT, isIgnorableDaemonPortEnv, unsupportedDaemonPortEnvMessage } from './constants.js';
 import { EXIT_CODES } from './errors.js';
 import { log } from './logger.js';
@@ -548,19 +553,42 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
 
 // ─── WebSocket for Extension ─────────────────────────────────────────
 
-const httpServer = createServer((req, res) => { handleRequest(req, res).catch(() => { res.writeHead(500); res.end(); }); });
-const wss = new WebSocketServer({
-  server: httpServer,
-  path: '/ext',
-  verifyClient: ({ req }: { req: IncomingMessage }) => {
-    // Block browser-originated WebSocket connections.  Browsers don't
-    // enforce CORS on WebSocket, so a malicious webpage could connect to
-    // ws://localhost:19825/ext and impersonate the Extension.  Real Chrome
-    // Extensions send origin chrome-extension://<id>.
-    const origin = req.headers['origin'] as string | undefined;
-    return !origin || origin.startsWith('chrome-extension://');
-  },
-});
+function handleHttpRequest(req: IncomingMessage, res: ServerResponse): void {
+  handleRequest(req, res).catch(() => { res.writeHead(500); res.end(); });
+}
+
+// One server per loopback family; both share the request and upgrade handlers
+// so the daemon is reachable as 127.0.0.1 and as ::1 (see daemon-listen.ts).
+const httpServer = createServer(handleHttpRequest);
+const ipv6Server = createServer(handleHttpRequest);
+const wss = new WebSocketServer({ noServer: true });
+
+function handleExtensionUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer): void {
+  let pathname: string;
+  try {
+    pathname = new URL(req.url ?? '/', 'http://localhost').pathname;
+  } catch {
+    socket.destroy();
+    return;
+  }
+  if (pathname !== '/ext') {
+    socket.destroy();
+    return;
+  }
+  // Block browser-originated WebSocket connections.  Browsers don't
+  // enforce CORS on WebSocket, so a malicious webpage could connect to
+  // ws://localhost:19825/ext and impersonate the Extension.  Real Chrome
+  // Extensions send origin chrome-extension://<id>.
+  const origin = req.headers['origin'] as string | undefined;
+  if (origin && !origin.startsWith('chrome-extension://')) {
+    socket.destroy();
+    return;
+  }
+  wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req));
+}
+
+httpServer.on('upgrade', handleExtensionUpgrade);
+ipv6Server.on('upgrade', handleExtensionUpgrade);
 
 wss.on('connection', (ws: WebSocket) => {
   log.info('[daemon] Extension connected');
@@ -645,17 +673,21 @@ wss.on('connection', (ws: WebSocket) => {
 
 // ─── Start ───────────────────────────────────────────────────────────
 
-httpServer.listen(PORT, '127.0.0.1', () => {
-  log.info(`[daemon] Listening on http://127.0.0.1:${PORT}`);
-});
-
-httpServer.on('error', (err: NodeJS.ErrnoException) => {
-  if (err.code === 'EADDRINUSE') {
-    log.error(`[daemon] Port ${PORT} already in use — another daemon is likely running. Exiting.`);
-    process.exit(EXIT_CODES.SERVICE_UNAVAIL);
-  }
-  log.error(`[daemon] Server error: ${err.message}`);
-  process.exit(EXIT_CODES.GENERIC_ERROR);
+listenDaemonLoopback({ ipv4: httpServer, ipv6: ipv6Server }, PORT, {
+  onListening: (host) => {
+    log.info(`[daemon] Listening on http://${host === '::1' ? '[::1]' : host}:${PORT}`);
+  },
+  onIpv6Unavailable: (err) => {
+    log.warn(`[daemon] IPv6 loopback unavailable (${err.code ?? err.message}); serving 127.0.0.1 only`);
+  },
+  onError: (err) => {
+    if (err.code === 'EADDRINUSE') {
+      log.error(`[daemon] Port ${PORT} already in use — another daemon is likely running. Exiting.`);
+      process.exit(EXIT_CODES.SERVICE_UNAVAIL);
+    }
+    log.error(`[daemon] Server error: ${err.message}`);
+    process.exit(EXIT_CODES.GENERIC_ERROR);
+  },
 });
 
 // Graceful shutdown
@@ -683,9 +715,19 @@ function shutdown(): void {
   for (const profile of extensionProfiles.values()) profile.ws.close();
   // Let the rejection responses flush before exiting — a synchronous
   // process.exit() would kill the queued microtasks that write them.
-  httpServer.close(() => process.exit(EXIT_CODES.SUCCESS));
+  const openServers = [httpServer, ipv6Server].filter((server) => server.listening);
+  if (openServers.length === 0) {
+    process.exit(EXIT_CODES.SUCCESS);
+  }
+  let remaining = openServers.length;
+  for (const server of openServers) {
+    server.close(() => {
+      remaining -= 1;
+      if (remaining === 0) process.exit(EXIT_CODES.SUCCESS);
+    });
+  }
   setTimeout(() => {
-    httpServer.closeIdleConnections?.();
+    for (const server of openServers) server.closeIdleConnections?.();
     setTimeout(() => process.exit(EXIT_CODES.SUCCESS), 500).unref();
   }, 100).unref();
 }
