@@ -545,6 +545,33 @@ describe('xiaohongshu search', () => {
             },
         ]);
     });
+    it('opens the direct result URL when the AI home layout hides the search input', async () => {
+        const cmd = getRegistry().get('xiaohongshu/search');
+        const url = 'https://www.xiaohongshu.com/search_result/68e90be80000000004022e66?xsec_token=test-token&xsec_source=';
+        const page = createPageMock([
+            'content',
+            harvestPayload([{ title: '机器学习实习', author: '作者', likes: '9', url, author_url: '' }]),
+        ]);
+        const defaultEvaluate = page.evaluate.getMockImplementation();
+        page.evaluate.mockImplementation(async (script) => String(script).includes('search-icon')
+            ? { status: 'layout', detail: 'search_input_not_available' }
+            : defaultEvaluate(script));
+
+        const result = await cmd.func(page, { query: '机器学习 实习', limit: 1 });
+        expect(page.goto.mock.calls.map(([target]) => target)).toEqual([
+            'https://www.xiaohongshu.com/explore',
+            'https://www.xiaohongshu.com/search_result?keyword=%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%20%E5%AE%9E%E4%B9%A0&source=web_search_result_notes',
+        ]);
+        expect(result).toHaveLength(1);
+    });
+    it('does not fall back to the direct URL for other in-site layout failures', async () => {
+        const cmd = getRegistry().get('xiaohongshu/search');
+        const page = createPageMock([]);
+        page.evaluate.mockImplementation(async () => ({ status: 'layout', detail: 'ambiguous_search_input' }));
+
+        await expect(cmd.func(page, { query: '特斯拉', limit: 1 })).rejects.toThrow('ambiguous_search_input');
+        expect(page.goto).toHaveBeenCalledTimes(1);
+    });
     it('fails typed instead of silently returning [] for malformed extraction payloads', async () => {
         const cmd = getRegistry().get('xiaohongshu/search');
         const page = createPageMock([
