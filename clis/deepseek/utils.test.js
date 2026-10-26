@@ -308,14 +308,14 @@ describe('deepseek sendWithFile Not allowed fallback', () => {
     }
   });
 
-  it('falls back to DataTransfer when setFileInput throws Not allowed', async () => {
+  it.each(['Not allowed', 'Page.fileChooserOpened not received within 5s'])('falls back to DataTransfer on %s', async (message) => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-deepseek-'));
     tempDirs.push(dir);
     const filePath = path.join(dir, 'image.png');
     fs.writeFileSync(filePath, 'fake-png');
 
     const page = {
-      setFileInput: vi.fn().mockRejectedValue(new Error('Not allowed')),
+      setFileInput: vi.fn().mockRejectedValue(new Error(message)),
       wait: vi.fn().mockResolvedValue(undefined),
       evaluate: vi.fn()
         .mockResolvedValueOnce(undefined)    // sidebar collapse

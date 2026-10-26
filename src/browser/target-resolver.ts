@@ -368,8 +368,18 @@ export function boundingRectResolvedJs(opts: { skipScroll?: boolean; forClick?: 
       const rect = target.getBoundingClientRect();
       const w = Math.round(rect.width);
       const h = Math.round(rect.height);
-      let x = Math.round(rect.left + rect.width / 2);
-      let y = Math.round(rect.top + rect.height / 2);
+      // #2674: a retargeted ancestor usually spans sibling rows or padding, so
+      // its centre can be empty space where a trusted click hits the container
+      // background while the hit-test still answers with the container itself —
+      // the click reports success without activating what was resolved. Aim
+      // inside the resolved element's own box instead; events there still
+      // bubble to the ancestor's handler, so #2071 keeps working. A resolved
+      // element with no measurable box keeps the ancestor centre.
+      const selfRect = retargeted ? el.getBoundingClientRect() : rect;
+      const aim = (selfRect.width > 0 && selfRect.height > 0) ? selfRect : rect;
+      const hitTarget = aim === selfRect ? el : target;
+      let x = aim.left + aim.width / 2;
+      let y = aim.top + aim.height / 2;
       const visible = w > 0 && h > 0;
 
       // #2076: verify the click point actually lands on the target. A trusted
@@ -389,22 +399,25 @@ export function boundingRectResolvedJs(opts: { skipScroll?: boolean; forClick?: 
         let at = null;
         try { at = document.elementFromPoint(px, py); } catch (e) { return 'none'; }
         if (!at) return 'none';
-        if (at === target || target.contains(at)) return 'target';
-        if (at.contains && at.contains(target)) return 'ancestor';
+        if (at === hitTarget || hitTarget.contains(at)) return 'target';
+        if (at.contains && at.contains(hitTarget)) return 'ancestor';
         return 'other';
       };
       let hit = visible ? hitClass(x, y) : 'none';
       if (visible && hit !== 'target' && hit !== 'ancestor') {
+        // Probe inside the aim box, not the retargeted ancestor's: an ancestor
+        // probe can land on a sibling or empty gap and activate the wrong
+        // thing. See #2674.
         const cands = [
-          [rect.left + rect.width * 0.5, rect.top + rect.height * 0.25],
-          [rect.left + rect.width * 0.25, rect.top + rect.height * 0.5],
-          [rect.left + rect.width * 0.75, rect.top + rect.height * 0.5],
-          [rect.left + rect.width * 0.5, rect.top + rect.height * 0.75],
-          [rect.left + 3, rect.top + 3],
-          [rect.right - 3, rect.bottom - 3],
+          [aim.left + aim.width * 0.5, aim.top + aim.height * 0.25],
+          [aim.left + aim.width * 0.25, aim.top + aim.height * 0.5],
+          [aim.left + aim.width * 0.75, aim.top + aim.height * 0.5],
+          [aim.left + aim.width * 0.5, aim.top + aim.height * 0.75],
+          [aim.left + Math.min(3, aim.width / 2), aim.top + Math.min(3, aim.height / 2)],
+          [aim.right - Math.min(3, aim.width / 2), aim.bottom - Math.min(3, aim.height / 2)],
         ];
         for (const c of cands) {
-          const px = Math.round(c[0]), py = Math.round(c[1]);
+          const px = c[0], py = c[1];
           const hc = hitClass(px, py);
           if (hc === 'target' || hc === 'ancestor') { x = px; y = py; hit = hc; break; }
         }

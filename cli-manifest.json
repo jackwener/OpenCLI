@@ -39630,6 +39630,13 @@
         "default": true,
         "required": false,
         "help": "Download images locally"
+      },
+      {
+        "name": "verification-timeout",
+        "type": "int",
+        "default": 15,
+        "required": false,
+        "help": "Seconds to wait for the WeChat captcha to auto-resolve before failing (0 disables the wait)"
       }
     ],
     "columns": [

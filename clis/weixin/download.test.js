@@ -1,5 +1,7 @@
-import { describe, expect, it } from 'vitest';
-import { normalizeWechatUrl } from './download.js';
+import { describe, expect, it, vi } from 'vitest';
+import { ArgumentError } from '@jackwener/opencli/errors';
+import { getRegistry } from '@jackwener/opencli/registry';
+import { awaitWechatArticle, normalizeWechatUrl } from './download.js';
 
 describe('normalizeWechatUrl', () => {
     const canonical = 'https://mp.weixin.qq.com/s/oBz-oik0i9YM2Uia_aadjw';
@@ -102,5 +104,108 @@ describe('normalizeWechatUrl', () => {
     it('forces https:// for mp.weixin.qq.com http:// links', () => {
         const http = 'http://mp.weixin.qq.com/s/oBz-oik0i9YM2Uia_aadjw';
         expect(normalizeWechatUrl(http)).toBe(canonical);
+    });
+});
+
+const VERIFICATION_PAYLOAD = { title: '', errorHint: 'environment verification required', contentHtml: '' };
+const ARTICLE_PAYLOAD = { title: 'Article', errorHint: '', contentHtml: '<p>body</p>' };
+
+describe('awaitWechatArticle', () => {
+    it('returns immediately when the article is readable', async () => {
+        const extract = vi.fn().mockResolvedValue(ARTICLE_PAYLOAD);
+        const wait = vi.fn().mockResolvedValue(undefined);
+        const data = await awaitWechatArticle(extract, wait, { timeoutMs: 15000, pollIntervalS: 1 });
+        expect(data).toBe(ARTICLE_PAYLOAD);
+        expect(extract).toHaveBeenCalledTimes(1);
+        expect(wait).not.toHaveBeenCalled();
+    });
+
+    it('polls through a captcha that auto-resolves (#2045)', async () => {
+        const extract = vi.fn()
+            .mockResolvedValueOnce(VERIFICATION_PAYLOAD)
+            .mockResolvedValueOnce(VERIFICATION_PAYLOAD)
+            .mockResolvedValueOnce(ARTICLE_PAYLOAD);
+        const wait = vi.fn().mockResolvedValue(undefined);
+        const data = await awaitWechatArticle(extract, wait, { timeoutMs: 15000, pollIntervalS: 1 });
+        expect(data).toBe(ARTICLE_PAYLOAD);
+        expect(extract).toHaveBeenCalledTimes(3);
+        expect(wait).toHaveBeenCalledTimes(2);
+        expect(wait).toHaveBeenCalledWith(1);
+    });
+
+    it('returns the verification payload when the budget is exhausted', async () => {
+        const extract = vi.fn().mockResolvedValue(VERIFICATION_PAYLOAD);
+        const wait = vi.fn().mockResolvedValue(undefined);
+        const data = await awaitWechatArticle(extract, wait, { timeoutMs: 0 });
+        expect(data).toBe(VERIFICATION_PAYLOAD);
+        expect(extract).toHaveBeenCalledTimes(1);
+        expect(wait).not.toHaveBeenCalled();
+    });
+
+    it('waits through the empty render between verification and article', async () => {
+        const extract = vi.fn()
+            .mockResolvedValueOnce(VERIFICATION_PAYLOAD)
+            .mockResolvedValueOnce({ title: '', errorHint: '', contentHtml: '' })
+            .mockResolvedValueOnce(ARTICLE_PAYLOAD);
+        const wait = vi.fn().mockResolvedValue(undefined);
+        expect(await awaitWechatArticle(extract, wait)).toBe(ARTICLE_PAYLOAD);
+        expect(wait).toHaveBeenCalledTimes(2);
+    });
+
+    it('bounds the last wait and reports unresolved empty renders as verification timeout', async () => {
+        vi.useFakeTimers();
+        try {
+            const extract = vi.fn().mockResolvedValueOnce(VERIFICATION_PAYLOAD)
+                .mockResolvedValue({ title: '', errorHint: '', contentHtml: '' });
+            const wait = vi.fn(async seconds => { vi.advanceTimersByTime(seconds * 1000); });
+            expect(await awaitWechatArticle(extract, wait, { timeoutMs: 500 })).toBe(VERIFICATION_PAYLOAD);
+            expect(wait).toHaveBeenCalledExactlyOnceWith(0.5);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('stops on a terminal access error after verification', async () => {
+        const terminal = { errorHint: 'article deleted', contentHtml: '' };
+        const extract = vi.fn().mockResolvedValueOnce(VERIFICATION_PAYLOAD).mockResolvedValue(terminal);
+        expect(await awaitWechatArticle(extract, vi.fn())).toBe(terminal);
+        expect(extract).toHaveBeenCalledTimes(2);
+    });
+
+    it('honours the custom poll interval', async () => {
+        const extract = vi.fn()
+            .mockResolvedValueOnce(VERIFICATION_PAYLOAD)
+            .mockResolvedValueOnce(ARTICLE_PAYLOAD);
+        const wait = vi.fn().mockResolvedValue(undefined);
+        await awaitWechatArticle(extract, wait, { timeoutMs: 15000, pollIntervalS: 2 });
+        expect(wait).toHaveBeenCalledWith(2);
+    });
+});
+
+function createWeixinPage(payload) {
+    return {
+        goto: vi.fn().mockResolvedValue(undefined),
+        wait: vi.fn().mockResolvedValue(undefined),
+        evaluate: vi.fn().mockResolvedValue(payload),
+    };
+}
+
+describe('weixin download command (#2045)', () => {
+    const canonical = 'https://mp.weixin.qq.com/s/oBz-oik0i9YM2Uia_aadjw';
+    const baseArgs = { url: canonical, output: '/tmp/opencli-weixin-test', 'download-images': false };
+
+    it('reports the gate only after the verification budget is spent', async () => {
+        const page = createWeixinPage(VERIFICATION_PAYLOAD);
+        const rows = await getRegistry().get('weixin/download').func(page, { ...baseArgs, 'verification-timeout': 0 });
+        expect(rows[0].status).toContain('did not clear within 0s');
+        expect(page.goto).toHaveBeenCalledTimes(1);
+        expect(page.evaluate).toHaveBeenCalledTimes(1);
+    });
+
+    it('rejects an out-of-range --verification-timeout before navigating', async () => {
+        const page = createWeixinPage(ARTICLE_PAYLOAD);
+        await expect(getRegistry().get('weixin/download').func(page, { ...baseArgs, 'verification-timeout': 121 }))
+            .rejects.toBeInstanceOf(ArgumentError);
+        expect(page.goto).not.toHaveBeenCalled();
     });
 });
