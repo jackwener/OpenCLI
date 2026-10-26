@@ -30069,7 +30069,7 @@
     "type": "js",
     "modulePath": "reddit/hot.js",
     "sourceFile": "reddit/hot.js",
-    "navigateBefore": "https://www.reddit.com"
+    "navigateBefore": false
   },
   {
     "site": "reddit",

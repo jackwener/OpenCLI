@@ -102,3 +102,12 @@ Unsupported initial web markup falls back to legacy search ranking with a warnin
 Login/challenge responses, HTTP failures (including 429), pagination errors and
 hydration failures do not trigger that fallback. Posts omitted by hydration are
 skipped with a warning while retaining the order of available posts.
+
+## Hot listing errors
+
+`hot` keeps Reddit's `/hot.json` frontpage when no subreddit is supplied;
+`--subreddit` selects `/r/<subreddit>/hot.json`. It does not switch to the popular feed.
+A valid empty listing raises `EmptyResultError` without claiming the session is invalid.
+Authentication failures, rate limits, malformed listings and transport failures use typed
+errors, following the search command's error classification. HTML login/challenge pages
+raise `LoginWallError`. `--limit` accepts 1–100.

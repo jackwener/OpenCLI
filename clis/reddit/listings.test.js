@@ -12,16 +12,24 @@ it.each([
   ['frontpage', {}, '/r/all.json?limit=1&raw_json=1'],
   ['popular', {}, '/r/popular.json?limit=1&raw_json=1'],
   ['subreddit', { name: 'r/pics', sort: 'top', time: 'week' }, '/r/pics/top.json?limit=1&raw_json=1&t=week'],
-])('reddit/%s runs its pipeline and preserves media arrays', async (name, args, url) => {
+])('reddit/%s runs its adapter and preserves media arrays', async (name, args, url) => {
   const data = { id: 'abc', title: 'Photo', subreddit_name_prefixed: 'r/pics', author: 'Alice', score: 12,
     num_comments: 3, permalink: '/r/pics/comments/abc', post_hint: 'image', url_overridden_by_dest: 'https://img.test/main',
     preview: { images: [{ source: { url: 'https://img.test/preview?a=1&amp;b=2' } }] },
     gallery_data: { items: [{ media_id: 'one' }] }, media_metadata: { one: { s: { u: 'https://img.test/gallery?a=1&amp;b=2' } } },
   };
-  const fetch = vi.fn().mockResolvedValue({ json: async () => ({ data: { children: [{ data }, { data }] } }) });
+  const payload = { data: { children: [{ data }, { data }] } };
+  const fetch = vi.fn().mockResolvedValue({
+    ok: true, status: 200, headers: { get: () => 'application/json' },
+    json: async () => payload, text: async () => JSON.stringify(payload),
+  });
   const context = createContext({ fetch });
   const page = { goto: vi.fn(), evaluate: async code => runInContext(code, context) };
-  const rows = await executePipeline(page, getRegistry().get(`reddit/${name}`).pipeline, { args: { ...args, limit: 1 } });
+  const command = getRegistry().get(`reddit/${name}`);
+  const kwargs = { ...args, limit: 1 };
+  const rows = command.func
+    ? await command.func(page, kwargs)
+    : await executePipeline(page, command.pipeline, { args: kwargs });
   expect(fetch).toHaveBeenCalledWith(url, { credentials: 'include' });
   expect(rows).toHaveLength(1);
   expect(rows[0]).toMatchObject({ title: 'Photo', author: 'Alice', comments: 3,
