@@ -11,6 +11,8 @@ import {
 
 const DATE_RANGE_RE = /\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\s+\d{4}\s*[–-]\s*(?:present|[a-z]{3,9}\s+\d{4})\b/i;
 const YEAR_RANGE_RE = /\b\d{4}\s*[–-]\s*(?:present|\d{4})\b/i;
+const EMPLOYMENT_TYPE_RE = /^(?:full-time|part-time|contract|freelance|self-employed|internship|apprenticeship|seasonal)$/i;
+const TENURE_RE = /^(?:\d+\s+yrs?(?:\s+\d+\s+mos?)?|\d+\s+mos?)$/i;
 
 function normalizeProfileUrl(value) {
   const url = assertSafeLinkedinUrl(value || 'https://www.linkedin.com/in/me/', 'profile-url', '/in/me/');
@@ -36,6 +38,20 @@ function isChromeLine(line) {
 
 function isDateLine(line) {
   return DATE_RANGE_RE.test(line) || YEAR_RANGE_RE.test(line);
+}
+
+function isTenureHeaderLine(line) {
+  if (!line || isDateLine(line)) return false;
+  return splitLinkedInDotLine(line).every((part) => EMPLOYMENT_TYPE_RE.test(part) || TENURE_RE.test(part));
+}
+
+function extractEmploymentType(line) {
+  return splitLinkedInDotLine(line).find((part) => EMPLOYMENT_TYPE_RE.test(part)) || '';
+}
+
+function extractCompanyFromTitle(title) {
+  const match = normalizeWhitespace(title).match(/\s+at\s+(.+)$/i);
+  return match ? normalizeWhitespace(match[1]) : '';
 }
 
 function splitLinkedInDotLine(line) {
@@ -72,10 +88,17 @@ function parseExperienceText(rawText, profileUrl, index, totalCount = 0) {
     .map(normalizeWhitespace)
     .filter(Boolean)
     .filter((line) => !isChromeLine(line));
-  const title = lines[0] || '';
+  const hasTenureHeader = lines.length > 1 && isTenureHeaderLine(lines[0]) && !isDateLine(lines[1]);
+  const headerLine = hasTenureHeader ? lines[0] : '';
+  const titleIndex = hasTenureHeader ? 1 : 0;
+  const title = lines[titleIndex] || '';
   const dateIndex = lines.findIndex(isDateLine);
-  const companyLine = dateIndex > 1 ? lines[1] : (lines[1] || '');
-  const { company, employment_type: parsedEmploymentType } = parseCompanyLine(companyLine);
+  const companyLine = dateIndex > titleIndex + 1
+    ? lines[titleIndex + 1]
+    : (dateIndex < 0 ? (lines[titleIndex + 1] || '') : '');
+  const { company: parsedCompany, employment_type: parsedEmploymentType } = parseCompanyLine(companyLine);
+  const company = parsedCompany || extractCompanyFromTitle(title);
+  const employmentType = parsedEmploymentType || extractEmploymentType(headerLine);
   const dateParts = dateIndex >= 0 ? parseDateRangeParts(lines[dateIndex]) : { dateRange: '', startDate: '', endDate: '' };
   const locationLine = dateIndex >= 0 && lines[dateIndex + 1] && !/^skills?:/i.test(lines[dateIndex + 1])
     ? lines[dateIndex + 1]
@@ -83,14 +106,14 @@ function parseExperienceText(rawText, profileUrl, index, totalCount = 0) {
   const { location, location_type: parsedLocationType } = parseLocationLine(locationLine);
   const skillLine = lines.find((line) => /\bskills?:/i.test(line)) || '';
   const description = lines
-    .filter((line, lineIndex) => lineIndex !== 0)
+    .filter((line, lineIndex) => lineIndex > titleIndex)
     .filter((line) => line !== companyLine && line !== lines[dateIndex] && line !== locationLine && line !== skillLine)
     .join(' ');
   return {
     rank: index + 1,
     total_count: totalCount,
     title,
-    employment_type: parsedEmploymentType,
+    employment_type: employmentType,
     company,
     date_range: dateParts.dateRange,
     start_date: dateParts.startDate,
@@ -141,10 +164,18 @@ function buildExperienceExtractionScript() {
     const clean = (s) => String(s || '').replace(/[\u00a0\u202f]+/g, ' ').replace(/\s+/g, ' ').trim();
     const DATE_RANGE_RE = /\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\s+\d{4}\s*[–-]\s*(?:present|[a-z]{3,9}\s+\d{4})\b/i;
     const YEAR_RANGE_RE = /\b\d{4}\s*[–-]\s*(?:present|\d{4})\b/i;
+    const EMPLOYMENT_TYPE_RE = /^(?:full-time|part-time|contract|freelance|self-employed|internship|apprenticeship|seasonal)$/i;
+    const TENURE_RE = /^(?:\d+\s+yrs?(?:\s+\d+\s+mos?)?|\d+\s+mos?)$/i;
     const isDateLine = (line) => DATE_RANGE_RE.test(line) || YEAR_RANGE_RE.test(line);
+    const isTenureHeaderLine = (line) => Boolean(line) && !isDateLine(line) && splitDotLine(line).every((part) => EMPLOYMENT_TYPE_RE.test(part) || TENURE_RE.test(part));
     const isChromeLine = (line) => /^(show all|show less|edit|delete|add experience|back to profile|experience|show credential|show media|see more|see less|←|\+)$/i.test(line);
     const splitLines = (text) => String(text || '').split(/\n+/).map(clean).filter(Boolean);
     const splitDotLine = (line) => clean(line).split(/\s*[·•]\s*/).map(clean).filter(Boolean);
+    const extractEmploymentType = (line) => splitDotLine(line).find((part) => EMPLOYMENT_TYPE_RE.test(part)) || '';
+    const extractCompanyFromTitle = (title) => {
+      const match = clean(title).match(/\s+at\s+(.+)$/i);
+      return match ? clean(match[1]) : '';
+    };
     const looksLocationLine = (line) => /remote|hybrid|on-site|india|area|bengaluru|jaipur|delhi|mumbai|pune|gurugram|noida|hyderabad|chennai|kolkata/i.test(line || '');
     const decodeLinkedInSafetyUrl = (value) => {
       if (!value) return '';
@@ -179,15 +210,28 @@ function buildExperienceExtractionScript() {
       const raw = clean(root.innerText || root.textContent || '');
       const lines = splitLines(root.innerText || root.textContent || '').filter((line) => !isChromeLine(line));
       const ariaMatch = clean(context.ariaLabel || '').match(/^edit\s+(.+?)\s+at\s+(.+)$/i);
-      const title = lines[0] || ariaMatch?.[1] || '';
+      const hasTenureHeader = lines.length > 1 && isTenureHeaderLine(lines[0]) && !isDateLine(lines[1]);
+      const headerLine = hasTenureHeader ? lines[0] : '';
+      const titleIndex = hasTenureHeader ? 1 : 0;
+      const title = lines[titleIndex] || ariaMatch?.[1] || '';
       const dateIndex = lines.findIndex(isDateLine);
-      const companyLine = dateIndex > 1 ? lines[1] : (lines[1] || '');
+      const companyLine = dateIndex > titleIndex + 1
+        ? lines[titleIndex + 1]
+        : (dateIndex < 0 ? (lines[titleIndex + 1] || '') : '');
       const companyParts = splitDotLine(companyLine);
       const groupEmploymentParts = splitDotLine(context.employment_type || '');
-      const company = (dateIndex > 1 ? companyParts[0] : '') || context.company || ariaMatch?.[2] || companyParts[0] || companyLine;
-      const parsedEmploymentType = dateIndex > 1
-        ? companyParts.slice(1).join(' · ')
-        : (groupEmploymentParts[0] || context.employment_type || '');
+      const company = (dateIndex > titleIndex + 1 ? companyParts[0] : '')
+        || context.company
+        || ariaMatch?.[2]
+        || extractCompanyFromTitle(title)
+        || companyParts[0]
+        || companyLine;
+      const parsedEmploymentType = (dateIndex > titleIndex + 1 ? companyParts.slice(1).join(' · ') : '')
+        || extractEmploymentType(headerLine)
+        || extractEmploymentType(context.employment_type || '')
+        || groupEmploymentParts[0]
+        || context.employment_type
+        || '';
       const dateParts = dateIndex >= 0 ? parseDateParts(lines[dateIndex]) : { dateRange: '', startDate: '', endDate: '' };
       const lineAfterDate = dateIndex >= 0 ? lines[dateIndex + 1] : '';
       const locationLine = lineAfterDate && looksLocationLine(lineAfterDate) && !/^skills?:/i.test(lineAfterDate)
@@ -210,7 +254,7 @@ function buildExperienceExtractionScript() {
         .filter(Boolean);
       const firstMediaLineIndex = lines.findIndex((line) => mediaTitleLines.includes(line));
       const description = lines
-        .filter((line, lineIndex) => lineIndex !== 0)
+        .filter((line, lineIndex) => lineIndex > titleIndex)
         .filter((line, lineIndex) => firstMediaLineIndex < 0 || lineIndex < firstMediaLineIndex)
         .filter((line) => line !== companyLine && line !== lines[dateIndex] && line !== locationLine && line !== skillLine)
         .filter((line) => !mediaTitleLines.includes(line))

@@ -167,10 +167,13 @@ async function uploadImages(page, absPaths) {
             return { ok: true, count: absPaths.length };
         }
         catch (err) {
-            // If set-file-input action is not supported by extension, fall through to legacy
+            // Fall through to the legacy path when the extension cannot run the
+            // CDP file-injection flow: unsupported action, Chrome rejecting the
+            // debugger, or the intercepted chooser never opening (#2670 — the
+            // input itself still accepts DataTransfer injection).
             const msg = err instanceof Error ? err.message : String(err);
-            if (msg.includes('Unknown action') || msg.includes('not supported') || msg.includes('Not allowed')) {
-                // Extension too old — fall through to legacy base64 method
+            if (msg.includes('Unknown action') || msg.includes('not supported') || msg.includes('Not allowed') || msg.includes('fileChooserOpened not received')) {
+                // Extension too old or chooser suppressed — fall through to legacy base64 method
             }
             else {
                 return { ok: false, count: 0, error: msg };

@@ -336,6 +336,48 @@ describe('xiaohongshu publish', () => {
             },
         ]);
     });
+    it('falls back to DataTransfer upload when the intercepted file chooser never opens (#2670)', async () => {
+        const cmd = getRegistry().get('xiaohongshu/publish');
+        expect(cmd?.func).toBeTypeOf('function');
+        const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-xhs-publish-'));
+        const imagePath = path.join(tempDir, 'demo.jpg');
+        fs.writeFileSync(imagePath, Buffer.from([0xff, 0xd8, 0xff, 0xd9]));
+        const setFileInput = vi.fn().mockRejectedValue(new Error('Page.fileChooserOpened not received within 5s — the input may not have opened a file chooser'));
+        const page = createPageMock([
+            'https://creator.xiaohongshu.com/publish/publish?from=menu_left&target=image',
+            { ok: true, target: '上传图文', text: '上传图文' },
+            { state: 'editor_ready', hasTitleInput: true, hasImageInput: true, hasVideoSurface: false },
+            'input[type="file"][accept*="image"],input[type="file"][accept*=".jpg"],input[type="file"][accept*=".jpeg"],input[type="file"][accept*=".png"],input[type="file"][accept*=".gif"],input[type="file"][accept*=".webp"]',
+            { ok: true, count: 1 },
+            false,
+            true,
+            { ok: true, sel: 'input[maxlength="20"]', kind: 'input' },
+            { ok: true, actual: 'chooser超时回退' },
+            { ok: true, sel: '[contenteditable="true"][class*="content"]', kind: 'contenteditable' },
+            { ok: true, actual: 'DataTransfer fallback path' },
+            { ok: true, via: 'click', text: '发布' },
+            'https://creator.xiaohongshu.com/publish/success',
+            '发布成功',
+        ], {
+            setFileInput,
+        });
+        const result = await cmd.func(page, {
+            title: 'chooser超时回退',
+            content: 'DataTransfer fallback path',
+            images: imagePath,
+            topics: '',
+            draft: false,
+        });
+        const evaluateCalls = page.evaluate.mock.calls.map((args) => String(args[0]));
+        expect(setFileInput).toHaveBeenCalledWith([imagePath], expect.stringContaining('input[type="file"][accept*="image"]'));
+        expect(evaluateCalls.some((code) => code.includes('dt.items.add(new File'))).toBe(true);
+        expect(result).toEqual([
+            {
+                status: '✅ 发布成功',
+                detail: '"chooser超时回退" · 1张图片 · 发布成功',
+            },
+        ]);
+    });
     it('fails fast when only a generic file input exists on the page', async () => {
         const cmd = getRegistry().get('xiaohongshu/publish');
         expect(cmd?.func).toBeTypeOf('function');

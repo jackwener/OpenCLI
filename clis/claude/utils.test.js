@@ -47,7 +47,7 @@ describe('claude sendWithFile', () => {
         }
     });
 
-    it('prefers page.setFileInput, then sends after preview appears', async () => {
+    it.each([null, 'Page.fileChooserOpened not received within 5s'])('uploads and waits for preview with chooser error %s', async (message) => {
         const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-claude-'));
         tempDirs.push(dir);
         const filePath = path.join(dir, 'cat.png');
@@ -55,7 +55,7 @@ describe('claude sendWithFile', () => {
 
         const page = {
             nativeType: vi.fn().mockResolvedValue(undefined),
-            setFileInput: vi.fn().mockResolvedValue(undefined),
+            setFileInput: message ? vi.fn().mockRejectedValue(new Error(message)) : vi.fn().mockResolvedValue(undefined),
             wait: vi.fn().mockResolvedValue(undefined),
             evaluate: vi.fn()
                 .mockResolvedValueOnce({ ok: true, via: 'react' }) // React onChange fired after setFileInput
@@ -69,6 +69,7 @@ describe('claude sendWithFile', () => {
         expect(result).toEqual({ ok: true });
         expect(page.setFileInput).toHaveBeenCalledWith([filePath], 'input[data-testid="file-upload"]');
         expect(page.nativeType).toHaveBeenCalledWith('describe this');
+        expect(page.evaluate.mock.calls.some(([script]) => String(script).includes('new DataTransfer()'))).toBe(Boolean(message));
     });
 
     it('returns file-not-found when path does not exist', async () => {
