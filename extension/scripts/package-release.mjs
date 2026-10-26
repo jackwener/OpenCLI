@@ -46,7 +46,8 @@ function addLocalAsset(files, ref) {
 }
 
 function collectManifestEntrypoints(manifest) {
-  const files = new Set(['manifest.json']);
+  // idle.html is opened programmatically, not referenced by the manifest.
+  const files = new Set(['manifest.json', 'idle.html']);
 
   addLocalAsset(files, manifest.background?.service_worker);
   addLocalAsset(files, manifest.action?.default_popup);

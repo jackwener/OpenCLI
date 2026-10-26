@@ -2075,7 +2075,7 @@ describe('chatgpt project file upload helper', () => {
         expect(sourcesTab.dataset.clicked).toBe('true');
     });
 
-    it('projects file upload uses dialog file input selectors and waits for filename confirmation', async () => {
+    it.each(['No element found', 'Page.fileChooserOpened not received within 5s'])('project upload falls back on %s and waits for filename confirmation', async (message) => {
         const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-chatgpt-'));
         tempDirs.push(dir);
         const filePath = path.join(dir, 'report.pdf');
@@ -2085,7 +2085,7 @@ describe('chatgpt project file upload helper', () => {
             goto: vi.fn().mockResolvedValue(undefined),
             wait: vi.fn().mockResolvedValue(undefined),
             nativeType: vi.fn(),
-            setFileInput: vi.fn().mockRejectedValue(new Error('No element found')),
+            setFileInput: vi.fn().mockRejectedValue(new Error(message)),
             evaluate: vi.fn((script) => {
                 const s = String(script);
                 // getPageState returns a specific object

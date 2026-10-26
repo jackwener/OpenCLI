@@ -94,6 +94,15 @@ describe('evalExpr', () => {
   it('evaluates method calls on values', () => {
     expect(evalExpr("args.username.startsWith('@') ? args.username : '@' + args.username", { args: { username: 'alice' } })).toBe('@alice');
   });
+  it('returns a plain quoted string literal', () => {
+    expect(evalExpr("'hello'", {})).toBe('hello');
+    expect(evalExpr('"it\'s"', {})).toBe("it's");
+  });
+  it('evaluates expressions that start and end with a quote', () => {
+    expect(evalExpr("'@' + item.name + '!'", { item: { name: 'alice' } })).toBe('@alice!');
+    expect(evalExpr("'a' === 'b'", {})).toBe(false);
+    expect(evalExpr("'it\\'s'", {})).toBe("it's");
+  });
   it('rejects constructor-based sandbox escapes', () => {
     expect(evalExpr("args['cons' + 'tructor']['constructor']('return process')()", { args: {} })).toBeUndefined();
   });
@@ -143,6 +152,9 @@ describe('render', () => {
   });
   it('renders URL template', () => {
     expect(render('https://api.example.com/search?q=${{ args.keyword }}', { args: { keyword: 'test' } })).toBe('https://api.example.com/search?q=test');
+  });
+  it('renders full expressions that concatenate quoted strings', () => {
+    expect(render("${{ 'https://x.com/' + item.id + '/' }}", { item: { id: 42 } })).toBe('https://x.com/42/');
   });
   it('renders inline helper expressions', () => {
     expect(render('https://example.com/search?q=${{ encodeURIComponent(args.keyword) }}', { args: { keyword: 'hello world' } })).toBe('https://example.com/search?q=hello%20world');

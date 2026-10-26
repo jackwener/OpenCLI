@@ -51,7 +51,7 @@ cli({
         const limit = parseListLimit(kwargs.limit);
 
         const searchUrl = buildTrainListUrl(fromName, toName, date);
-        await page.goto(searchUrl);
+        await page.goto(searchUrl, { waitUntil: 'none' });
         const waitResult = await page.evaluate(WAIT_FOR_TRAINS_JS);
         if (waitResult === 'captcha') {
             throw new AuthRequiredError('trains.ctrip.com', 'Ctrip is asking for a captcha; complete it in your browser session and retry');
