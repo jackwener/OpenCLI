@@ -255,6 +255,7 @@ describe('xiaohongshu note', () => {
         const loaded = {
             loginWall: false, notFound: false,
             title: 'Late bar', desc: 'Body first', author: 'Author', tags: [],
+            pageUrl: 'https://www.xiaohongshu.com/search_result/abc123?xsec_token=tok',
         };
         const page = createPageMock(undefined);
         page.evaluate
@@ -284,7 +285,7 @@ describe('xiaohongshu note', () => {
         // empty while the other two render their labels.
         const page = createPageMock({
             loginWall: false, notFound: false,
-            title: '近期花絮', desc: 'Body', author: 'Author',
+            title: '近期花絮', desc: 'Body', author: 'Author', likesPresent: true,
             likes: '', collects: '收藏', comments: '评论', tags: [],
         });
         const result = (await command.func(page, {
@@ -299,6 +300,7 @@ describe('xiaohongshu note', () => {
         const page = createPageMock({
             loginWall: false, notFound: false,
             title: 'Stuck bar', desc: 'Body', author: 'Author',
+            pageUrl: 'https://www.xiaohongshu.com/search_result/abc123?xsec_token=tok',
             likes: '', collects: '收藏', comments: '—', tags: [],
         });
         await expect(command.func(page, {
@@ -310,6 +312,56 @@ describe('xiaohongshu note', () => {
         expect(page.evaluate).toHaveBeenCalledTimes(11);
         expect(page.goto).toHaveBeenCalledTimes(1);
     });
+    it.each([
+        [{ loginWall: true }, 'AUTH_REQUIRED'],
+        [{ securityBlock: true }, 'SECURITY_BLOCK'],
+        [{ notFound: true }, 'EMPTY_RESULT'],
+        [{ pageUrl: 'https://www.xiaohongshu.com/explore/def456' }, 'COMMAND_EXEC'],
+        [null, 'COMMAND_EXEC'],
+    ])('stops count polling on changed page state %j', async (change, code) => {
+        const url = 'https://www.xiaohongshu.com/explore/abc123?xsec_token=tok';
+        const initial = { pageUrl: url, title: 'Original', author: 'Author', likes: '', collects: '', comments: '' };
+        const fresh = change === null ? null : { ...initial, likes: '9', collects: '8', comments: '7', ...change };
+        const page = createPageMock(undefined);
+        page.evaluate.mockResolvedValueOnce(initial).mockResolvedValue(fresh);
+        await expect(command.func(page, { 'note-id': url })).rejects.toMatchObject({ code });
+        expect(page.evaluate).toHaveBeenCalledTimes(2);
+        expect(page.goto).toHaveBeenCalledTimes(1);
+    });
+
+    it.each(['', '25'])('reads hydrated DOM counts including like text %j', async (likes) => {
+        const url = 'https://www.xiaohongshu.com/explore/abc123?xsec_token=tok';
+        const dom = new JSDOM(notePage(), { url, runScripts: 'outside-only' });
+        const bar = dom.window.document.querySelector('.interact-container');
+        bar.querySelector('.like-wrapper .count').textContent = likes;
+        bar.remove();
+        const page = createPageMock(undefined);
+        let reads = 0;
+        page.evaluate.mockImplementation(script => {
+            if (++reads === 2) dom.window.document.querySelector('#noteContainer').append(bar);
+            return dom.window.eval(script);
+        });
+        try {
+            const rows = await command.func(page, { 'note-id': url });
+            expect(rows.find(row => row.field === 'likes').value).toBe(likes || '0');
+            expect(rows.find(row => row.field === 'comments').value).toBe('15');
+            expect(page.goto).toHaveBeenCalledTimes(1);
+            expect(reads).toBe(2);
+        } finally { dom.window.close(); }
+    });
+
+    it('does not infer zero likes from an absent like node', async () => {
+        const url = 'https://www.xiaohongshu.com/explore/abc123?xsec_token=tok';
+        const dom = new JSDOM(notePage().replace('<span class="like-wrapper"><span class="count">10</span></span>', ''), {
+            url, runScripts: 'outside-only',
+        });
+        const page = createPageMock(undefined);
+        page.evaluate.mockImplementation(script => dom.window.eval(script));
+        try {
+            await expect(command.func(page, { 'note-id': url })).rejects.toMatchObject({ code: 'COUNTS_NOT_LOADED' });
+        } finally { dom.window.close(); }
+    });
+
     it('scopes metric selectors to .interact-container to avoid matching comment like buttons', async () => {
         const page = createPageMock({
             loginWall: false, notFound: false,
