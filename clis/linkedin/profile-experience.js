@@ -11,8 +11,8 @@ import {
 
 const DATE_RANGE_RE = /\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\s+\d{4}\s*[–-]\s*(?:present|[a-z]{3,9}\s+\d{4})\b/i;
 const YEAR_RANGE_RE = /\b\d{4}\s*[–-]\s*(?:present|\d{4})\b/i;
-const EMPLOYMENT_TYPE_RE = /^(?:full-time|part-time|contract|freelance|self-employed|internship|apprenticeship|seasonal)\b/i;
-const TENURE_RE = /\b\d+\s*(?:yrs?|mos?)\b/i;
+const EMPLOYMENT_TYPE_RE = /^(?:full-time|part-time|contract|freelance|self-employed|internship|apprenticeship|seasonal)$/i;
+const TENURE_RE = /^(?:\d+\s+yrs?(?:\s+\d+\s+mos?)?|\d+\s+mos?)$/i;
 
 function normalizeProfileUrl(value) {
   const url = assertSafeLinkedinUrl(value || 'https://www.linkedin.com/in/me/', 'profile-url', '/in/me/');
@@ -42,7 +42,7 @@ function isDateLine(line) {
 
 function isTenureHeaderLine(line) {
   if (!line || isDateLine(line)) return false;
-  return EMPLOYMENT_TYPE_RE.test(line) || TENURE_RE.test(line);
+  return splitLinkedInDotLine(line).every((part) => EMPLOYMENT_TYPE_RE.test(part) || TENURE_RE.test(part));
 }
 
 function extractEmploymentType(line) {
@@ -164,10 +164,10 @@ function buildExperienceExtractionScript() {
     const clean = (s) => String(s || '').replace(/[\u00a0\u202f]+/g, ' ').replace(/\s+/g, ' ').trim();
     const DATE_RANGE_RE = /\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\s+\d{4}\s*[–-]\s*(?:present|[a-z]{3,9}\s+\d{4})\b/i;
     const YEAR_RANGE_RE = /\b\d{4}\s*[–-]\s*(?:present|\d{4})\b/i;
-    const EMPLOYMENT_TYPE_RE = /^(?:full-time|part-time|contract|freelance|self-employed|internship|apprenticeship|seasonal)\b/i;
-    const TENURE_RE = /\b\d+\s*(?:yrs?|mos?)\b/i;
+    const EMPLOYMENT_TYPE_RE = /^(?:full-time|part-time|contract|freelance|self-employed|internship|apprenticeship|seasonal)$/i;
+    const TENURE_RE = /^(?:\d+\s+yrs?(?:\s+\d+\s+mos?)?|\d+\s+mos?)$/i;
     const isDateLine = (line) => DATE_RANGE_RE.test(line) || YEAR_RANGE_RE.test(line);
-    const isTenureHeaderLine = (line) => Boolean(line) && !isDateLine(line) && (EMPLOYMENT_TYPE_RE.test(line) || TENURE_RE.test(line));
+    const isTenureHeaderLine = (line) => Boolean(line) && !isDateLine(line) && splitDotLine(line).every((part) => EMPLOYMENT_TYPE_RE.test(part) || TENURE_RE.test(part));
     const isChromeLine = (line) => /^(show all|show less|edit|delete|add experience|back to profile|experience|show credential|show media|see more|see less|←|\+)$/i.test(line);
     const splitLines = (text) => String(text || '').split(/\n+/).map(clean).filter(Boolean);
     const splitDotLine = (line) => clean(line).split(/\s*[·•]\s*/).map(clean).filter(Boolean);

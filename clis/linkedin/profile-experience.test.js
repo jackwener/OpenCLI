@@ -1,3 +1,4 @@
+import { JSDOM } from 'jsdom';
 import { describe, expect, it } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
 import { CommandExecutionError } from '@jackwener/opencli/errors';
@@ -117,6 +118,38 @@ Who your viewers also viewed`, 'https://www.linkedin.com/in/gauravsaxena1997/');
       date_range: 'Jun 2019 – Apr 2022',
       location_type: 'On-site',
     });
+  });
+
+  it.each(['Contract Manager', 'Freelance Designer', 'Engineer with 5 yrs experience'])(
+    'preserves the actual role title %s in text and browser extraction', (title) => {
+      const raw = `${title}\nAcme · Full-time\nJan 2020 – Present\nRemote\nBuilds useful tools.`;
+      expect(parseExperienceText(raw, 'https://www.linkedin.com/in/test/', 0)).toMatchObject({ title, company: 'Acme' });
+      const dom = new JSDOM('<main><article><a href="/in/test/details/experience/edit/forms/1/">Edit</a></article></main>', {
+        url: 'https://www.linkedin.com/in/test/details/experience/', runScripts: 'outside-only',
+      });
+      Object.defineProperty(dom.window.document.querySelector('article'), 'innerText', { value: raw });
+      try {
+        const result = dom.window.eval(buildExperienceExtractionScript());
+        expect(result.experienceRows).toHaveLength(1);
+        expect(result.experienceRows[0]).toMatchObject({ title, company: 'Acme', employment_type: 'Full-time' });
+      } finally { dom.window.close(); }
+    },
+  );
+
+  it('extracts separate grouped roles using company context in the browser', () => {
+    const dom = new JSDOM('<main><section><a href="/company/acme/"><p>Acme</p></a><ul><li><a href="/in/test/details/experience/edit/forms/1/">Edit</a></li><li><a href="/in/test/details/experience/edit/forms/2/">Edit</a></li></ul></section></main>', {
+      url: 'https://www.linkedin.com/in/test/details/experience/', runScripts: 'outside-only',
+    });
+    const texts = ['Full-time · 4 yrs 9 mos\nSenior Engineer\nJan 2022 – Present\nRemote\nBuilds systems.', 'Contract · 1 yr\nEngineer\nJan 2021 – Jan 2022\nRemote\nBuilt services.'];
+    [...dom.window.document.querySelectorAll('li')].forEach((node, index) => {
+      Object.defineProperty(node, 'innerText', { value: texts[index] });
+    });
+    try {
+      const rows = dom.window.eval(buildExperienceExtractionScript()).experienceRows;
+      expect(rows).toHaveLength(2);
+      expect(rows[0]).toMatchObject({ title: 'Senior Engineer', company: 'Acme', employment_type: 'Full-time', description: 'Builds systems.' });
+      expect(rows[1]).toMatchObject({ title: 'Engineer', company: 'Acme', employment_type: 'Contract', description: 'Built services.' });
+    } finally { dom.window.close(); }
   });
 
   it('normalizes rows and requires a title', () => {
