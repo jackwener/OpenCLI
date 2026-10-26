@@ -227,6 +227,7 @@ cli({
         { name: 'url', required: true, help: 'WeChat article URL (mp.weixin.qq.com/s/xxx)' },
         { name: 'output', default: './weixin-articles', help: 'Output directory' },
         { name: 'download-images', type: 'boolean', default: true, help: 'Download images locally' },
+        { name: 'stdout', type: 'boolean', default: false, help: 'Print markdown to stdout instead of saving to a file' },
     ],
     columns: ['title', 'author', 'publish_time', 'status', 'size', 'saved'],
     func: async (page, kwargs) => {
@@ -349,7 +350,7 @@ cli({
                     saved: '-',
                 }];
         }
-        return downloadArticle({
+        const result = await downloadArticle({
             title: data?.title || '',
             author: data?.author,
             publishTime: data?.publishTime,
@@ -366,6 +367,12 @@ cli({
                 const m = url.match(/wx_fmt=(\w+)/) || url.match(/\.(\w{3,4})(?:\?|$)/);
                 return m ? m[1] : 'png';
             },
+            stdout: kwargs.stdout,
         });
+        // `--stdout` is a content-streaming mode. The markdown body already went
+        // to process.stdout inside downloadArticle(), so returning rows here
+        // would make Commander append table/JSON output to the same stdout
+        // stream and break piping. Mirror clis/web/read.js's pattern.
+        return kwargs.stdout ? null : result;
     },
 });
