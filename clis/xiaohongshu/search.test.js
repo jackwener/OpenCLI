@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
 import { JSDOM } from 'jsdom';
@@ -23,8 +24,8 @@ function createPageMock(evaluateResults) {
         if (String(script).includes('search-icon')) {
             return { status: 'ok' };
         }
-        if (String(script).includes('const requestedFilters =')) {
-            return { status: 'ok' };
+        if (String(script).includes('const requestedFilters =') || String(script).includes('const request = ')) {
+            return { status: 'active' };
         }
         return queuedResults.shift();
     });
@@ -110,6 +111,27 @@ function createFilterBehaviorPage(options = {}) {
     const state = Object.fromEntries(FILTER_FIXTURE.map(([group, choices]) => [group, choices[0]]));
     Object.assign(state, options.initial || {});
     const clicks = [];
+    const untrustedChipClicks = [];
+    const trustedClicks = [];
+    const chips = [];
+    const chipRect = (groupIndex, choiceIndex) => {
+        const left = 100 + choiceIndex * 110;
+        const top = 100 + groupIndex * 50;
+        return { x: left, y: top, left, top, width: 96, height: 40, right: left + 96, bottom: top + 40 };
+    };
+    const inside = (rect, x, y) => x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+    const overlayNode = document.createElement('div');
+    overlayNode.className = 'unrelated-overlay';
+    document.body.append(overlayNode);
+    // JSDOM has no layout: emulate hit-testing from the fixture geometry. Real chips win over
+    // their z-index:-1 clones; an `overlay` option covers one chip with an unrelated element.
+    document.elementFromPoint = (x, y) => {
+        for (const chip of chips) {
+            if (!chip.ghost && inside(chip.rect, x, y)) return options.overlay === chip.id ? overlayNode : chip.label;
+        }
+        for (const chip of chips) if (chip.ghost && inside(chip.rect, x, y)) return chip.el;
+        return document.querySelector('.filter-panel') || document.body;
+    };
     let panelRenders = 0;
     let geometry = 1000;
     const trigger = document.querySelector('.filter');
@@ -141,7 +163,8 @@ function createFilterBehaviorPage(options = {}) {
         document.querySelector('.filter-panel')?.remove();
         const panel = document.createElement('div');
         panel.className = 'filter-panel';
-        for (const [groupLabel, choices] of FILTER_FIXTURE) {
+        chips.length = 0;
+        for (const [groupIndex, [groupLabel, choices]] of FILTER_FIXTURE.entries()) {
             const group = document.createElement('div');
             group.className = 'filters';
             const label = document.createElement('span');
@@ -149,7 +172,7 @@ function createFilterBehaviorPage(options = {}) {
             group.append(label);
             const container = document.createElement('div');
             container.className = 'tag-container';
-            for (const choice of choices) {
+            for (const [choiceIndex, choice] of choices.entries()) {
                 if (options.missing === `${groupLabel}/${choice}`) continue;
                 const copies = options.ghosts || options.ambiguous === `${groupLabel}/${choice}` ? 2 : 1;
                 for (let copy = 0; copy < copies; copy++) {
@@ -158,11 +181,21 @@ function createFilterBehaviorPage(options = {}) {
                     const optionLabel = document.createElement('span');
                     optionLabel.textContent = choice;
                     option.append(optionLabel);
-                    if (options.ghosts && copy === 0) {
+                    const ghost = Boolean(options.ghosts) && copy === 0;
+                    if (ghost) {
                         if (options.ghosts !== 'opacity') option.setAttribute('aria-hidden', 'true');
                         if (options.ghosts !== 'aria') option.style.opacity = '0.00001';
                         option.addEventListener('click', () => clicks.push('GHOST'));
                     }
+                    else {
+                        // The live page's honeypot records any untrusted click on the real chip.
+                        option.addEventListener('click', (event) => {
+                            if (!event.__trusted) untrustedChipClicks.push(`${groupLabel}/${choice}`);
+                        }, true);
+                    }
+                    const ambiguousCopy = options.ambiguous === `${groupLabel}/${choice}` && copy === 1;
+                    const rect = chipRect(groupIndex, ambiguousCopy ? choiceIndex + 0.5 : choiceIndex);
+                    chips.push({ el: option, label: optionLabel, rect, ghost, id: `${groupLabel}/${choice}` });
                     option.addEventListener('click', (event) => {
                         event.stopPropagation();
                         clicks.push(`${groupLabel}/${choice}`);
@@ -184,8 +217,8 @@ function createFilterBehaviorPage(options = {}) {
                         }, 300);
                     });
                     container.append(option);
-                    markVisible(option);
-                    markVisible(optionLabel);
+                    option.getBoundingClientRect = () => rect;
+                    optionLabel.getBoundingClientRect = () => rect;
                 }
             }
             group.append(container);
@@ -209,7 +242,7 @@ function createFilterBehaviorPage(options = {}) {
         const source = String(script);
         if (source.includes('search-icon')) return { status: 'ok' };
         if (source.includes('findNoteCard')) return 'content';
-        if (source.includes('const requestedFilters =')) {
+        if (source.includes('const requestedFilters =') || source.includes('const request = ')) {
             return Function(
                 'document',
                 'window',
@@ -235,8 +268,23 @@ function createFilterBehaviorPage(options = {}) {
         }
         throw new Error(`Unexpected evaluate script: ${source.slice(0, 40)}`);
     });
+    if (!options.noNativeClick) {
+        page.nativeClick = vi.fn(async (x, y) => {
+            trustedClicks.push([x, y]);
+            const event = new dom.window.MouseEvent('click', { bubbles: true });
+            event.__trusted = true;
+            document.elementFromPoint(x, y).dispatchEvent(event);
+        });
+    }
     page.filterState = state;
     page.filterClicks = clicks;
+    page.untrustedChipClicks = untrustedChipClicks;
+    page.trustedClicks = trustedClicks;
+    page.chipCenter = (group, choice) => {
+        const groupIndex = FILTER_FIXTURE.findIndex(([label]) => label === group);
+        const rect = chipRect(groupIndex, FILTER_FIXTURE[groupIndex][1].indexOf(choice));
+        return [Math.round(rect.left + rect.width / 2), Math.round(rect.top + rect.height / 2)];
+    };
     page.panelRenderCount = () => panelRenders;
     page.closeFilterPanel = () => document.querySelector('.filter-panel')?.remove();
     return page;
@@ -701,7 +749,9 @@ describe('xiaohongshu search', () => {
         ]);
         await expect(cmd.func(page, { query: '测试等待', limit: 5 })).rejects.toMatchObject({ code: 'EMPTY_RESULT' });
         expect(page.goto).toHaveBeenCalledTimes(1);
-        expect(page.evaluate).toHaveBeenCalledTimes(4);
+        const filterStages = page.evaluate.mock.calls.filter(([script]) => String(script).includes('const request = '));
+        expect(filterStages).toHaveLength(FILTER_FIXTURE.length);
+        expect(page.evaluate.mock.calls.length - filterStages.length).toBe(3);
         expect(page.newTab).not.toHaveBeenCalled();
     });
     it('maps an ordinary hydration timeout to TimeoutError without replacing the tab', async () => {
@@ -738,8 +788,12 @@ describe('xiaohongshu search', () => {
         expect(page.closeTab).toHaveBeenCalledWith('page-old');
         expect(page.newTab.mock.invocationCallOrder[0]).toBeLessThan(page.setActivePage.mock.invocationCallOrder[0]);
         expect(page.setActivePage.mock.invocationCallOrder[0]).toBeLessThan(page.closeTab.mock.invocationCallOrder[0]);
-        expect(page.closeTab.mock.invocationCallOrder[0]).toBeLessThan(page.evaluate.mock.invocationCallOrder[4]);
-        expect(page.evaluate.mock.calls.filter(([script]) => String(script).includes('const requestedFilters ='))).toHaveLength(2);
+        const harvestCalls = page.evaluate.mock.calls
+            .map(([script], index) => (String(script).includes('const targetCount =') ? index : -1))
+            .filter((index) => index >= 0);
+        expect(harvestCalls).toHaveLength(2);
+        expect(page.closeTab.mock.invocationCallOrder[0]).toBeLessThan(page.evaluate.mock.invocationCallOrder[harvestCalls[1]]);
+        expect(page.evaluate.mock.calls.filter(([script]) => String(script).includes('const request = '))).toHaveLength(2 * FILTER_FIXTURE.length);
         expect(page.getActivePage()).toBe('page-new');
     });
     it('fails execution after one fresh target also renders with the proven collapsed signature', async () => {
@@ -823,6 +877,55 @@ describe('xiaohongshu search', () => {
 });
 
 describe('xiaohongshu search filter behavior', () => {
+    it('applies a filter with a trusted coordinate click on the hit-tested real chip, never a DOM click', async () => {
+        vi.useFakeTimers();
+        try {
+            const page = createFilterBehaviorPage({ ghosts: true });
+            await runFilterCommand(page, { sort: 'latest' });
+            expect(page.filterState['排序依据']).toBe('最新');
+            expect(page.trustedClicks).toEqual([page.chipCenter('排序依据', '最新')]);
+            expect(page.filterClicks).toEqual(['排序依据/最新']);
+            expect(page.untrustedChipClicks).toEqual([]);
+        }
+        finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('fails closed when the chip center hit-tests to an unrelated element', async () => {
+        vi.useFakeTimers();
+        try {
+            const page = createFilterBehaviorPage({ ghosts: true, overlay: '排序依据/最新' });
+            await expect(runFilterCommand(page, { sort: 'latest' })).rejects.toMatchObject({
+                code: 'COMMAND_EXEC',
+                message: expect.stringContaining('hit_target_mismatch'),
+            });
+            expect(page.trustedClicks).toEqual([]);
+            expect(page.filterClicks).toEqual([]);
+            expect(page.filterState['排序依据']).toBe('综合');
+        }
+        finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('fails typed instead of falling back to an untrusted DOM click when native clicks are unavailable', async () => {
+        vi.useFakeTimers();
+        try {
+            const page = createFilterBehaviorPage({ ghosts: true, noNativeClick: true });
+            await expect(runFilterCommand(page, { sort: 'latest' })).rejects.toMatchObject({
+                code: 'COMMAND_EXEC',
+                message: expect.stringContaining('trusted click'),
+            });
+            expect(page.filterClicks).toEqual([]);
+            expect(page.untrustedChipClicks).toEqual([]);
+            expect(page.filterState['排序依据']).toBe('综合');
+        }
+        finally {
+            vi.useRealTimers();
+        }
+    });
+
     it('ignores hidden overlapping clones for default and explicit filters without clicking them', async () => {
         vi.useFakeTimers();
         try {
@@ -1322,5 +1425,67 @@ describe('search readiness before body creation', () => {
             expire();
             await expect(pending).resolves.toBe('timeout');
         } finally { dom.window.close(); }
+    });
+});
+
+describe('xiaohongshu search filter panel captured from the live site (honeypot clones)', () => {
+    const fixtureUrl = (name) => new URL(`./__fixtures__/${name}`, import.meta.url);
+    const html = readFileSync(fixtureUrl('search-filter-honeypot.html'), 'utf8');
+    const evidence = JSON.parse(readFileSync(fixtureUrl('search-filter-honeypot.evidence.json'), 'utf8'));
+    const rectOf = ([left, top, width, height]) => ({ x: left, y: top, left, top, width, height, right: left + width, bottom: top + height });
+    const inside = (rect, x, y) => x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+
+    function loadCapturedPanel() {
+        const dom = new JSDOM(`<body><div class="search-layout__top">${html}</div><div class="search-layout__main"></div></body>`, {
+            url: 'https://www.xiaohongshu.com/search_result?keyword=test',
+        });
+        const { document } = dom.window;
+        const wide = rectOf([0, 0, 1280, 400]);
+        for (const el of document.querySelectorAll('.filter, .filter-panel, .filters, .tag-container')) el.getBoundingClientRect = () => wide;
+        // JSDOM has no layout: replay the geometry recorded for each chip at capture time.
+        const captured = new Map(evidence.chips.map((chip) => [`${chip.kind}:${chip.text}`, chip]));
+        const chips = [];
+        for (const el of document.querySelectorAll('.tag-container > .tags')) {
+            const kind = el.hasAttribute('button-hp-installed') ? 'clone' : el.hasAttribute('data-hp-bound') ? 'real' : 'other';
+            const chip = captured.get(`${kind}:${el.textContent.replace(/\s+/g, '')}`);
+            if (!chip) throw new Error(`fixture chip without captured geometry: ${kind} ${el.textContent.trim()}`);
+            const rect = rectOf(chip.rect);
+            el.getBoundingClientRect = () => rect;
+            el.querySelector('span').getBoundingClientRect = () => rect;
+            chips.push({ el, kind, rect, center: chip.center });
+        }
+        // Replay the captured hit-test: the real chip's label is topmost at its center, clones never are.
+        document.elementFromPoint = (x, y) => chips.find((chip) => chip.kind === 'real' && inside(chip.rect, x, y))?.el.querySelector('span') ?? null;
+        return { dom, document, chips };
+    }
+
+    async function locate(dom, document, request) {
+        return Function('document', 'window', 'getComputedStyle', 'setTimeout', `return (${__test__.buildLocateFilterOptionJs(request)})`)(
+            document, dom.window, dom.window.getComputedStyle.bind(dom.window), setTimeout,
+        );
+    }
+
+    it('keeps every captured clone stacked on a real chip at identical geometry', () => {
+        const { chips } = loadCapturedPanel();
+        const clones = chips.filter((chip) => chip.kind === 'clone');
+        expect(clones.length).toBeGreaterThan(10);
+        for (const clone of clones) {
+            const twin = chips.find((chip) => chip.kind === 'real' && chip.el.textContent.trim() === clone.el.textContent.trim());
+            expect(twin.rect).toEqual(clone.rect);
+        }
+    });
+
+    it('resolves a requested chip to the single real node and targets the captured hit-tested center', async () => {
+        const { dom, document, chips } = loadCapturedPanel();
+        const located = await locate(dom, document, { group: '排序依据', option: '最新', capability: '' });
+        const real = chips.find((chip) => chip.kind === 'real' && chip.el.textContent.trim() === '最新');
+        expect(located).toEqual({ status: 'click', x: real.center[0], y: real.center[1] });
+        expect(await locate(dom, document, { group: '排序依据', option: '综合', capability: '' })).toEqual({ status: 'active' });
+    });
+
+    it('fails closed instead of guessing when the real chip is gone and only the clone remains', async () => {
+        const { dom, document, chips } = loadCapturedPanel();
+        chips.find((chip) => chip.kind === 'real' && chip.el.textContent.trim() === '最新').el.remove();
+        expect(await locate(dom, document, { group: '排序依据', option: '最新', capability: '' })).toEqual({ status: 'layout', detail: 'option_not_found' });
     });
 });
