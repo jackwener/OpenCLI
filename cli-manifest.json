@@ -34800,6 +34800,141 @@
     "navigateBefore": true
   },
   {
+    "site": "threads",
+    "name": "post",
+    "description": "Read a Threads post and its replies",
+    "access": "read",
+    "domain": "www.threads.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "target",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Post URL or shortcode"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": "Maximum number of replies (max 100)"
+      }
+    ],
+    "columns": [
+      "type",
+      "author",
+      "text",
+      "likes",
+      "replies",
+      "published_at",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "threads/post.js",
+    "sourceFile": "threads/post.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "threads",
+    "name": "search",
+    "description": "Search Threads posts",
+    "access": "read",
+    "domain": "www.threads.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Search keyword"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of results (max 100)"
+      },
+      {
+        "name": "sort",
+        "type": "string",
+        "default": "top",
+        "required": false,
+        "help": "Top or most recent posts",
+        "choices": [
+          "top",
+          "recent"
+        ]
+      }
+    ],
+    "columns": [
+      "rank",
+      "author",
+      "text",
+      "likes",
+      "replies",
+      "reposts",
+      "published_at",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "threads/search.js",
+    "sourceFile": "threads/search.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "threads",
+    "name": "user",
+    "description": "List a Threads user's recent public posts",
+    "access": "read",
+    "domain": "www.threads.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "username",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Username, with or without @, or a profile URL"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of posts (max 100)"
+      },
+      {
+        "name": "replies",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Include the user's replies"
+      }
+    ],
+    "columns": [
+      "rank",
+      "author",
+      "text",
+      "likes",
+      "replies",
+      "reposts",
+      "is_reply",
+      "published_at",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "threads/user.js",
+    "sourceFile": "threads/user.js",
+    "navigateBefore": false
+  },
+  {
     "site": "ths",
     "name": "hot-rank",
     "description": "同花顺热股榜",

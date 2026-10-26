@@ -1,0 +1,426 @@
+{
+ "scripts": [
+  {
+   "require": [
+    [
+     "ScheduledServerJS",
+     "handle",
+     [
+      {
+       "__bbox": {
+        "require": [
+         [
+          "RelayPrefetchedStreamCache",
+          "next",
+          [],
+          [
+           {
+            "__bbox": {
+             "result": {
+              "data": {
+               "media": {
+                "pk": "9000000001",
+                "code": "CODE01",
+                "user": {
+                 "pk": "USERPK01",
+                 "username": "user_02"
+                },
+                "caption": {
+                 "text": "placeholder text 01"
+                },
+                "like_count": 5124,
+                "taken_at": 1790000000,
+                "text_post_app_info": {
+                 "direct_reply_count": 535,
+                 "repost_count": 270,
+                 "quote_count": 50,
+                 "is_reply": false,
+                 "reply_to_author": null
+                },
+                "id": "MEDIA_ID_01"
+               }
+              }
+             }
+            }
+           }
+          ]
+         ]
+        ]
+       }
+      }
+     ]
+    ]
+   ]
+  },
+  {
+   "require": [
+    [
+     "ScheduledServerJS",
+     "handle",
+     [
+      {
+       "__bbox": {
+        "require": [
+         [
+          "RelayPrefetchedStreamCache",
+          "next",
+          [],
+          [
+           {
+            "__bbox": {
+             "result": {
+              "data": {
+               "media": {
+                "id": "MEDIA_ID_01",
+                "text_post_app_info": {
+                 "direct_replies": {
+                  "edges": [
+                   {
+                    "node": {
+                     "posts": {
+                      "edges": [
+                       {
+                        "node": {
+                         "pk": "9000000002",
+                         "code": "CODE02",
+                         "user": {
+                          "pk": "USERPK03",
+                          "username": "user_04"
+                         },
+                         "caption": {
+                          "text": "placeholder text 02"
+                         },
+                         "like_count": 58,
+                         "taken_at": 1790052037,
+                         "text_post_app_info": {
+                          "direct_reply_count": 2,
+                          "repost_count": 1,
+                          "quote_count": 0,
+                          "is_reply": true,
+                          "reply_to_author": {
+                           "username": "user_02"
+                          }
+                         },
+                         "id": "MEDIA_ID_02"
+                        }
+                       }
+                      ],
+                      "page_info": {
+                       "end_cursor": "CURSOR_01",
+                       "has_next_page": true
+                      }
+                     },
+                     "__typename": "XDTTextAppThreadView"
+                    },
+                    "cursor": null
+                   },
+                   {
+                    "node": {
+                     "posts": {
+                      "edges": [
+                       {
+                        "node": {
+                         "pk": "9000000003",
+                         "code": "CODE03",
+                         "user": {
+                          "pk": "USERPK05",
+                          "username": "user_06"
+                         },
+                         "caption": null,
+                         "like_count": 15,
+                         "taken_at": 1790004985,
+                         "text_post_app_info": {
+                          "direct_reply_count": 1,
+                          "repost_count": 1,
+                          "quote_count": 0,
+                          "is_reply": true,
+                          "reply_to_author": {
+                           "username": "user_02"
+                          }
+                         },
+                         "id": "MEDIA_ID_03"
+                        }
+                       },
+                       {
+                        "node": {
+                         "pk": "9000000004",
+                         "code": "CODE04",
+                         "user": {
+                          "pk": "USERPK07",
+                          "username": "user_08"
+                         },
+                         "caption": {
+                          "text": "placeholder text 03"
+                         },
+                         "like_count": 2,
+                         "taken_at": 1790023386,
+                         "text_post_app_info": {
+                          "direct_reply_count": 0,
+                          "repost_count": 0,
+                          "quote_count": 0,
+                          "is_reply": true,
+                          "reply_to_author": {
+                           "username": "user_06"
+                          }
+                         },
+                         "id": "MEDIA_ID_04"
+                        }
+                       }
+                      ],
+                      "page_info": {
+                       "end_cursor": null,
+                       "has_next_page": false
+                      }
+                     },
+                     "__typename": "XDTTextAppThreadView"
+                    },
+                    "cursor": null
+                   },
+                   {
+                    "node": {
+                     "posts": {
+                      "edges": [
+                       {
+                        "node": {
+                         "pk": "9000000005",
+                         "code": "CODE05",
+                         "user": {
+                          "pk": "USERPK09",
+                          "username": "user_10"
+                         },
+                         "caption": {
+                          "text": "placeholder text 04"
+                         },
+                         "like_count": 40,
+                         "taken_at": 1790000072,
+                         "text_post_app_info": {
+                          "direct_reply_count": 1,
+                          "repost_count": 0,
+                          "quote_count": 0,
+                          "is_reply": true,
+                          "reply_to_author": {
+                           "username": "user_02"
+                          }
+                         },
+                         "id": "MEDIA_ID_05"
+                        }
+                       },
+                       {
+                        "node": {
+                         "pk": "9000000006",
+                         "code": "CODE06",
+                         "user": {
+                          "pk": "USERPK11",
+                          "username": "user_12"
+                         },
+                         "caption": {
+                          "text": "placeholder text 05"
+                         },
+                         "like_count": 1,
+                         "taken_at": 1790000438,
+                         "text_post_app_info": {
+                          "direct_reply_count": 0,
+                          "repost_count": 0,
+                          "quote_count": 0,
+                          "is_reply": true,
+                          "reply_to_author": {
+                           "username": "user_10"
+                          }
+                         },
+                         "id": "MEDIA_ID_06"
+                        }
+                       }
+                      ],
+                      "page_info": {
+                       "end_cursor": null,
+                       "has_next_page": false
+                      }
+                     },
+                     "__typename": "XDTTextAppThreadView"
+                    },
+                    "cursor": null
+                   }
+                  ],
+                  "page_info": {
+                   "end_cursor": "CURSOR_02",
+                   "has_next_page": true
+                  }
+                 }
+                }
+               }
+              }
+             }
+            }
+           }
+          ]
+         ]
+        ]
+       }
+      }
+     ]
+    ]
+   ]
+  }
+ ],
+ "xhr": [
+  {
+   "data": {
+    "media": {
+     "id": "MEDIA_ID_01",
+     "text_post_app_info": {
+      "direct_replies": {
+       "edges": [
+        {
+         "node": {
+          "posts": {
+           "edges": [
+            {
+             "node": {
+              "pk": "9000000007",
+              "code": "CODE07",
+              "user": {
+               "pk": "USERPK13",
+               "username": "user_14"
+              },
+              "caption": {
+               "text": "placeholder text 06"
+              },
+              "like_count": 3,
+              "taken_at": 1790189345,
+              "text_post_app_info": {
+               "direct_reply_count": 1,
+               "repost_count": 0,
+               "quote_count": 0,
+               "is_reply": true,
+               "reply_to_author": {
+                "username": "user_02"
+               }
+              },
+              "id": "MEDIA_ID_07"
+             }
+            }
+           ],
+           "page_info": {
+            "end_cursor": "CURSOR_03",
+            "has_next_page": true
+           }
+          },
+          "__typename": "XDTTextAppThreadView"
+         },
+         "cursor": null
+        },
+        {
+         "node": {
+          "posts": {
+           "edges": [
+            {
+             "node": {
+              "pk": "9000000008",
+              "code": "CODE08",
+              "user": {
+               "pk": "USERPK15",
+               "username": "user_16"
+              },
+              "caption": {
+               "text": "placeholder text 07"
+              },
+              "like_count": 8,
+              "taken_at": 1790001988,
+              "text_post_app_info": {
+               "direct_reply_count": 0,
+               "repost_count": 0,
+               "quote_count": 0,
+               "is_reply": true,
+               "reply_to_author": {
+                "username": "user_02"
+               }
+              },
+              "id": "MEDIA_ID_08"
+             }
+            }
+           ],
+           "page_info": {
+            "end_cursor": null,
+            "has_next_page": false
+           }
+          },
+          "__typename": "XDTTextAppThreadView"
+         },
+         "cursor": null
+        },
+        {
+         "node": {
+          "posts": {
+           "edges": [
+            {
+             "node": {
+              "pk": "9000000009",
+              "code": "CODE09",
+              "user": {
+               "pk": "USERPK17",
+               "username": "user_18"
+              },
+              "caption": {
+               "text": "placeholder text 08"
+              },
+              "like_count": 57,
+              "taken_at": 1790003362,
+              "text_post_app_info": {
+               "direct_reply_count": 1,
+               "repost_count": 0,
+               "quote_count": 0,
+               "is_reply": true,
+               "reply_to_author": {
+                "username": "user_02"
+               }
+              },
+              "id": "MEDIA_ID_09"
+             }
+            },
+            {
+             "node": {
+              "pk": "9000000010",
+              "code": "CODE10",
+              "user": {
+               "pk": "USERPK19",
+               "username": "user_20"
+              },
+              "caption": {
+               "text": "placeholder text 09"
+              },
+              "like_count": 34,
+              "taken_at": 1790028805,
+              "text_post_app_info": {
+               "direct_reply_count": 0,
+               "repost_count": 0,
+               "quote_count": 0,
+               "is_reply": true,
+               "reply_to_author": {
+                "username": "user_18"
+               }
+              },
+              "id": "MEDIA_ID_10"
+             }
+            }
+           ],
+           "page_info": {
+            "end_cursor": null,
+            "has_next_page": false
+           }
+          },
+          "__typename": "XDTTextAppThreadView"
+         },
+         "cursor": null
+        }
+       ],
+       "page_info": {
+        "end_cursor": "CURSOR_04",
+        "has_next_page": true
+       }
+      }
+     }
+    }
+   }
+  }
+ ]
+}
