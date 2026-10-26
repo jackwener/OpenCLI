@@ -70,7 +70,7 @@ opencli browser --session my-session close
 
 Use `opencli browser --session <session> bind` when you want to attach OpenCLI to a Chrome tab you already opened manually. Bound sessions do not have the owned-session idle close timer; they stay attached until `unbind`, tab close, window close, or daemon restart. For owned sessions, use `--window foreground` to watch OpenCLI work in a visible automation window, or `--window background` to keep that automation window out of the way.
 
-The `OpenCLI Browser` and `OpenCLI Adapter` tab groups are extension-managed automation containers; avoid putting your own long-lived tabs in them or renaming them.
+The `OpenCLI Browser` and `OpenCLI Adapter` tab groups are extension-managed automation containers; avoid putting your own long-lived tabs in them or renaming them. When the last interactive lease is released in a single-tab window, its placeholder becomes an OpenCLI idle page. That marked idle window can be recovered after a browser restart or extension update. Recovery never relies on a group title or color; it leaves older unmarked windows, windows with content or additional tabs, and ambiguous duplicate markers untouched. Active page/session restoration is not supported by this mechanism.
 
 ## Native Chrome management
 

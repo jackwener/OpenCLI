@@ -200,7 +200,7 @@ function createChromeMock() {
       onEvent: { addListener: vi.fn() } as Listener<(source: any, method: string, params: any) => void>,
     },
     windows: {
-      get: vi.fn(async (windowId: number) => ({ id: windowId, focused: windowId === lastFocusedWindowId })),
+      get: vi.fn(async (windowId: number): Promise<{ id: number; type?: string; focused: boolean }> => ({ id: windowId, type: 'normal', focused: windowId === lastFocusedWindowId })),
       create: vi.fn(async ({ url, focused, width, height, type }: any) => ({ id: 1, url, focused, width, height, type })),
       remove: vi.fn(async (_windowId: number) => {}),
       onRemoved: { addListener: vi.fn() } as Listener<(windowId: number) => void>,
@@ -232,6 +232,7 @@ function createChromeMock() {
       onStartup: { addListener: vi.fn() } as Listener<() => void>,
       onMessage: { addListener: vi.fn() } as Listener<(msg: unknown, sender: unknown, sendResponse: (value: unknown) => void) => void>,
       getManifest: vi.fn(() => ({ version: 'test-version' })),
+      getURL: vi.fn((path: string) => `chrome-extension://opencli/${path}`),
     },
     cookies: {
       getAll: vi.fn(async () => []),
@@ -691,6 +692,55 @@ describe('background tab isolation', () => {
     expect(tabs.find((tab) => tab.id === 70)).toMatchObject({ url: 'about:blank', groupId: 400 });
     expect(groups.find((group) => group.id === 400)).toMatchObject({ windowId: 7, title: 'OpenCLI Browser' });
     expect(chrome.windows.create).toHaveBeenCalled();
+  });
+
+  it('recovers a marked idle window after session storage is cleared', async () => {
+    const { chrome, tabs, groups, update } = createChromeMock();
+    const token = '00000000-0000-4000-8000-000000000001';
+    const url = `chrome-extension://opencli/idle.html#${token}`;
+    tabs.push({ id: 70, windowId: 7, url, active: true, status: 'complete', groupId: 400 });
+    groups.push({ id: 400, windowId: 7, title: 'Renamed', color: 'blue', collapsed: false });
+    await chrome.storage.local.set({ opencli_idle_interactive_v1: token });
+    vi.stubGlobal('chrome', chrome);
+    const mod = await import('./background');
+    await mod.__test__.reconcileTargetLeaseRegistry();
+    expect(mod.__test__.getInteractiveContainer().windowId).toBe(7);
+    expect(await mod.__test__.resolveTabId(undefined, browserKey('restored'), 'https://target.example')).toBe(70);
+    expect(update).toHaveBeenCalledWith(70, { url: 'https://target.example' });
+    expect(chrome.windows.create).not.toHaveBeenCalled();
+    expect((await chrome.storage.local.get('opencli_idle_interactive_v1')).opencli_idle_interactive_v1).toBeUndefined();
+  });
+
+  it.each(['startup', 'update'])('never adopts an unmarked user-only saved group after %s', async (event) => {
+    const { chrome, tabs, groups, update } = createChromeMock();
+    tabs.push({ id: 70, windowId: 7, url: 'https://user.example/unsaved-form', active: true, status: 'complete', groupId: 400 });
+    groups.push({ id: 400, windowId: 7, title: 'OpenCLI Browser', color: 'orange', collapsed: false });
+    vi.stubGlobal('chrome', chrome);
+    const mod = await import('./background');
+    if (event === 'startup') chrome.runtime.onStartup.addListener.mock.calls[0][0]();
+    else (chrome.runtime.onInstalled.addListener.mock.calls[0][0] as Function)({ reason: 'update' });
+    await mod.__test__.reconcileTargetLeaseRegistry();
+    await mod.__test__.resolveTabId(undefined, browserKey('review-startup'), 'https://target.example');
+    expect(tabs.find(tab => tab.id === 70)?.url).toBe('https://user.example/unsaved-form');
+    expect(update).not.toHaveBeenCalledWith(70, expect.anything());
+  });
+
+  it('marks the last interactive placeholder and recovers it after worker reload', async () => {
+    const { chrome, tabs, groups } = createChromeMock();
+    tabs.push({ id: 70, windowId: 7, url: 'https://automation.example', active: true, status: 'complete', groupId: 400 });
+    groups.push({ id: 400, windowId: 7, title: 'OpenCLI Browser', color: 'orange', collapsed: false });
+    vi.stubGlobal('chrome', chrome);
+    let mod = await import('./background');
+    await mod.__test__.reconcileTargetLeaseRegistry();
+    mod.__test__.setSession(browserKey('owned'), { windowId: 7, owned: true, preferredTabId: 70 });
+    await mod.__test__.handleCommand({ id: 'close', action: 'close-window', session: 'owned', surface: 'browser' });
+    expect(tabs.find(tab => tab.id === 70)?.url).toMatch(/^chrome-extension:\/\/opencli\/idle.html#/);
+    await chrome.storage.session.set({ opencli_target_lease_registry_v2: undefined });
+    vi.resetModules();
+    mod = await import('./background');
+    await mod.__test__.reconcileTargetLeaseRegistry();
+    expect(await mod.__test__.resolveTabId(undefined, browserKey('again'), 'https://target.example')).toBe(70);
+    expect(chrome.windows.create).not.toHaveBeenCalled();
   });
 
   it('propagates owned group recovery errors instead of creating a replacement window', async () => {

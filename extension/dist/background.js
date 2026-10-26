@@ -90,6 +90,42 @@ const DAEMON_HOST = "localhost";
 const DAEMON_WS_URL = `ws://${DAEMON_HOST}:${DAEMON_PORT}/ext`;
 const DAEMON_PING_URL = `http://${DAEMON_HOST}:${DAEMON_PORT}/ping`;
 
+const KEY = "opencli_idle_interactive_v1";
+const PAGE = "idle.html";
+async function idlePlaceholderUrl() {
+  const data = await chrome.storage.local.get(KEY);
+  const token = data[KEY];
+  return typeof token === "string" && /^[a-f0-9-]{36}$/.test(token) ? `${chrome.runtime.getURL(PAGE)}#${token}` : null;
+}
+async function parkIdleInteractiveTab(tabId, windowId) {
+  const tabs = await chrome.tabs.query({ windowId });
+  if (tabs.length !== 1 || tabs[0].id !== tabId) return null;
+  const token = crypto.randomUUID();
+  await chrome.storage.local.set({ [KEY]: token });
+  return `${chrome.runtime.getURL(PAGE)}#${token}`;
+}
+async function consumeIdlePlaceholder(tab) {
+  const url = await idlePlaceholderUrl();
+  if (url && tab.url === url) {
+    if (tab.pendingUrl && tab.pendingUrl !== url) throw new Error("Idle OpenCLI tab is being navigated; retry the command.");
+    await chrome.storage.local.remove(KEY);
+  }
+}
+async function findIdleInteractiveGroup(reservedTabs) {
+  const url = await idlePlaceholderUrl();
+  if (!url) return null;
+  const tabs = (await chrome.tabs.query({})).filter((tab2) => tab2.url === url && !tab2.pendingUrl);
+  if (tabs.length !== 1) return null;
+  const tab = tabs[0];
+  if (tab.id === void 0 || reservedTabs.has(tab.id) || tab.incognito || tab.groupId === void 0 || tab.groupId === chrome.tabGroups.TAB_GROUP_ID_NONE) return null;
+  const window = await chrome.windows.get(tab.windowId);
+  if (window.incognito || window.type !== "normal") return null;
+  const windowTabs = await chrome.tabs.query({ windowId: tab.windowId });
+  if (windowTabs.length !== 1 || windowTabs[0].id !== tab.id || windowTabs[0].url !== url || windowTabs[0].pendingUrl) return null;
+  const group = await chrome.tabGroups.get(tab.groupId);
+  return group.windowId === tab.windowId ? group : null;
+}
+
 const attached = /* @__PURE__ */ new Set();
 const tabFrameContexts = /* @__PURE__ */ new Map();
 const frameTargets = /* @__PURE__ */ new Map();
@@ -1414,6 +1450,11 @@ async function collectOwnedGroupCandidates(role) {
       }
     }
   }
+  if (groupsById.size === 0) {
+    const reservedTabs = new Set([...automationSessions.values()].flatMap((session) => session.preferredTabId === null ? [] : [session.preferredTabId]));
+    const idleGroup = await findIdleInteractiveGroup(reservedTabs);
+    if (idleGroup) groupsById.set(idleGroup.id, idleGroup);
+  }
   const candidates = await Promise.all([...groupsById.values()].map(toOwnedContainerGroupCandidate));
   return candidates.filter((candidate) => candidate !== null);
 }
@@ -1624,9 +1665,10 @@ async function ensureOwnedContainerWindowUnlocked(role, initialUrl, mode = "back
   return { windowId: group?.windowId ?? container.windowId, initialTabId };
 }
 async function findReusableOwnedContainerTab(windowId, ownedGroupId) {
+  const idleUrl = await idlePlaceholderUrl();
   const tabs = await chrome.tabs.query({ windowId });
   const reusable = tabs.find(
-    (tab) => tab.id !== void 0 && initialTabIsAvailable(tab.id) && isDebuggableUrl(tab.url) && (ownedGroupId === void 0 || ownedGroupId !== null && tab.groupId === ownedGroupId || !isSafeNavigationUrl(tab.url ?? ""))
+    (tab) => tab.id !== void 0 && initialTabIsAvailable(tab.id) && (isDebuggableUrl(tab.url) || idleUrl !== null && tab.url === idleUrl && !tab.pendingUrl) && (ownedGroupId === void 0 || ownedGroupId !== null && tab.groupId === ownedGroupId || !isSafeNavigationUrl(tab.url ?? ""))
   );
   return reusable?.id;
 }
@@ -1647,6 +1689,7 @@ async function createOwnedTabLeaseUnlocked(leaseKey, initialUrl) {
   let tab;
   if (initialTabIsAvailable(initialTabId)) {
     tab = await chrome.tabs.get(initialTabId);
+    await consumeIdlePlaceholder(tab);
     if (!isTargetUrl(tab.url, targetUrl)) {
       tab = await chrome.tabs.update(initialTabId, { url: targetUrl });
       await new Promise((resolve) => setTimeout(resolve, 300));
@@ -2564,7 +2607,9 @@ async function releaseLease(leaseKey, reason = "released") {
         console.log(`[opencli] Released owned tab lease ${tabId} (session=${session.session}, surface=${session.surface}, ${reason})`);
       } else {
         try {
-          const tab = await chrome.tabs.update(tabId, { url: BLANK_PAGE, active: true });
+          const role = getOwnedWindowRole(leaseKey);
+          const idleUrl = role === "interactive" ? await parkIdleInteractiveTab(tabId, session.windowId) : null;
+          const tab = await chrome.tabs.update(tabId, { url: idleUrl ?? BLANK_PAGE, active: true });
           const group = await ensureOwnedContainerGroup(getOwnedWindowRole(leaseKey), session.windowId, [tab.id ?? tabId]);
           if (group) session.windowId = group.windowId;
           console.log(`[opencli] Released owned tab lease ${tabId} as reusable placeholder (session=${session.session}, surface=${session.surface}, ${reason})`);
