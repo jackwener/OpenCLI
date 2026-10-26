@@ -1,5 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { fetchPrivateApi, formatDate } from './utils.js';
+import { fetchWebApiWithCookies, formatDate } from './utils.js';
 cli({
     site: 'weread',
     name: 'notes',
@@ -13,7 +13,7 @@ cli({
     ],
     columns: ['chapter', 'text', 'review', 'createTime'],
     func: async (page, args) => {
-        const data = await fetchPrivateApi(page, '/review/list', {
+        const data = await fetchWebApiWithCookies(page, '/review/list', {
             bookId: args['book-id'],
             listType: '11',
             mine: '1',
