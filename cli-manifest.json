@@ -42364,6 +42364,40 @@
   },
   {
     "site": "xiaohongshu",
+    "name": "suggest",
+    "description": "搜索联想：结果页的细分标签与“大家都在搜”",
+    "access": "read",
+    "domain": "www.xiaohongshu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Search keyword"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of suggestions"
+      }
+    ],
+    "columns": [
+      "rank",
+      "suggestion",
+      "type"
+    ],
+    "type": "js",
+    "modulePath": "xiaohongshu/suggest.js",
+    "sourceFile": "xiaohongshu/suggest.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "xiaohongshu",
     "name": "unfollow",
     "description": "取消关注小红书用户 (profile UI automation)",
     "access": "write",

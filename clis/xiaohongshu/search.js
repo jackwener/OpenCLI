@@ -394,14 +394,17 @@ function buildInSiteSearchJs(query) {
         for (let attempt = 0; attempt < 50 && !input; attempt++) {
           const wall = blocked();
           if (wall) return wall;
-          const inputs = matches('#search-input');
+          // Classic layout: #search-input + .search-icon. AI-search homepage: the classic pair
+          // renders at 0x0 and the live control is a textarea (submit = Enter); its honeypot
+          // clone is aria-hidden / near-transparent, so visible() keeps exactly one match.
+          const inputs = matches('#search-input, textarea[name="aiSearchTextarea"]');
           if (inputs.length > 1) return { status: 'layout', detail: 'ambiguous_search_input' };
           input = inputs[0];
           if (!input) await sleep(100);
         }
-        if (!(input instanceof HTMLInputElement) || input.disabled || input.readOnly)
+        if (!input || !/^(INPUT|TEXTAREA)$/.test(input.tagName) || input.disabled || input.readOnly)
           return { status: 'layout', detail: 'search_input_not_available' };
-        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+        const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(input), 'value').set;
         input.focus();
         setter.call(input, query);
         input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -410,19 +413,31 @@ function buildInSiteSearchJs(query) {
         if (input.value !== query) return { status: 'layout', detail: 'search_input_not_filled' };
         const wall = blocked();
         if (wall) return wall;
-        const buttons = matches('.search-icon');
-        if (buttons.length !== 1) return { status: 'layout', detail: 'ambiguous_or_missing_search_button' };
-        const button = buttons[0];
-        if (button.disabled || button.getAttribute('aria-disabled') === 'true')
-          return { status: 'layout', detail: 'search_button_disabled' };
-        button.click();
+        if (input.tagName === 'TEXTAREA') {
+          const KeyboardEventCtor = input.ownerDocument.defaultView.KeyboardEvent;
+          for (const type of ['keydown', 'keypress', 'keyup']) {
+            input.dispatchEvent(new KeyboardEventCtor(type, { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true }));
+          }
+        }
+        else {
+          const buttons = matches('.search-icon');
+          if (buttons.length !== 1) return { status: 'layout', detail: 'ambiguous_or_missing_search_button' };
+          const button = buttons[0];
+          if (button.disabled || button.getAttribute('aria-disabled') === 'true')
+            return { status: 'layout', detail: 'search_button_disabled' };
+          button.click();
+        }
         const deadline = Date.now() + ${SEARCH_NAVIGATION_SECONDS * 1000};
         while (Date.now() < deadline) {
           const wall = blocked();
           if (wall) return wall;
           const searchRendered = document.querySelector('.search-layout__top > .filter, .filter.ai-chat-filter, section.note-item, section:has(a[href*="/search_result/"])');
           const keyword = new URLSearchParams(location.search).get('keyword');
-          if (location.pathname === '/search_result' && keyword === query &&
+          // The AI route percent-encodes the keyword twice, so one decode is still encoded.
+          let decodedKeyword = keyword;
+          try { decodedKeyword = keyword === null ? null : decodeURIComponent(keyword); } catch { decodedKeyword = keyword; }
+          const resultPath = location.pathname === '/search_result' || location.pathname === '/search_result_ai';
+          if (resultPath && (keyword === query || decodedKeyword === query) &&
               (searchRendered || document.querySelector('.search-empty-wrapper'))) {
             return { status: 'ok', detail: location.pathname };
           }
@@ -892,7 +907,7 @@ export function buildScrollHarvestJs(webHost, targetCount, options = {}) {
     `;
 }
 
-async function collectSearchHarvest(page, limit, requestedFilters) {
+export async function waitForSearchContent(page) {
     const waitResult = unwrapEvaluateResult(await page.evaluate(WAIT_FOR_CONTENT_JS));
     if (waitResult === 'login_wall') {
         throw new AuthRequiredError('www.xiaohongshu.com', 'Xiaohongshu search results are blocked behind a login wall');
@@ -906,6 +921,10 @@ async function collectSearchHarvest(page, limit, requestedFilters) {
     if (waitResult !== 'content') {
         throw new CommandExecutionError('Unexpected Xiaohongshu search wait payload shape.');
     }
+}
+
+async function collectSearchHarvest(page, limit, requestedFilters) {
+    await waitForSearchContent(page);
     requireFilterApplication(await page.evaluate(buildApplySearchFiltersJs(requestedFilters)));
     const harvestOptions = harvestOptionsForLimit(limit);
     const harvest = requireHarvestPayload(await page.evaluate(buildScrollHarvestJs('www.xiaohongshu.com', limit, harvestOptions)), 'www.xiaohongshu.com');
@@ -915,7 +934,7 @@ async function collectSearchHarvest(page, limit, requestedFilters) {
     return harvest;
 }
 
-async function openSearchResults(page, query) {
+export async function openSearchResults(page, query) {
     await page.goto(EXPLORE_URL);
     const result = unwrapEvaluateResult(await page.evaluate(buildInSiteSearchJs(query)));
     if (!result || typeof result !== 'object' || Array.isArray(result)) {
