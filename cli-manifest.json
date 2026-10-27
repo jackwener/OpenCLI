@@ -37494,7 +37494,14 @@
         "name": "images",
         "type": "string",
         "required": false,
-        "help": "Image paths, comma-separated, max 4 (jpg/png/gif/webp)"
+        "help": "Media paths, comma-separated: up to 4 images (jpg/png/gif/webp) or 1 video (mp4/mov)"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 60,
+        "required": false,
+        "help": "Max seconds for the overall command (default: 60). The media upload wait is derived from it, so raise it for video: X transcodes server-side and a longer clip needs well past the default."
       }
     ],
     "columns": [
