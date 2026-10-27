@@ -31,6 +31,8 @@ import {
   submittedJobIdsFromCaptures,
   uploadReferencesToSlot,
   validateLocalReferences,
+  verifyPromptAttachments,
+  verifySubmittedReferences,
   waitForCompletedJob,
   waitForSubmittedJobsAfter,
   toggleSettingsPanel,
@@ -171,10 +173,14 @@ cli({
     // left by an interrupted command. Clear it for every paid submission so
     // an argument-free generation cannot inherit hidden browser state.
     await clearImagePrompts(page);
+    const uploadedLocalRefs = [];
     if (localImageRefs.length || localStyleRefs.length || localOmniRefs.length) {
-      await uploadReferencesToSlot(page, localImageRefs, 'image');
-      await uploadReferencesToSlot(page, localStyleRefs, 'style');
-      await uploadReferencesToSlot(page, localOmniRefs, 'omni');
+      uploadedLocalRefs.push(...await uploadReferencesToSlot(page, localImageRefs, 'image'));
+      uploadedLocalRefs.push(...await uploadReferencesToSlot(page, localStyleRefs, 'style'));
+      uploadedLocalRefs.push(...await uploadReferencesToSlot(page, localOmniRefs, 'omni'));
+      // The paid submit must not carry prompt attachments this command cannot
+      // account for; run while the reference panel is still open.
+      await verifyPromptAttachments(page, uploadedLocalRefs);
     }
     await closeImagePanel(page);
 
@@ -200,10 +206,12 @@ cli({
     if (remainingForSubmission < 1) throw new TimeoutError('Midjourney job submission', timeout);
     const submitTimeout = Math.min(remainingForSubmission, 75);
     let jobIds = [];
+    let submitCaptures = [];
     if (captureReady && typeof page.waitForCapture === 'function') {
       try {
         await page.waitForCapture(Math.min(submitTimeout, 20));
-        jobIds = submittedJobIdsFromCaptures(await page.getInterceptedRequests(), plan.repeat, baselineIds);
+        submitCaptures = await page.getInterceptedRequests();
+        jobIds = submittedJobIdsFromCaptures(submitCaptures, plan.repeat, baselineIds);
       } catch (error) {
         if (error instanceof CommandExecutionError) throw error;
       }
@@ -219,6 +227,12 @@ cli({
         plan.repeat,
       );
     }
+    // What the submitted jobs actually carry is the last word on whether the
+    // local references made it into the paid submission. Remote s.mj.run
+    // references embedded in the prompt are not evidence of the local uploads.
+    const remoteSjRunCount = [...remoteReferences.image, ...remoteReferences.style, ...remoteReferences.omni]
+      .filter((url) => /\/\/s\.mj\.run\//.test(url)).length;
+    await verifySubmittedReferences(page, account.user_id, uploadedLocalRefs, jobIds, remoteSjRunCount);
 
     if (!normalizeBoolean(kwargs.wait, true)) {
       const after = await getMidjourneyAccount(page);

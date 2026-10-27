@@ -124,7 +124,7 @@ cli({
   browser: true,
   siteSession: 'persistent',
   navigateBefore: MIDJOURNEY_IMAGINE_URL,
-  defaultWindowMode: 'foreground',
+  defaultWindowMode: 'background',
   defaultFormat: 'plain',
   args: [
     { name: 'job', positional: true, required: true, help: 'Source job UUID or /jobs/<uuid> URL' },
