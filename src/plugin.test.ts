@@ -654,6 +654,23 @@ describe('postInstallMonorepoLifecycle', () => {
     fs.rmSync(repoDir, { recursive: true, force: true });
   });
 
+  it('links the host package at the monorepo root for shared helpers', async () => {
+    const sharedDir = path.join(repoDir, 'packages', 'shared');
+    const sharedFile = path.join(sharedDir, 'errors.js');
+    fs.mkdirSync(sharedDir, { recursive: true });
+    fs.writeFileSync(
+      sharedFile,
+      "import { ArgumentError } from '@jackwener/opencli/errors';\nexport { ArgumentError };\n",
+    );
+
+    _postInstallMonorepoLifecycle(repoDir, [subDir]);
+
+    const hostLink = path.join(repoDir, 'node_modules', '@jackwener', 'opencli');
+    expect(fs.realpathSync(hostLink)).toBe(_resolveHostOpencliRoot());
+    const shared = await import(pathToFileURL(sharedFile).href);
+    expect(shared.ArgumentError.name).toBe('ArgumentError');
+  });
+
   it('installs dependencies at the monorepo root and skips sub-plugins without own dependencies', () => {
     _postInstallMonorepoLifecycle(repoDir, [subDir]);
 
