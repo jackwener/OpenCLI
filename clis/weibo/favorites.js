@@ -1,6 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { getSelfUid, requireArrayEvaluateResult, unwrapEvaluateResult } from './utils.js';
+import { ensureWeiboPage, getSelfUid, requireArrayEvaluateResult, unwrapEvaluateResult } from './utils.js';
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 50;
@@ -101,6 +101,8 @@ cli({
   description: '我的微博收藏列表',
   domain: 'weibo.com',
   strategy: Strategy.COOKIE,
+  siteSession: 'persistent',
+  navigateBefore: false,
   args: [
     { name: 'limit', type: 'int', default: 20, help: '数量（最多50）' },
   ],
@@ -108,8 +110,7 @@ cli({
   func: async (page, kwargs) => {
     const limit = parsePositiveInt(kwargs.limit, 'limit', DEFAULT_LIMIT);
 
-    await page.goto('https://weibo.com');
-    await page.wait(2);
+    await ensureWeiboPage(page);
 
     const uid = await getSelfUid(page);
 

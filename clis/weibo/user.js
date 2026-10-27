@@ -3,7 +3,7 @@
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CommandExecutionError } from '@jackwener/opencli/errors';
-import { requireObjectEvaluateResult, unwrapEvaluateResult } from './utils.js';
+import { ensureWeiboPage, requireObjectEvaluateResult, unwrapEvaluateResult } from './utils.js';
 cli({
     site: 'weibo',
     name: 'user',
@@ -11,13 +11,14 @@ cli({
     description: 'Get Weibo user profile',
     domain: 'weibo.com',
     strategy: Strategy.COOKIE,
+    siteSession: 'persistent',
+    navigateBefore: false,
     args: [
         { name: 'id', required: true, positional: true, help: 'User ID (numeric uid) or screen name' },
     ],
     columns: ['screen_name', 'uid', 'followers', 'following', 'statuses', 'verified', 'description', 'location', 'url'],
     func: async (page, kwargs) => {
-        await page.goto('https://weibo.com');
-        await page.wait(2);
+        await ensureWeiboPage(page);
         const id = String(kwargs.id);
         const data = requireObjectEvaluateResult(unwrapEvaluateResult(await page.evaluate(`
       (async () => {

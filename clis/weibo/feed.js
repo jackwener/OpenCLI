@@ -2,7 +2,7 @@
  * Weibo feed — for-you or following timeline.
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { getSelfUid, requireArrayEvaluateResult, unwrapEvaluateResult } from './utils.js';
+import { ensureWeiboPage, getSelfUid, requireArrayEvaluateResult, unwrapEvaluateResult } from './utils.js';
 const TIMELINE_ENDPOINTS = {
     'for-you': 'unreadfriendstimeline',
     following: 'friendstimeline',
@@ -14,6 +14,8 @@ cli({
     description: 'Fetch Weibo timeline (for-you or following)',
     domain: 'weibo.com',
     strategy: Strategy.COOKIE,
+    siteSession: 'persistent',
+    navigateBefore: false,
     args: [
         {
             name: 'type',
@@ -28,8 +30,7 @@ cli({
         const count = Math.min(kwargs.limit || 15, 50);
         const timelineType = kwargs.type === 'following' ? 'following' : 'for-you';
         const endpoint = TIMELINE_ENDPOINTS[timelineType];
-        await page.goto('https://weibo.com');
-        await page.wait(2);
+        await ensureWeiboPage(page);
         const uid = await getSelfUid(page);
         const data = requireArrayEvaluateResult(unwrapEvaluateResult(await page.evaluate(`
       (async () => {
