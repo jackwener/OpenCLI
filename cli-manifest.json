@@ -42069,6 +42069,85 @@
   },
   {
     "site": "xiaohongshu",
+    "name": "live-comment-send",
+    "description": "在小红书直播间发送一条评论（发送后以输入框清空 + 评论流出现为后置证据）",
+    "access": "write",
+    "domain": "www.xiaohongshu.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "room-url",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Room URL from `xiaohongshu lives` (or a bare numeric room id)"
+      },
+      {
+        "name": "text",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Comment text (max 200 chars)"
+      }
+    ],
+    "columns": [
+      "status",
+      "room_id",
+      "msg",
+      "comment_id"
+    ],
+    "type": "js",
+    "modulePath": "xiaohongshu/live-comment-send.js",
+    "sourceFile": "xiaohongshu/live-comment-send.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "xiaohongshu",
+    "name": "live-comments",
+    "description": "采集小红书直播间评论流（页内 MutationObserver 持续捕获，跨调用不丢）",
+    "access": "read",
+    "domain": "www.xiaohongshu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "room-url",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Room URL from `xiaohongshu lives` (or a bare numeric room id)"
+      },
+      {
+        "name": "duration",
+        "type": "int",
+        "default": 15,
+        "required": false,
+        "help": "Seconds to collect before draining (0-60; 0 = drain what accumulated since the last call)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 200,
+        "required": false,
+        "help": "Maximum comments to return"
+      }
+    ],
+    "columns": [
+      "seq",
+      "kind",
+      "nickname",
+      "msg"
+    ],
+    "type": "js",
+    "modulePath": "xiaohongshu/live-comments.js",
+    "sourceFile": "xiaohongshu/live-comments.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "xiaohongshu",
     "name": "login",
     "description": "Open xiaohongshu login and wait until the browser session is authenticated",
     "access": "write",
