@@ -38282,6 +38282,78 @@
     "navigateBefore": "https://uiverse.io"
   },
   {
+    "site": "unicloud",
+    "name": "renew",
+    "description": "预览或确认 uniCloud 免费空间续期，按到期窗口安全跳过",
+    "access": "write",
+    "domain": "unicloud.dcloud.net.cn",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "space",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "完整 SpaceID；使用 spaces 命令查询"
+      },
+      {
+        "name": "within-days",
+        "type": "int",
+        "default": 7,
+        "required": false,
+        "help": "仅在到期前多少天内续期，0到30，默认7"
+      },
+      {
+        "name": "confirm",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "确认执行0元续期；不传时只预览"
+      }
+    ],
+    "columns": [
+      "space_id",
+      "name",
+      "provider",
+      "status",
+      "previous_expires_at",
+      "expires_at",
+      "amount",
+      "months",
+      "notices"
+    ],
+    "type": "js",
+    "modulePath": "unicloud/renew.js",
+    "sourceFile": "unicloud/renew.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "unicloud",
+    "name": "spaces",
+    "description": "列出 uniCloud 服务空间、免费续期条件和到期时间",
+    "access": "read",
+    "domain": "unicloud.dcloud.net.cn",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "space_id",
+      "name",
+      "provider",
+      "plan",
+      "expires_at",
+      "days_remaining",
+      "status",
+      "renewable"
+    ],
+    "type": "js",
+    "modulePath": "unicloud/spaces.js",
+    "sourceFile": "unicloud/spaces.js",
+    "navigateBefore": false
+  },
+  {
     "site": "upwork",
     "name": "detail",
     "aliases": [
