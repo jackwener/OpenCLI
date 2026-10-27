@@ -320,6 +320,7 @@ Albato, Goofish and Taobao use local adapter-subdirectory installation; see the 
 | [opencli-plugin-taobao](https://github.com/vecyang1/opencli-plugin-taobao) | JS | Taobao buyer chat history, order history, bought shops, favorites, and keyword-based chat summaries |
 | [opencli-plugin-vk](https://github.com/flobo3/opencli-plugin-vk) | JS | VK (VKontakte) wall, feed, and search |
 | [opencli-plugin-x-article-publisher](https://github.com/genoooool/opencli-plugin-x-article-publisher) | JS | Publish Markdown with local images as X long-form Articles via OpenCLI and xPoster |
+| [opencli-plugin-claspo](https://github.com/vecyang1/opencli-plugin-claspo) | JS | Claspo widget automation: multi-step appearance extraction, surgical text patching, and live publishing |
 
 See [Plugins Guide](./docs/guide/plugins.md) for creating your own plugin.
 
