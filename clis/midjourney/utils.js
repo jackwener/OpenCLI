@@ -1319,52 +1319,6 @@ export async function clickComposerSubmit(page) {
   await page.click('[data-opencli-composer-submit="1"]');
 }
 
-export async function toggleSettingsPanel(page) {
-  let target = unwrapEvaluateResult(await page.evaluate(() => {
-    const visible = (element) => {
-      const rect = element.getBoundingClientRect();
-      return rect.width > 0 && rect.height > 0 && getComputedStyle(element).display !== 'none';
-    };
-    const labeled = [...document.querySelectorAll('button')].find((node) => visible(node) && (
-      node.textContent?.trim().replace(/\s+/g, ' ') === 'Settings'
-      || node.title === 'Settings'
-      || node.getAttribute('aria-label') === 'Settings'
-    ));
-    if (labeled) {
-      const rect = labeled.getBoundingClientRect();
-      return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
-    }
-    const input = document.querySelector('#desktop_input_bar');
-    let root = input?.parentElement;
-    for (let depth = 0; depth < 4 && root; depth += 1, root = root.parentElement) {
-      const buttons = [...root.querySelectorAll('button')].filter(visible);
-      const nonImage = buttons.filter((button) => button.getAttribute('aria-label') !== 'Add Images');
-      if (buttons.some((button) => button.getAttribute('aria-label') === 'Add Images') && nonImage.length) {
-        const button = nonImage.at(-1);
-        const rect = button.getBoundingClientRect();
-        return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
-      }
-    }
-    return null;
-  }));
-  if (!target) throw new CommandExecutionError('Visible Midjourney Settings control was not found');
-  if (typeof page.nativeClick !== 'function') throw new CommandExecutionError('Browser Bridge native click support is required');
-  await page.nativeClick(target.x, target.y);
-  await page.wait(0.4);
-}
-
-export async function isSettingsPanelVisible(page) {
-  return Boolean(unwrapEvaluateResult(await page.evaluate(() => {
-    const visible = (element) => {
-      const rect = element.getBoundingClientRect();
-      return rect.width > 0 && rect.height > 0 && getComputedStyle(element).display !== 'none';
-    };
-    const label = document.querySelector('a[href*="GPU-Speed"]');
-    const fast = [...document.querySelectorAll('button')].find((node) => node.textContent?.trim() === 'Fast' && visible(node));
-    return Boolean((label && visible(label)) || fast);
-  })));
-}
-
 export async function ensureImageComposer(page) {
   const composerMode = async () => unwrapEvaluateResult(await page.evaluate(() => {
     const visible = (button) => Boolean(button && button.getBoundingClientRect().width > 0);
@@ -1383,96 +1337,190 @@ export async function ensureImageComposer(page) {
   }
 }
 
-export async function readSiteSettings(page) {
-  const settingsVisible = await isSettingsPanelVisible(page);
-  if (!settingsVisible) {
-    await toggleSettingsPanel(page);
+// The redesigned imagine page keeps the settings surface in a popover opened
+// from the composer's Settings icon button. The button carries no stable text
+// or aria-label — its SVG icon id is the only stable handle — and a DOM click
+// only opens it intermittently, so the physical click is retried until the
+// model trigger appears. Rows are a label plus segmented option buttons with
+// no ARIA state: the selected option renders red text (rgb(242, 51, 13)).
+
+export async function isSettingsPanelVisible(page) {
+  return Boolean(unwrapEvaluateResult(await page.evaluate(() => {
+    const visible = (element) => {
+      const rect = element.getBoundingClientRect();
+      return rect.width > 0 && rect.height > 0 && getComputedStyle(element).display !== 'none';
+    };
+    return Boolean([...document.querySelectorAll('[aria-haspopup="menu"]')]
+      .filter(visible)
+      .find((node) => /^(?:niji\s*)?\d/i.test(node.textContent?.trim() || '')));
+  })));
+}
+
+async function settingsButtonCenter(page) {
+  return unwrapEvaluateResult(await page.evaluate(() => {
+    const visible = (element) => {
+      const rect = element.getBoundingClientRect();
+      return rect.width > 0 && rect.height > 0;
+    };
+    const button = [...document.querySelectorAll('button')].filter(visible).find((node) => {
+      const ids = [...node.querySelectorAll('svg g[id],svg path[id],svg[id]')].map((icon) => icon.id || '');
+      return ids.some((id) => /settings/i.test(id));
+    });
+    if (!button) return null;
+    const rect = button.getBoundingClientRect();
+    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+  }));
+}
+
+async function dismissSettingsSurface(page) {
+  await page.evaluate(() => {
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    return true;
+  }).catch(() => {});
+  await page.wait(0.4);
+}
+
+export async function openSettingsSurface(page) {
+  if (await isSettingsPanelVisible(page)) return;
+  if (typeof page.nativeClick !== 'function') throw new CommandExecutionError('Browser Bridge native click support is required');
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await dismissSettingsSurface(page);
+    const target = await settingsButtonCenter(page);
+    if (!target) throw new CommandExecutionError('Midjourney Settings control was not found');
+    await page.nativeClick(target.x, target.y);
+    await page.wait(1.6);
+    if (await isSettingsPanelVisible(page)) return;
   }
+  throw new CommandExecutionError('Midjourney settings popover did not open');
+}
+
+export async function toggleSettingsPanel(page) {
+  if (await isSettingsPanelVisible(page)) {
+    await dismissSettingsSurface(page);
+    return;
+  }
+  await openSettingsSurface(page);
+}
+
+export async function readSiteSettings(page) {
+  await openSettingsSurface(page);
+  // The popover keeps its scroll position between opens; reset it so the
+  // primary rows (model, resolution, raw, speed) are rendered and measurable.
+  await page.evaluate(() => {
+    const visible = (element) => {
+      const rect = element.getBoundingClientRect();
+      return rect.width > 0 && rect.height > 0;
+    };
+    const trigger = [...document.querySelectorAll('[aria-haspopup="menu"]')]
+      .filter(visible)
+      .find((node) => /^(?:niji\s*)?\d/i.test(node.textContent?.trim() || ''));
+    let scope = trigger;
+    for (let depth = 0; depth < 8 && scope; depth += 1) scope = scope.parentElement;
+    for (const scroller of scope ? [scope, ...scope.querySelectorAll('*')] : []) {
+      if (scroller.scrollHeight > scroller.clientHeight + 8) scroller.scrollTop = 0;
+    }
+    return true;
+  }).catch(() => {});
   const result = unwrapEvaluateResult(await page.evaluate(() => {
     const visible = (element) => {
       const rect = element.getBoundingClientRect();
       return rect.width > 0 && rect.height > 0 && getComputedStyle(element).display !== 'none';
     };
-    const exactNode = (text) => [...document.querySelectorAll('h2,a,div,span')]
-      .filter((node) => node.textContent?.trim() === text && visible(node))
-      .sort((left, right) => left.children.length - right.children.length)[0] || null;
-    const isSelected = (button) => button.getAttribute('aria-pressed') === 'true'
-      || button.getAttribute('aria-checked') === 'true'
-      || ['active', 'checked', 'on'].includes(button.getAttribute('data-state'))
-      || String(button.className).includes('text-splash');
-    const selectedNear = (anchorText, candidates) => {
-      let anchor = exactNode(anchorText);
-      if (!anchor) return null;
-      for (let depth = 0; depth < 7 && anchor; depth += 1, anchor = anchor.parentElement) {
-        const buttons = [...anchor.querySelectorAll('button')].filter(visible);
-        const matching = buttons.filter((button) => candidates.includes(button.textContent?.trim()));
-        if (matching.length >= Math.min(2, candidates.length)) {
-          const selected = matching.find(isSelected);
-          return selected?.textContent?.trim() || null;
-        }
-      }
-      return null;
+    // The selected option of a segmented row renders red text; nothing on the
+    // button itself marks it (no aria state, identical class names).
+    const isSelected = (element) => {
+      const channels = /\b(\d+),\s*(\d+),\s*(\d+)/.exec(getComputedStyle(element).color);
+      return Boolean(channels && Number(channels[1]) > 180 && Number(channels[2]) < 120 && Number(channels[3]) < 120);
     };
-    const versionLink = [...document.querySelectorAll('a[href*="Version"]')].find(visible);
-    let version = null;
-    let versionRoot = versionLink;
-    for (let depth = 0; depth < 6 && versionRoot; depth += 1, versionRoot = versionRoot.parentElement) {
-      const menu = versionRoot.querySelector('[aria-haspopup="menu"]');
-      if (menu && /^\d+(?:\.\d+)?$/.test(menu.textContent?.trim() || '')) {
-        version = menu.textContent.trim();
-        break;
-      }
+    const trigger = [...document.querySelectorAll('[aria-haspopup="menu"]')]
+      .filter(visible)
+      .map((node) => (node.textContent || '').trim())
+      .find((text) => /^(?:niji\s*)?\d/i.test(text)) || null;
+    let model = null;
+    if (trigger) {
+      const niji = /^niji\s*(\d+(?:\.\d+)?)/i.exec(trigger);
+      const version = /^(\d+(?:\.\d+)?)/.exec(trigger);
+      model = niji ? `niji${niji[1]}` : version ? `v${version[1]}` : null;
     }
-    const imageResolution = selectedNear('Version', ['Standard', 'HD']);
-    const personalization = selectedNear('Personalize', ['On', 'Off']);
-    const raw = selectedNear('Raw', ['Standard', 'Raw']);
+    // Rows: a label plus segmented option buttons. The label is not a leaf
+    // text node, so options are located by their exact texts and grouped by
+    // the closest ancestor's composite text (e.g. "Video resolutionSDHD").
+    const optionTexts = new Set(['Standard', 'HD', 'Relax', 'Fast', 'Turbo', 'Raw', 'On', 'Off', 'SD', '1', '2', '4']);
+    const options = [...document.querySelectorAll('button')].filter(visible)
+      .filter((button) => optionTexts.has((button.textContent || '').trim()))
+      .filter((button) => ![...button.children].some((child) => optionTexts.has((child.textContent || '').trim())))
+      .map((button) => {
+        let row = '';
+        let scope = button.parentElement;
+        for (let depth = 0; depth < 4 && scope; depth += 1, scope = scope.parentElement) {
+          const text = (scope.textContent || '').trim();
+          if (text.length > 4 && text.length < 60) { row = text.toLowerCase().replace(/\s+/g, ''); break; }
+        }
+        return { text: (button.textContent || '').trim(), row, selected: isSelected(button) };
+      });
+    const pick = (rowNeedle, values) => options
+      .filter((option) => values.includes(option.text) && option.row.includes(rowNeedle))
+      .find((option) => option.selected)?.text || null;
+    const imageResolution = pick('version', ['Standard', 'HD']) || pick('standardhd', ['Standard', 'HD']);
+    const raw = pick('raw', ['Standard', 'Raw']);
+    const speed = pick('relax', ['Relax', 'Fast', 'Turbo']) || pick('fast', ['Relax', 'Fast', 'Turbo']) || pick('speed', ['Relax', 'Fast', 'Turbo']);
+    const videoResolution = pick('videoresolution', ['SD', 'HD']);
+    const videoBatchSize = pick('batchsize', ['1', '2', '4']);
     return {
-      model: version ? `v${version}` : null,
+      model,
       imageResolution: imageResolution ? imageResolution.toLowerCase().replace('standard', 'sd') : null,
-      personalization: personalization ? personalization === 'On' : null,
+      personalization: null,
       raw: raw ? raw === 'Raw' : null,
-      speed: (selectedNear('Speed', ['Relax', 'Fast', 'Turbo']) || '').toLowerCase() || null,
-      videoResolution: (selectedNear('Video Resolution', ['SD', 'HD']) || '').toLowerCase() || null,
-      videoBatchSize: Number(selectedNear('Video Batch Size', ['1', '2', '4'])) || null,
+      speed: speed ? speed.toLowerCase() : null,
+      videoResolution: videoResolution ? videoResolution.toLowerCase() : null,
+      videoBatchSize: videoBatchSize ? Number(videoBatchSize) || null : null,
     };
   }));
   if (!result || typeof result !== 'object') throw new CommandExecutionError('Midjourney settings panel returned an unexpected shape');
-  const missing = ['model', 'imageResolution', 'speed'].filter((key) => result[key] == null);
-  if (missing.length) {
-    throw new CommandExecutionError(`Midjourney settings panel is missing required field(s): ${missing.join(', ')}`);
+  // Model drives routing and is the one field the surface always carries;
+  // resolution/speed rows can be absent (mode-dependent) and callers default them.
+  if (result.model == null) {
+    throw new CommandExecutionError('Midjourney settings popover did not expose the model version');
   }
   return result;
 }
 
 export async function selectSiteSetting(page, anchorText, candidates, targetText) {
-  await readSiteSettings(page);
+  await openSettingsSurface(page);
   const target = unwrapEvaluateResult(await page.evaluate((anchorLabel, values, wanted) => {
     const visible = (element) => {
       const rect = element.getBoundingClientRect();
       return rect.width > 0 && rect.height > 0 && getComputedStyle(element).display !== 'none';
     };
     document.querySelectorAll('[data-opencli-setting-target]').forEach((node) => node.removeAttribute('data-opencli-setting-target'));
-    const anchors = [...document.querySelectorAll('h2,a,div,span')]
-      .filter((node) => node.textContent?.trim() === anchorLabel && visible(node))
-      .sort((left, right) => left.children.length - right.children.length);
-    let root = anchors[0] || null;
-    for (let depth = 0; depth < 7 && root; depth += 1, root = root.parentElement) {
-      const buttons = [...root.querySelectorAll('button')].filter(visible);
-      const matching = buttons.filter((button) => values.includes(button.textContent?.trim()));
-      if (matching.length >= Math.min(2, values.length)) {
-        const button = matching.find((item) => item.textContent?.trim() === wanted);
-        if (!button) return { ok: false, reason: `${wanted} option not found` };
-        if (button.disabled) return { ok: false, reason: `${wanted} option is disabled` };
-        const selected = button.getAttribute('aria-pressed') === 'true'
-          || button.getAttribute('aria-checked') === 'true'
-          || ['active', 'checked', 'on'].includes(button.getAttribute('data-state'))
-          || String(button.className).includes('text-splash');
-        if (selected) return { ok: true, changed: false };
-        button.setAttribute('data-opencli-setting-target', '1');
-        return { ok: true, changed: true };
-      }
-    }
-    return { ok: false, reason: `${anchorLabel} setting group not found` };
+    // Rows are matched by the anchor text appearing inside the composite text
+    // of the options' shared ancestor ("Video resolutionSDHD"), because the
+    // label itself is not a leaf text node.
+    const needle = String(anchorLabel).toLowerCase().replace(/\s+/g, '');
+    const isSelected = (element) => {
+      const channels = /\b(\d+),\s*(\d+),\s*(\d+)/.exec(getComputedStyle(element).color);
+      return Boolean(channels && Number(channels[1]) > 180 && Number(channels[2]) < 120 && Number(channels[3]) < 120);
+    };
+    const scope = [...document.querySelectorAll('button')].filter(visible)
+      .filter((button) => values.includes((button.textContent || '').trim()))
+      .filter((button) => ![...button.children].some((child) => values.includes((child.textContent || '').trim())))
+      .map((button) => {
+        let row = '';
+        let ancestor = button.parentElement;
+        for (let depth = 0; depth < 4 && ancestor; depth += 1, ancestor = ancestor.parentElement) {
+          const text = (ancestor.textContent || '').trim();
+          if (text.length > 4 && text.length < 60) { row = text.toLowerCase().replace(/\s+/g, ''); break; }
+        }
+        return { button, row };
+      })
+      .filter((entry) => entry.row.includes(needle));
+    if (!scope.length) return { ok: false, reason: `${anchorLabel} setting group not found` };
+    const match = scope.find((entry) => (entry.button.textContent || '').trim() === wanted);
+    if (!match) return { ok: false, reason: `${wanted} option not found` };
+    if (match.button.disabled) return { ok: false, reason: `${wanted} option is disabled` };
+    if (isSelected(match.button)) return { ok: true, changed: false };
+    match.button.setAttribute('data-opencli-setting-target', '1');
+    return { ok: true, changed: true };
   }, anchorText, candidates, targetText));
   if (!target?.ok) throw new CommandExecutionError(`Could not set Midjourney ${anchorText}: ${target?.reason || targetText}`);
   if (target.changed) {
