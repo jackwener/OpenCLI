@@ -53,6 +53,7 @@ opencli browser --session research eval "fetch('https://<target-subdomain>/api/.
 1. 换同 origin 的 endpoint（同一个 subdomain 下的 API 往往更宽松）
 2. 用 `opencli browser --session research open https://<target-subdomain>/`，让页面在目标 subdomain 本身打开，再 fetch 相对路径
 3. 真跨域且无替代 → 走 `§5 intercept`，从页面自身发的请求里抓响应
+4. 目标是云厂商 OpenAPI（图片 / 视频 / 对象存储上传，请求要 AWS4 签名）→ 在页面里只拿同源接口下发的 STS 临时凭证，签名和请求放到 Node 侧发；服务 ID 从站点自己的 uploader 配置里取，不要写死一次看到的值。参考 `clis/douyin/_shared/imagex-upload.js`
 
 ---
 

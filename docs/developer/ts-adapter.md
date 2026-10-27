@@ -217,6 +217,24 @@ The `page` parameter provides browser interaction methods:
 - `page.click(selector)` — Click an element
 - `page.type(selector, text)` — Type text into an input
 
+## Cross-origin Signed APIs (Uploads)
+
+Some sites give the page short-lived cloud credentials (STS) and then talk to a
+separate cloud OpenAPI host directly, typically for image, video or object
+uploads. Calling that host from the page with
+`page.evaluate(fetch(url, { credentials: 'include' }))` does not work: the host
+is another origin, cookies are not what authorizes the request, and the request
+is unsigned. The browser reports only an opaque `TypeError: Failed to fetch`.
+
+- Fetch the credentials in the page (same origin), then make the OpenAPI call
+  from Node and sign it there. `clis/douyin/_shared/vod-upload.js` exports
+  `computeAws4Headers`, which takes the signing `service`.
+- Take service or space identifiers from the site's own uploader config instead
+  of hard-coding a value seen once. They change when the site's frontend does;
+  name the constant and say where it came from.
+- Check the response body as well as the HTTP status: upload hosts often answer
+  200 with an error code in the JSON.
+
 ## The `kwargs` Object
 
 Contains parsed CLI arguments as key-value pairs. Always destructure with defaults:

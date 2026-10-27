@@ -17,9 +17,8 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { getUploadAuthV5Credentials, applyVideoUploadInner, commitVideoUploadInner } from './_shared/vod-upload.js';
 import { tosUpload } from './_shared/tos-upload.js';
-import { imagexUpload } from './_shared/imagex-upload.js';
+import { applyImageUpload, commitImageUpload, imagexUpload } from './_shared/imagex-upload.js';
 import { browserFetch } from './_shared/browser-fetch.js';
-import { requireObjectEvaluateResult } from './_shared/evaluate-result.js';
 import { generateCreationId } from './_shared/creation-id.js';
 import { validateTiming, toUnixSeconds } from './_shared/timing.js';
 import { parseTextExtra, extractHashtagNames } from './_shared/text-extra.js';
@@ -28,8 +27,6 @@ const VISIBILITY_MAP = {
     friends: 1,
     private: 2,
 };
-const IMAGEX_BASE = 'https://imagex.bytedanceapi.com';
-const IMAGEX_SERVICE_ID = '1147';
 const DEVICE_PARAMS = 'aid=1128&cookie_enabled=true&screen_width=1512&screen_height=982&browser_language=zh-CN&browser_platform=MacIntel&browser_name=Mozilla&browser_online=true&timezone_name=Asia%2FTokyo&support_h265=1';
 const DEFAULT_COVER_TOOLS_INFO = JSON.stringify({
     video_cover_source: 2,
@@ -60,12 +57,6 @@ function isFastDetectRetryable(error) {
 }
 function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
-}
-function throwIfImagexError(action, payload) {
-    const error = payload?.ResponseMetadata?.Error ?? payload?.Error;
-    if (error) {
-        throw new CommandExecutionError(`${action}失败: ${JSON.stringify(error)}`);
-    }
 }
 async function tryFastDetectFetch(page, method, url, options) {
     let lastError;
@@ -166,35 +157,15 @@ cli({
         // ── Phase 4: Cover upload (optional) ────────────────────────────────
         if (kwargs.cover) {
             const resolvedCoverPath = path.resolve(kwargs.cover);
-            // 4A: Apply ImageX upload
-            const applyUrl = `${IMAGEX_BASE}/?Action=ApplyImageUpload&ServiceId=${IMAGEX_SERVICE_ID}&Version=2018-08-01&UploadNum=1`;
-            const applyJs = `fetch(${JSON.stringify(applyUrl)}, { credentials: 'include' }).then(r => r.json())`;
-            const applyRes = requireObjectEvaluateResult(await page.evaluate(applyJs), '抖音封面申请上传地址响应异常');
-            throwIfImagexError('抖音封面申请上传地址', applyRes);
-            const imgStoreInfo = applyRes.Result?.UploadAddress?.StoreInfos?.[0];
-            if (!imgStoreInfo?.UploadHost || !imgStoreInfo?.StoreUri) {
-                throw new CommandExecutionError(`抖音封面申请上传地址响应缺少 UploadHost/StoreUri: ${JSON.stringify(applyRes).slice(0, 500)}`);
-            }
-            const imgUploadUrl = `https://${imgStoreInfo.UploadHost}/${imgStoreInfo.StoreUri}`;
+            // 4A: Apply ImageX upload (signed with the same upload credentials as the video)
+            const imageUpload = await applyImageUpload(credentials, { fileExtension: path.extname(resolvedCoverPath) });
             // 4B: Upload image
-            const coverStoreUri = await imagexUpload(resolvedCoverPath, {
-                upload_url: imgUploadUrl,
-                store_uri: imgStoreInfo.StoreUri,
-            });
+            await imagexUpload(resolvedCoverPath, imageUpload);
             // 4C: Commit ImageX upload
-            const commitUrl = `${IMAGEX_BASE}/?Action=CommitImageUpload&ServiceId=${IMAGEX_SERVICE_ID}&Version=2018-08-01`;
-            const commitBody = JSON.stringify({ SuccessObjKeys: [coverStoreUri] });
-            const commitJs = `
-        fetch(${JSON.stringify(commitUrl)}, {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: ${JSON.stringify(commitBody)}
-        }).then(r => r.json())
-      `;
-            const commitRes = requireObjectEvaluateResult(await page.evaluate(commitJs), '抖音封面提交上传响应异常');
-            throwIfImagexError('抖音封面提交上传', commitRes);
-            coverUri = coverStoreUri;
+            const committedCover = await commitImageUpload(credentials, imageUpload.session_key);
+            coverUri = committedCover.uri;
+            coverWidth = committedCover.width || coverWidth;
+            coverHeight = committedCover.height || coverHeight;
         }
         // The gateway upload flow returns a committed VOD upload result; the legacy
         // enable/transend endpoints can hang for that flow, so create_v2 consumes

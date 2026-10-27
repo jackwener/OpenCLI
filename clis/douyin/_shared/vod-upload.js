@@ -31,7 +31,7 @@ function canonicalQuery(url) {
     .join('&');
 }
 
-function computeAws4Headers(url, credentials, options = {}) {
+export function computeAws4Headers(url, credentials, options = {}) {
   const parsedUrl = new URL(url);
   const datetime = nowDatetime();
   const date = datetime.slice(0, 8);
@@ -58,7 +58,7 @@ function computeAws4Headers(url, credentials, options = {}) {
     signedHeaders,
     bodyHash,
   ].join('\n');
-  const service = 'vod';
+  const service = options.service ?? 'vod';
   const region = 'cn-north-1';
   const credentialScope = `${date}/${region}/${service}/aws4_request`;
   const stringToSign = [

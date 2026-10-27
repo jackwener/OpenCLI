@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
-import { getUploadAuthV5Credentials, applyVideoUploadInner } from './vod-upload.js';
+import { computeAws4Headers, getUploadAuthV5Credentials, applyVideoUploadInner } from './vod-upload.js';
 
 describe('douyin vod upload helpers', () => {
   it('parses creator upload auth v5 credentials', async () => {
@@ -34,5 +34,12 @@ describe('douyin vod upload helpers', () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({ ok: true, status: 200, text: async () => JSON.stringify({ ResponseMetadata: { Error: { Code: 'AccessDenied', Message: 'denied' } } }) });
     await expect(applyVideoUploadInner(1234, { access_key_id: 'ak', secret_access_key: 'sk', session_token: 'token' })).rejects.toBeInstanceOf(CommandExecutionError);
     fetchSpy.mockRestore();
+  });
+
+  it('signs for the vod service by default and for another service when asked', () => {
+    const credentials = { access_key_id: 'ak', secret_access_key: 'sk', session_token: 'token' };
+    const url = 'https://example.bytedanceapi.com/?Action=Test&Version=2018-08-01';
+    expect(computeAws4Headers(url, credentials).Authorization).toContain('/cn-north-1/vod/aws4_request,');
+    expect(computeAws4Headers(url, credentials, { service: 'imagex' }).Authorization).toContain('/cn-north-1/imagex/aws4_request,');
   });
 });
