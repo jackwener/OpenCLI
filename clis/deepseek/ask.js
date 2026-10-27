@@ -1,9 +1,9 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CliError, CommandExecutionError, EXIT_CODES, TimeoutError } from '@jackwener/opencli/errors';
 import {
-    DEEPSEEK_DOMAIN, DEEPSEEK_URL, ensureOnDeepSeek, selectModel, setFeature,
+    DEEPSEEK_DOMAIN, ensureOnDeepSeek, ensureFreshConversation, selectModel, setFeature,
     sendMessage, sendWithFile, getBubbleCount, waitForResponse, parseBoolFlag, withRetry,
-    pickResumeUrl, TEXTAREA_SELECTOR,
+    pickResumeUrl,
 } from './utils.js';
 
 export const askCommand = cli({
@@ -44,13 +44,12 @@ export const askCommand = cli({
         }
 
         if (parseBoolFlag(kwargs.new)) {
-            await page.goto(DEEPSEEK_URL);
-            // Wait for the composer to mount instead of a fixed 3 s sleep.
-            try {
-                await page.wait({ selector: TEXTAREA_SELECTOR, timeout: 8 });
-            } catch {
-                // Selector still missing → downstream selectModel/sendMessage
-                // will surface the failure with a typed error.
+            const fresh = await ensureFreshConversation(page);
+            if (!fresh.ok && fresh.reason !== 'composer-missing') {
+                throw new CommandExecutionError(
+                    `DeepSeek restored the previous conversation, so --new could not start a fresh thread (${fresh.reason})`,
+                    'Retry, or open chat.deepseek.com and start a new chat manually before re-running.',
+                );
             }
         } else {
             const navigated = await ensureOnDeepSeek(page);
@@ -79,6 +78,13 @@ export const askCommand = cli({
         const currentUrl = await page.evaluate('window.location.href') || '';
         const inConversation = currentUrl.includes('/a/chat/s/');
         const modelExplicit = kwargs.__opencliOptionSources?.model === 'cli';
+
+        if (parseBoolFlag(kwargs.new) && inConversation) {
+            throw new CommandExecutionError(
+                'DeepSeek restored the previous conversation, so --new could not start a fresh thread (conversation-restored)',
+                'Retry, or open chat.deepseek.com and start a new chat manually before re-running.',
+            );
+        }
 
         if (inConversation && modelExplicit) {
             throw new CliError(
@@ -116,8 +122,15 @@ export const askCommand = cli({
         // No settle wait after toggles: the next CDP eval below already gives
         // React time to flush the aria-checked state.
 
+        const baseline = await withRetry(() => getBubbleCount(page));
+        if (parseBoolFlag(kwargs.new) && baseline > 0) {
+            throw new CommandExecutionError(
+                'DeepSeek restored the previous conversation, so --new could not start a fresh thread (conversation-restored)',
+                'Retry, or open chat.deepseek.com and start a new chat manually before re-running.',
+            );
+        }
+
         if (kwargs.file) {
-            const baseline = await withRetry(() => getBubbleCount(page));
             try {
                 const fileResult = await sendWithFile(page, kwargs.file, prompt);
                 if (fileResult && !fileResult.ok) {
@@ -139,7 +152,6 @@ export const askCommand = cli({
             return [{ response: result }];
         }
 
-        const baseline = await withRetry(() => getBubbleCount(page));
         const sendResult = await withRetry(() => sendMessage(page, prompt));
         if (!sendResult?.ok) {
             throw new CommandExecutionError(sendResult?.reason || 'Failed to send message');
