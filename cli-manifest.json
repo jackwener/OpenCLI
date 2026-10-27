@@ -1358,6 +1358,436 @@
     "sourceFile": "aibase/news.js"
   },
   {
+    "site": "aistudio",
+    "name": "ask",
+    "description": "Send a prompt to Google AI Studio and return only the model response",
+    "access": "write",
+    "domain": "aistudio.google.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "prompt",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Prompt to send to Google AI Studio"
+      },
+      {
+        "name": "image",
+        "type": "string",
+        "required": false,
+        "help": "Local image path to attach for visual prompting"
+      },
+      {
+        "name": "model",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Canonical model id or unique model name from `opencli aistudio models` (default: gemini-3.7-flash, override with OPENCLI_AISTUDIO_MODEL)"
+      },
+      {
+        "name": "thinking",
+        "type": "string",
+        "required": false,
+        "help": "Thinking Level shown by the selected model, e.g. Minimal or High"
+      },
+      {
+        "name": "temperature",
+        "type": "number",
+        "required": false,
+        "help": "Sampling temperature within the selected model UI range"
+      },
+      {
+        "name": "top-p",
+        "type": "number",
+        "required": false,
+        "help": "Top P within the selected model UI range"
+      },
+      {
+        "name": "max-output-tokens",
+        "type": "int",
+        "required": false,
+        "help": "Maximum output tokens within the selected model UI range"
+      },
+      {
+        "name": "system-instruction",
+        "type": "string",
+        "required": false,
+        "help": "System instruction; pass an empty string to clear it"
+      },
+      {
+        "name": "structured-output",
+        "type": "bool",
+        "required": false,
+        "help": "Enable or disable structured outputs (omit = leave unchanged)"
+      },
+      {
+        "name": "code-execution",
+        "type": "bool",
+        "required": false,
+        "help": "Enable or disable code execution (omit = leave unchanged)"
+      },
+      {
+        "name": "function-calling",
+        "type": "bool",
+        "required": false,
+        "help": "Enable or disable function calling (omit = leave unchanged)"
+      },
+      {
+        "name": "google-search",
+        "type": "bool",
+        "required": false,
+        "help": "Enable or disable Grounding with Google Search (omit = leave unchanged)"
+      },
+      {
+        "name": "google-maps",
+        "type": "bool",
+        "required": false,
+        "help": "Enable or disable Grounding with Google Maps (omit = leave unchanged)"
+      },
+      {
+        "name": "url-context",
+        "type": "bool",
+        "required": false,
+        "help": "Enable or disable URL context (omit = leave unchanged)"
+      },
+      {
+        "name": "media-resolution",
+        "type": "string",
+        "required": false,
+        "help": "Media resolution shown by the selected model, e.g. Default or High"
+      },
+      {
+        "name": "stop-sequences",
+        "type": "string",
+        "required": false,
+        "help": "Stop sequences as a comma-separated list or JSON string array"
+      },
+      {
+        "name": "safety-settings",
+        "type": "string",
+        "required": false,
+        "help": "Safety thresholds as a JSON object, e.g. {\"Harassment\":\"Block some\"}"
+      },
+      {
+        "name": "copy-as-markdown",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "After generation, recover the original Markdown source via the response menu Copy as Markdown action (headings, lists, tables, formula delimiters preserved)"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 120,
+        "required": false,
+        "help": "Maximum generation time in seconds (default: 120)"
+      }
+    ],
+    "columns": [
+      "response"
+    ],
+    "defaultFormat": "plain",
+    "type": "js",
+    "modulePath": "aistudio/ask.js",
+    "sourceFile": "aistudio/ask.js",
+    "navigateBefore": false,
+    "siteSession": "ephemeral"
+  },
+  {
+    "site": "aistudio",
+    "name": "image",
+    "description": "Generate images with Google AI Studio image models and save them locally",
+    "access": "write",
+    "domain": "aistudio.google.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "prompt",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Image generation prompt"
+      },
+      {
+        "name": "image",
+        "type": "string",
+        "required": false,
+        "help": "Local reference image path for image-to-image generation or editing"
+      },
+      {
+        "name": "model",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Image model id or unique name (default: first available image model)"
+      },
+      {
+        "name": "aspect-ratio",
+        "type": "string",
+        "default": "1:1",
+        "required": false,
+        "help": "Aspect ratio shown by the model, e.g. 1:1, 16:9, 9:16"
+      },
+      {
+        "name": "resolution",
+        "type": "string",
+        "required": false,
+        "help": "Resolution shown by the model (default: 1K)"
+      },
+      {
+        "name": "output",
+        "type": "string",
+        "default": "images",
+        "required": false,
+        "help": "Return images only or images with text",
+        "choices": [
+          "images",
+          "images-text"
+        ]
+      },
+      {
+        "name": "thinking",
+        "type": "string",
+        "required": false,
+        "help": "Thinking Level shown by the selected model (omitted = leave unchanged)"
+      },
+      {
+        "name": "temperature",
+        "type": "number",
+        "required": false,
+        "help": "Sampling temperature within the selected model UI range (only when exposed by the model)"
+      },
+      {
+        "name": "top-p",
+        "type": "number",
+        "required": false,
+        "help": "Top P within the selected model UI range (only when exposed by the model)"
+      },
+      {
+        "name": "max-output-tokens",
+        "type": "int",
+        "required": false,
+        "help": "Maximum output tokens within the selected model UI range"
+      },
+      {
+        "name": "system-instruction",
+        "type": "string",
+        "required": false,
+        "help": "Optional system instruction for generation"
+      },
+      {
+        "name": "structured-output",
+        "type": "bool",
+        "required": false,
+        "help": "Enable or disable structured outputs (omit = leave unchanged)"
+      },
+      {
+        "name": "code-execution",
+        "type": "bool",
+        "required": false,
+        "help": "Enable or disable code execution (omit = leave unchanged)"
+      },
+      {
+        "name": "function-calling",
+        "type": "bool",
+        "required": false,
+        "help": "Enable or disable function calling (omit = leave unchanged)"
+      },
+      {
+        "name": "google-search",
+        "type": "bool",
+        "required": false,
+        "help": "Enable or disable Grounding with Google Search (omit = leave unchanged)"
+      },
+      {
+        "name": "google-maps",
+        "type": "bool",
+        "required": false,
+        "help": "Enable or disable Grounding with Google Maps (omit = leave unchanged)"
+      },
+      {
+        "name": "url-context",
+        "type": "bool",
+        "required": false,
+        "help": "Enable or disable URL context (omit = leave unchanged)"
+      },
+      {
+        "name": "media-resolution",
+        "type": "string",
+        "required": false,
+        "help": "Media resolution shown by the selected model, e.g. Default or High"
+      },
+      {
+        "name": "stop-sequences",
+        "type": "string",
+        "required": false,
+        "help": "Stop sequences as a comma-separated list or JSON string array"
+      },
+      {
+        "name": "safety-settings",
+        "type": "string",
+        "required": false,
+        "help": "Safety thresholds as a JSON object, e.g. {\"Harassment\":\"Block some\"}"
+      },
+      {
+        "name": "output-dir",
+        "type": "string",
+        "required": false,
+        "help": "Output directory (default: ~/Pictures/aistudio)"
+      },
+      {
+        "name": "skip-download",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Do not download; return the AI Studio prompt link only"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 240,
+        "required": false,
+        "help": "Maximum generation time in seconds (default: 240)"
+      }
+    ],
+    "columns": [
+      "status",
+      "file",
+      "model",
+      "width",
+      "height",
+      "link"
+    ],
+    "defaultFormat": "plain",
+    "type": "js",
+    "modulePath": "aistudio/image.js",
+    "sourceFile": "aistudio/image.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "aistudio",
+    "name": "login",
+    "description": "Open aistudio login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "aistudio.google.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "name",
+      "email"
+    ],
+    "type": "js",
+    "modulePath": "aistudio/auth.js",
+    "sourceFile": "aistudio/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "aistudio",
+    "name": "models",
+    "description": "List models currently visible in the Google AI Studio model picker",
+    "access": "read",
+    "domain": "aistudio.google.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "category",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "Filter by model category",
+        "choices": [
+          "all",
+          "text",
+          "image",
+          "video",
+          "audio",
+          "live",
+          "gemma"
+        ]
+      },
+      {
+        "name": "query",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Filter by model id, name, or description"
+      }
+    ],
+    "columns": [
+      "model",
+      "name",
+      "category",
+      "availability",
+      "description"
+    ],
+    "type": "js",
+    "modulePath": "aistudio/models.js",
+    "sourceFile": "aistudio/models.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "aistudio",
+    "name": "status",
+    "description": "Check Google AI Studio availability, authentication, and selected model",
+    "access": "read",
+    "domain": "aistudio.google.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "status",
+      "login",
+      "model",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "aistudio/status.js",
+    "sourceFile": "aistudio/status.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "aistudio",
+    "name": "whoami",
+    "description": "Show the current logged-in aistudio account",
+    "access": "read",
+    "domain": "aistudio.google.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "name",
+      "email"
+    ],
+    "type": "js",
+    "modulePath": "aistudio/auth.js",
+    "sourceFile": "aistudio/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
     "site": "amazon",
     "name": "bestsellers",
     "description": "Amazon Best Sellers pages for category candidate discovery",
