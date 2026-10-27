@@ -464,6 +464,48 @@ describe('xiaohongshu search', () => {
         }
     });
 
+    it.each(['search-input-in-feeds', 'search-input-ai'])(
+        'submits the visible AI textarea %s and accepts the AI result route', async (id) => {
+            vi.useFakeTimers();
+            const dom = new JSDOM(`
+              <input id="search-input" hidden>
+              <div class="textarea-container">
+                <textarea id="${id}"></textarea>
+                <button class="submit-button-wrapper">Search</button>
+              </div>
+              <button class="search-icon">Unrelated search</button>
+            `, { url: 'https://www.xiaohongshu.com/explore' });
+            try {
+                const { document } = dom.window;
+                const input = document.querySelector('textarea');
+                const button = document.querySelector('.submit-button-wrapper');
+                for (const element of document.querySelectorAll('input, textarea, button')) markVisible(element);
+                const unrelatedClick = vi.fn();
+                document.querySelector('.search-icon').addEventListener('click', unrelatedClick);
+                let inputEvents = 0;
+                input.addEventListener('input', () => inputEvents++);
+                button.addEventListener('click', () => {
+                    dom.window.history.pushState({}, '', '/search_result_ai?keyword=测试');
+                    const card = document.createElement('section');
+                    card.className = 'note-item';
+                    document.body.append(card);
+                });
+                const script = __test__.buildInSiteSearchJs('测试');
+                const pending = Function('document', 'location', 'Event', 'setTimeout', `return (${script})`)(
+                    document, dom.window.location, dom.window.Event, setTimeout,
+                );
+                await vi.runAllTimersAsync();
+                await expect(pending).resolves.toMatchObject({ status: 'ok', detail: '/search_result_ai' });
+                expect(input.value).toBe('测试');
+                expect(inputEvents).toBe(1);
+                expect(unrelatedClick).not.toHaveBeenCalled();
+            } finally {
+                dom.window.close();
+                vi.useRealTimers();
+            }
+        },
+    );
+
     it('rejects invalid limit before browser navigation', async () => {
         const cmd = getRegistry().get('xiaohongshu/search');
         const page = createPageMock([]);
@@ -734,7 +776,7 @@ describe('xiaohongshu search', () => {
         expect(result[0].title).toBe('Recovered');
         expect(page.newTab).toHaveBeenCalledTimes(1);
         expect(page.setActivePage).toHaveBeenCalledWith('page-new');
-        expect(page.selectTab).not.toHaveBeenCalled();
+        expect(page.selectTab).toHaveBeenCalledWith('page-old');
         expect(page.closeTab).toHaveBeenCalledWith('page-old');
         expect(page.newTab.mock.invocationCallOrder[0]).toBeLessThan(page.setActivePage.mock.invocationCallOrder[0]);
         expect(page.setActivePage.mock.invocationCallOrder[0]).toBeLessThan(page.closeTab.mock.invocationCallOrder[0]);
@@ -781,7 +823,7 @@ describe('xiaohongshu search', () => {
             message: expect.stringContaining('bind failed'),
         });
         expect(page.setActivePage).toHaveBeenCalledWith('page-new');
-        expect(page.selectTab).toHaveBeenCalledOnce();
+        expect(page.selectTab).toHaveBeenCalledTimes(2);
         expect(page.selectTab).toHaveBeenCalledWith('page-old');
         expect(page.closeTab).toHaveBeenCalledWith('page-new');
         expect(page.closeTab).not.toHaveBeenCalledWith('page-old');
@@ -798,7 +840,7 @@ describe('xiaohongshu search', () => {
             message: expect.stringContaining('close old failed'),
         });
         expect(page.closeTab).toHaveBeenNthCalledWith(1, 'page-old');
-        expect(page.selectTab).toHaveBeenCalledOnce();
+        expect(page.selectTab).toHaveBeenCalledTimes(2);
         expect(page.selectTab).toHaveBeenCalledWith('page-old');
         expect(page.closeTab).toHaveBeenNthCalledWith(2, 'page-new');
         expect(page.getActivePage()).toBe('page-old');
@@ -807,14 +849,14 @@ describe('xiaohongshu search', () => {
         const cmd = getRegistry().get('xiaohongshu/search');
         const collapsed = harvestPayload([], { cardCount: 22, feedClientHeight: 0, distinctCardTops: 1 });
         const page = createPageMock(['content', collapsed]);
-        page.selectTab.mockRejectedValueOnce(new Error('old target is already gone'));
+        page.selectTab.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('old target is already gone'));
         page.closeTab.mockRejectedValueOnce(new Error('close old response lost'));
 
         await expect(cmd.func(page, { query: '旧页状态不明', limit: 5 })).rejects.toMatchObject({
             code: 'COMMAND_EXEC',
             message: expect.stringMatching(/close old response lost.*Cleanup also failed: old target is already gone/),
         });
-        expect(page.selectTab).toHaveBeenCalledOnce();
+        expect(page.selectTab).toHaveBeenCalledTimes(2);
         expect(page.selectTab).toHaveBeenCalledWith('page-old');
         expect(page.closeTab).toHaveBeenCalledTimes(1);
         expect(page.closeTab).toHaveBeenCalledWith('page-old');

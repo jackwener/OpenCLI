@@ -394,14 +394,18 @@ function buildInSiteSearchJs(query) {
         for (let attempt = 0; attempt < 50 && !input; attempt++) {
           const wall = blocked();
           if (wall) return wall;
-          const inputs = matches('#search-input');
+          const inputs = matches('textarea#search-input-in-feeds, textarea#search-input-ai, input#search-input')
+            .filter((element) => !element.disabled && !element.readOnly);
           if (inputs.length > 1) return { status: 'layout', detail: 'ambiguous_search_input' };
           input = inputs[0];
           if (!input) await sleep(100);
         }
-        if (!(input instanceof HTMLInputElement) || input.disabled || input.readOnly)
+        if (!input)
           return { status: 'layout', detail: 'search_input_not_available' };
-        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+        const prototype = input.tagName === 'TEXTAREA'
+          ? input.ownerDocument.defaultView.HTMLTextAreaElement.prototype
+          : input.ownerDocument.defaultView.HTMLInputElement.prototype;
+        const setter = Object.getOwnPropertyDescriptor(prototype, 'value').set;
         input.focus();
         setter.call(input, query);
         input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -410,7 +414,11 @@ function buildInSiteSearchJs(query) {
         if (input.value !== query) return { status: 'layout', detail: 'search_input_not_filled' };
         const wall = blocked();
         if (wall) return wall;
-        const buttons = matches('.search-icon');
+        // Scope the submit control to the selected input; the AI page also
+        // contains hidden header controls and unrelated search icons.
+        const container = input.closest(input.tagName === 'TEXTAREA' ? '.textarea-container' : '.input-box');
+        const buttonSelector = input.tagName === 'TEXTAREA' ? '.submit-button-wrapper' : '.search-icon';
+        const buttons = Array.from((container || document).querySelectorAll(buttonSelector)).filter(visible);
         if (buttons.length !== 1) return { status: 'layout', detail: 'ambiguous_or_missing_search_button' };
         const button = buttons[0];
         if (button.disabled || button.getAttribute('aria-disabled') === 'true')
@@ -422,7 +430,7 @@ function buildInSiteSearchJs(query) {
           if (wall) return wall;
           const searchRendered = document.querySelector('.search-layout__top > .filter, .filter.ai-chat-filter, section.note-item, section:has(a[href*="/search_result/"])');
           const keyword = new URLSearchParams(location.search).get('keyword');
-          if (location.pathname === '/search_result' && keyword === query &&
+          if (['/search_result', '/search_result_ai'].includes(location.pathname) && keyword === query &&
               (searchRendered || document.querySelector('.search-empty-wrapper'))) {
             return { status: 'ok', detail: location.pathname };
           }
@@ -917,6 +925,9 @@ async function collectSearchHarvest(page, limit, requestedFilters) {
 
 async function openSearchResults(page, query) {
     await page.goto(EXPLORE_URL);
+    // Persistent sessions can retain an inactive tab even after navigation.
+    const activePage = page.getActivePage();
+    if (activePage !== undefined && activePage !== null) await page.selectTab(activePage);
     const result = unwrapEvaluateResult(await page.evaluate(buildInSiteSearchJs(query)));
     if (!result || typeof result !== 'object' || Array.isArray(result)) {
         throw new CommandExecutionError('Unexpected Xiaohongshu in-site search payload shape.');
