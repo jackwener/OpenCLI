@@ -27,7 +27,7 @@ function buildFeedExtractScript(limit) {
       // Strip zero-width / bidi control chars first: Facebook injects them into
       // decoy nodes to poison scrapers. See issue #2089.
       return String(value || '')
-        .replace(/[\\u200b-\\u200f\\u202a-\\u202e\\u2060\\ufeff]/g, '')
+        .replace(/[\\u034f\\u200b-\\u200f\\u202a-\\u202e\\u2060\\ufeff]/g, '')
         .replace(/\\s+/g, ' ')
         .trim();
     }
@@ -39,6 +39,8 @@ function buildFeedExtractScript(limit) {
       if (!text) return true;
       if (/^\\d{8,}$/.test(text)) return true;
       if (/^(?:\\S ){4,}\\S$/.test(text) && text.replace(/\\s/g, '').length <= 12) return true;
+      if (/^[a-z0-9]{6,}\\.(com|net|org)$/i.test(text)) return true;
+      if (/^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)[a-z0-9_-]{24,}$/i.test(text)) return true;
       return false;
     }
 
@@ -52,6 +54,10 @@ function buildFeedExtractScript(limit) {
 
     function labelOf(el) {
       return clean(el && el.getAttribute && el.getAttribute('aria-label'));
+    }
+
+    function isPostActionLabel(label) {
+      return /^(Actions for this post(?: by .+)?|此帖子的操作|针对此帖子的操作|贴文的操作)$/i.test(label);
     }
 
     function isAuthPage() {
@@ -87,7 +93,8 @@ function buildFeedExtractScript(limit) {
     }
 
     function isTimestampText(text) {
-      return /^(\\d+\\s*(s|m|h|d|w|mo|yr|min|sec|second|minute|hour|day|week|month|year)s?|Just now|Yesterday|刚刚|昨天|\\d+小时|\\d+天)(\\s*[·•.])?$/i.test(text);
+      return /^(\\d+\\s*(s|m|h|d|w|mo|yr|min|sec|second|minute|hour|day|week|month|year)s?|Just now|Yesterday|刚刚|昨天|\\d+小时|\\d+天)(\\s*[·•.])?$/i.test(text)
+        || /(?:·\\s*)?Shared with Public$/i.test(text);
     }
 
     function postUrlFrom(root) {
@@ -124,6 +131,13 @@ function buildFeedExtractScript(limit) {
     }
 
     function findAuthor(root) {
+      for (const el of root.querySelectorAll('[aria-label]')) {
+        const match = labelOf(el).match(/^Actions for this post by (.+)$/i);
+        if (match) {
+          const text = clean(match[1]);
+          if (text.length > 1 && text.length <= 80 && !isDecoyText(text)) return text;
+        }
+      }
       const links = [
         root.querySelector('h2 a[href], h3 a[href], h4 a[href], strong a[href]'),
         ...Array.from(root.querySelectorAll('a[role="link"][href]')),
@@ -131,13 +145,15 @@ function buildFeedExtractScript(limit) {
       for (const link of links) {
         const text = textOf(link);
         const href = link.href || link.getAttribute('href') || '';
+        const isGroupScopedUser = /\\/groups\\/[^/]+\\/user\\/[^/?#]+/i.test(href);
         if (text.length > 1 && text.length <= 80
           && !isActionText(text)
           && !isMetricText(text)
           && !isTimestampText(text)
           && !isDecoyText(text)
           && !/^[\\d\\s.,-]+$/.test(text)   // reject all-digit decoy names, but keep "Class of 2024" (#2089)
-          && !/\\/groups\\/|\\/watch\\/|\\/reel\\/|\\/events\\/|\\/friends\\//i.test(href)) {
+          && (isGroupScopedUser || !/\\/groups\\//i.test(href))
+          && !/\\/watch\\/|\\/reel\\/|\\/events\\/|\\/friends\\//i.test(href)) {
           return text;
         }
       }
@@ -189,19 +205,25 @@ function buildFeedExtractScript(limit) {
 
     function primaryContainers() {
       return Array.from(document.querySelectorAll('[role="article"]'))
-        .filter((el) => textOf(el).length > 30);
+        .filter((el) => {
+          if (textOf(el).length <= 30) return false;
+          const hasCommentScopedLink = Boolean(el.querySelector('a[href*="comment_id="]'));
+          const hasPostMenu = Array.from(el.querySelectorAll('[aria-label]'))
+            .some((node) => isPostActionLabel(labelOf(node)));
+          return !hasCommentScopedLink || hasPostMenu;
+        });
     }
 
     // Modern Facebook no longer wraps posts in [role="article"] nor exposes the
-    // Like/Comment/Share aria-labels the fallback keyed on. Every post still
-    // carries one "Actions for this post" control (the ⋯ menu). Anchor on it and
-    // walk up to the HIGHEST ancestor that still contains exactly one such
-    // control — that bounds the node to a single post. See issue #2089.
+    // Like/Comment/Share aria-labels the fallback keyed on. Real posts and some
+    // suggestion cards both carry an "Actions for this post" control. Walk up
+    // only to the NEAREST ancestor with actual post evidence, and stop as soon
+    // as suggestion chrome is encountered.
     function actionMenuAnchors() {
       // Post menus only — NOT "Actions for this comment", so the anchor set,
       // countMenus, and loadFeedPosts all key on the same thing (#2089).
-      return Array.from(document.querySelectorAll('[aria-label]')).filter((el) =>
-        /^(Actions for this post|此帖子的操作|针对此帖子的操作|贴文的操作)$/i.test(labelOf(el)));
+      return Array.from(document.querySelectorAll('[aria-label]'))
+        .filter((el) => isPostActionLabel(labelOf(el)));
     }
 
     function actionAnchoredContainers() {
@@ -211,7 +233,7 @@ function buildFeedExtractScript(limit) {
       const countMenus = (node) => {
         let n = 0;
         for (const el of node.querySelectorAll('[aria-label]')) {
-          if (/^(Actions for this post|此帖子的操作|针对此帖子的操作|贴文的操作)$/i.test(labelOf(el))) n += 1;
+          if (isPostActionLabel(labelOf(el))) n += 1;
         }
         return n;
       };
@@ -223,7 +245,19 @@ function buildFeedExtractScript(limit) {
           // Never let a single-post page climb the container up to a page
           // landmark (role=main/feed/...) and emit the whole region as a post.
           if (LANDMARK_ROLES.has(node.getAttribute('role') || '')) break;
-          if (countMenus(node) === 1) best = node; else break;
+          if (countMenus(node) !== 1) break;
+          const fullText = textOf(node);
+          if (isSuggestionOrChrome(fullText)) break;
+          const author = findAuthor(node);
+          if (!author) continue;
+          const blocks = contentBlocks(node, author);
+          if (blocks.length > 0) {
+            best = node;
+            break;
+          }
+          // A permalink can live in the header while the body is its sibling.
+          // Keep it only as a fallback and continue upward looking for content.
+          if (!best && postUrlFrom(node)) best = node;
         }
         if (best && !seen.has(best) && textOf(best).length > 30) {
           seen.add(best);
@@ -306,7 +340,7 @@ async function loadFeedPosts(page, limit) {
     await sleep(800);
     return document.querySelectorAll('[aria-label]').length
       ? document.querySelectorAll('[role="article"]').length
-        + Array.from(document.querySelectorAll('[aria-label]')).filter((el) => /^(Actions for this post|此帖子的操作|针对此帖子的操作|贴文的操作)$/i.test((el.getAttribute('aria-label') || '').trim())).length
+        + Array.from(document.querySelectorAll('[aria-label]')).filter((el) => /^(Actions for this post(?: by .+)?|此帖子的操作|针对此帖子的操作|贴文的操作)$/i.test((el.getAttribute('aria-label') || '').trim())).length
       : 0;
   })()`;
   const extractStep = buildFeedExtractScript(limit);
