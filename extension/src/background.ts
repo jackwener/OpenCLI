@@ -590,6 +590,18 @@ function scheduleIdleAlarm(leaseKey: string, timeout: number): void {
   }
 }
 
+/** True once the tab is gone, or (when `url` is given) shows that URL. */
+function tabSettled(tabId: number, url?: string): () => Promise<boolean> {
+  return async () => {
+    try {
+      const tab = await chrome.tabs.get(tabId);
+      return url !== undefined && tab.url === url;
+    } catch {
+      return true;
+    }
+  };
+}
+
 async function safeDetach(tabId: number): Promise<void> {
   try {
     const detach = (executor as unknown as { detach?: (tabId: number) => Promise<void> }).detach;
@@ -1700,6 +1712,7 @@ function classifyExtensionError(message: string): string | undefined {
   if (/CDP command .* timed out/.test(message)) return 'cdp_timeout';
   if (/attach failed|Debugger is not attached/.test(message)) return 'attach_failed';
   if (/No tab with id|no longer exists|No window with id/.test(message)) return 'tab_gone';
+  if (/JavaScript dialog is open/.test(message)) return 'javascript_dialog_open';
   return undefined;
 }
 
@@ -2070,6 +2083,8 @@ async function handleCdp(cmd: Command, leaseKey: string): Promise<Result> {
   try {
     const aggressive = getSurfaceFromKey(leaseKey) === 'browser';
     await executor.ensureAttached(tabId, aggressive);
+    // Answering the dialog is the one command a blocked page still accepts.
+    if (cmd.cdpMethod !== 'Page.handleJavaScriptDialog') executor.assertNoOpenDialog(tabId);
     const params = cmd.cdpParams ?? {};
     const routeFrameId = typeof params.frameId === 'string' && params.sessionId === 'target'
       ? params.frameId
@@ -2222,22 +2237,29 @@ async function releaseLease(leaseKey: string, reason: string = 'released'): Prom
         otherSession.windowId === session.windowId &&
         otherSession.preferredTabId !== null,
       );
-      await safeDetach(tabId);
       identity.evictTab(tabId);
+      // Leave the page while still attached: navigating or closing a page with a
+      // draft raises a beforeunload prompt, and only an attached debugger sees it.
+      const closeTab = () => executor.abandonPage(tabId, async () => { await chrome.tabs.remove(tabId).catch(() => {}); }, tabSettled(tabId));
       if (hasOtherOwnedLease) {
-        await chrome.tabs.remove(tabId).catch(() => {});
+        await closeTab();
+        await safeDetach(tabId);
         console.log(`[opencli] Released owned tab lease ${tabId} (session=${session.session}, surface=${session.surface}, ${reason})`);
       } else {
         try {
           const role = getOwnedWindowRole(leaseKey);
           const idleUrl = role === 'interactive'
             ? await parkIdleInteractiveTab(tabId, session.windowId) : null;
-          const tab = await chrome.tabs.update(tabId, { url: idleUrl ?? BLANK_PAGE, active: true });
-          const group = await ensureOwnedContainerGroup(getOwnedWindowRole(leaseKey), session.windowId, [tab.id ?? tabId]);
+          const target = idleUrl ?? BLANK_PAGE;
+          let tab: chrome.tabs.Tab | undefined;
+          await executor.abandonPage(tabId, async () => { tab = await chrome.tabs.update(tabId, { url: target, active: true }); }, tabSettled(tabId, target));
+          await safeDetach(tabId);
+          const group = await ensureOwnedContainerGroup(role, session.windowId, [tab?.id ?? tabId]);
           if (group) session.windowId = group.windowId;
           console.log(`[opencli] Released owned tab lease ${tabId} as reusable placeholder (session=${session.session}, surface=${session.surface}, ${reason})`);
         } catch {
-          await chrome.tabs.remove(tabId).catch(() => {});
+          await closeTab();
+          await safeDetach(tabId);
           console.log(`[opencli] Released owned tab lease ${tabId} (session=${session.session}, surface=${session.surface}, ${reason})`);
         }
       }
