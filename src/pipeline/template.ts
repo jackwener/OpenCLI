@@ -3,6 +3,7 @@
  */
 
 import vm from 'node:vm';
+import { tokenizer } from 'acorn';
 
 export interface RenderContext {
   args?: Record<string, unknown>;
@@ -40,8 +41,8 @@ export function evalExpr(expr: string, ctx: RenderContext): unknown {
   const index = ctx.index ?? 0;
 
   // ── Pipe filters: expr | filter1(arg) | filter2 ──
-  // Split on single | (not ||) so "item.a || item.b | upper" works correctly.
-  const pipeSegments = expr.split(/(?<!\|)\|(?!\|)/).map(s => s.trim());
+  // Only top-level operators separate filters; quoted/regex/nested pipes belong to JS.
+  const pipeSegments = expr.includes('|') ? splitPipeSegments(expr) : [expr];
   if (pipeSegments.length > 1) {
     let result = evalExpr(pipeSegments[0], ctx);
     for (let i = 1; i < pipeSegments.length; i++) {
@@ -66,6 +67,31 @@ export function evalExpr(expr: string, ctx: RenderContext): unknown {
   // Fallback: evaluate as JS in a sandboxed VM.
   // Handles ||, ??, arithmetic, ternary, method calls, etc. natively.
   return evalJsExpr(expr, { args, item, data, root, index });
+}
+
+function splitPipeSegments(expr: string): string[] {
+  if (!/['"`()[\]{}\/]/.test(expr)) {
+    return expr.split(/(?<!\|)\|(?!\|)/).map(s => s.trim());
+  }
+  const segments: string[] = [];
+  let start = 0;
+  let depth = 0;
+  try {
+    for (const token of tokenizer(expr, { ecmaVersion: 'latest' })) {
+      const label = token.type.label;
+      if (label === '(' || label === '[' || label === '{' || label === '${') depth++;
+      else if (label === ')' || label === ']' || label === '}') depth--;
+      else if (label === '|' && depth === 0) {
+        segments.push(expr.slice(start, token.start).trim());
+        start = token.end;
+      }
+    }
+  } catch {
+    // Keep legacy non-JavaScript filter arguments, such as the bare slash in join(/).
+    return expr.split(/(?<!\|)\|(?!\|)/).map(s => s.trim());
+  }
+  segments.push(expr.slice(start).trim());
+  return segments;
 }
 
 /**
