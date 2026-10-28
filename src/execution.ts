@@ -31,6 +31,7 @@ import { shouldUseBrowserSession } from './capabilityRouting.js';
 import { getBrowserFactory, browserSession, runWithTimeout, DEFAULT_BROWSER_COMMAND_TIMEOUT, type BrowserWindowMode } from './runtime.js';
 import { profileRouteParams, resolveProfileSelection } from './browser/profile.js';
 import { SLOT_WAIT_DEFAULT_MS, MAX_SLOT_DELAY_MS, parseSlotPolicy, type SlotPolicy } from './site-slots.js';
+import { gotoResilient } from './browser/utils.js';
 import { acquireSiteSlot, clearDaemonRunContext, generateRunId, isUnknownOutcomeError, releaseSiteSessionLease, setDaemonCommandTimeoutSeconds, setDaemonRunContext } from './browser/daemon-client.js';
 import { emitHook, type HookContext } from './hooks.js';
 import { log } from './logger.js';
@@ -334,8 +335,12 @@ export async function executeCommand(
           // Navigate directly — the extension's handleNavigate already has a fast-path
           // that skips navigation if the tab is already at the target URL.
           // This avoids an extra exec round-trip (getCurrentUrl) on first command.
+          // PROBLEM: a bare goto failed the whole command on one "Navigation rejected."
+          // (2026-09-27: `linkedin connections` lost that day's general invites to it).
+          // DESIGN: the retry the adapters already use. The adapter has not run yet, so
+          // navigating again repeats nothing, for a write command too.
           try {
-            await page.goto(preNavUrl);
+            await gotoResilient(page, preNavUrl);
             observation?.record({
               stream: 'action',
               name: 'pre_navigate',

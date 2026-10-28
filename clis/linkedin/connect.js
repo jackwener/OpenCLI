@@ -1,6 +1,7 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { unwrapEvaluateResult } from './shared.js';
+import { gotoResilient } from '@jackwener/opencli/browser/utils';
 
 const LINKEDIN_DOMAIN = 'www.linkedin.com';
 
@@ -416,7 +417,7 @@ cli({
         const expectedName = requireStringArg(args, 'expected-name', '--expected-name');
         const note = clampNote(args.note || '');
 
-        await page.goto(profileUrl);
+        await gotoResilient(page, profileUrl);
         await page.wait(6);
         let probe = await probeProfile(page, expectedName);
         // The name resolves early (from document.title), but the profile action
@@ -453,7 +454,7 @@ cli({
             if (!inviteUrl) {
                 throw new CommandExecutionError('LinkedIn connect blocked: invalid_connect_link');
             }
-            await page.goto(inviteUrl);
+            await gotoResilient(page, inviteUrl);
             await page.wait(6);
         }
         else {
@@ -482,7 +483,7 @@ cli({
         await page.wait(8);
         let sentProbe = null;
         for (let attempt = 0; attempt < 3; attempt += 1) {
-            await page.goto('https://www.linkedin.com/mynetwork/invitation-manager/sent/');
+            await gotoResilient(page, 'https://www.linkedin.com/mynetwork/invitation-manager/sent/');
             await page.wait(attempt === 0 ? 6 : 4);
             sentProbe = unwrapEvaluateResult(await page.evaluate(buildSentInvitationsProbeScript(expectedName, profileUrl)));
             if (sentProbe?.found || sentProbe?.authRequired) break;
