@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { ArgumentError, CliError } from '../../errors.js';
 import type { IPage } from '../../types.js';
 import { stepFetch } from './fetch.js';
@@ -9,6 +11,42 @@ afterEach(() => {
 });
 
 describe('stepFetch', () => {
+  it('sends query parameters to the HTTP server when the URL has a fragment', async () => {
+    const server = createServer((request, response) => {
+      response.setHeader('Content-Type', 'application/json');
+      response.end(JSON.stringify({ url: request.url }));
+    });
+    await new Promise<void>((resolve, reject) => {
+      server.once('error', reject);
+      server.listen(0, '127.0.0.1', resolve);
+    });
+    try {
+      const port = (server.address() as AddressInfo).port;
+      await expect(stepFetch(null, {
+        url: `http://127.0.0.1:${port}/search?existing=1#details`,
+        params: { q: 'a&b' },
+      }, null, {})).resolves.toEqual({ url: '/search?existing=1&q=a%26b' });
+    } finally {
+      server.closeAllConnections();
+      await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+    }
+  });
+
+  it.each([
+    ['/search#details?view=1', '/search?q=a%26b#details?view=1'],
+    ['/search?existing=1#details', '/search?existing=1&q=a%26b#details'],
+  ])('keeps browser query parameters before the fragment in %s', async (suffix, expected) => {
+    const fetchJson = vi.fn().mockResolvedValue({ ok: true });
+    const page = { fetchJson } as unknown as IPage;
+    await stepFetch(page, {
+      url: `https://api.example.com${suffix}`,
+      params: { q: 'a&b' },
+    }, null, {});
+    expect(fetchJson).toHaveBeenCalledWith(`https://api.example.com${expected}`, {
+      method: 'GET', headers: {},
+    });
+  });
+
   // W1 + W4: non-browser single fetch throws CliError with FETCH_ERROR code and full message
   it('throws CliError with FETCH_ERROR code on non-ok responses without a browser session', async () => {
     const jsonMock = vi.fn().mockResolvedValue({ error: 'rate limited' });

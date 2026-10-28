@@ -43,7 +43,10 @@ function prepareRequest(
   let url = String(render(urlTemplate, ctx));
   if (Object.keys(renderedParams).length > 0) {
     const qs = new URLSearchParams(renderedParams).toString();
-    url = `${url}${url.includes('?') ? '&' : '?'}${qs}`;
+    const fragmentAt = url.indexOf('#');
+    const base = fragmentAt < 0 ? url : url.slice(0, fragmentAt);
+    const fragment = fragmentAt < 0 ? '' : url.slice(fragmentAt);
+    url = `${base}${base.includes('?') ? '&' : '?'}${qs}${fragment}`;
   }
 
   const request: FetchRequest = { url, method, headers: renderedHeaders };
