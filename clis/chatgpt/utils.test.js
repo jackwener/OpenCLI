@@ -7,8 +7,11 @@ import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwe
 import {
     CHATGPT_MODEL_CHOICES,
     __test__,
+    answerChatGPTAppPermission,
+    getChatGPTAppPermissionPrompt,
     getChatGPTDetailRows,
     getChatGPTImageAssets,
+    getChatGPTModelPicker,
     getChatGPTResponsePairCounts,
     getChatGPTVisibleImageUrls,
     getCurrentChatGPTModel,
@@ -2263,5 +2266,53 @@ describe('chatgpt October 2026 redesign markup', () => {
         ], { expectedConversationId: 'requested123' });
 
         expect(result.status).toBe('completed');
+    });
+});
+
+
+describe('chatgpt plan and app permission prompt (2026-10-07)', () => {
+    it('reports a free page with no model picker and refuses to set a model before any API call', async () => {
+        const page = createDomEvaluatePage(`
+            <header><button>Upgrade</button><button>Temporary chat</button></header>
+            <nav><a href="/c/1" aria-label="Open conversation options for Jev Decision Model Scan">Jev Decision Model Scan</a></nav>
+            <form><button aria-label="Add files and more"></button><button aria-pressed="false">Think</button>
+            <div id="prompt-textarea" contenteditable="true"></div></form>
+        `);
+        expect(await getChatGPTModelPicker(page)).toEqual({ picker: false, upgrade: true });
+        page.nativeClick = vi.fn();
+        await expect(selectChatGPTModel(page, 'fast')).rejects.toMatchObject({
+            code: 'COMMAND_EXEC',
+            message: expect.stringContaining('no model picker; the page offers Upgrade (free plan)'),
+        });
+        expect(page.nativeClick).not.toHaveBeenCalled();
+    });
+
+    it('finds the app permission prompt and answers it', async () => {
+        const page = createDomEvaluatePage(`
+            <div role="dialog"><h2>Allow ChatGPT to use Example Booking App?</h2>
+            <p>Prepare a booking handoff</p>
+            <button>Deny</button><button>Allow once</button><button>Always allow</button></div>
+        `);
+        const prompt = await getChatGPTAppPermissionPrompt(page);
+        expect(prompt.prompt).toContain('Allow ChatGPT to use Example Booking App?');
+        expect(prompt.buttons).toEqual(['Deny', 'Allow once', 'Always allow']);
+        let clicked = '';
+        page.dom.window.document.querySelectorAll('button')[1].addEventListener('click', () => { clicked = 'once'; });
+        const answered = await answerChatGPTAppPermission(page, 'once');
+        expect(answered.clicked).toBe('Allow once');
+        expect(clicked).toBe('once');
+    });
+
+    it('sees no prompt on an ordinary page, and ask stops with the prompt text instead of waiting', async () => {
+        const plain = createDomEvaluatePage('<form><button>Allow me to explain</button></form>');
+        expect(await getChatGPTAppPermissionPrompt(plain)).toBeNull();
+        const blocked = createDomEvaluatePage(`
+            <div role="dialog"><h2>Allow ChatGPT to use Example Booking App?</h2><button>Allow once</button></div>
+        `);
+        blocked.sleep = vi.fn().mockResolvedValue(undefined);
+        await expect(waitForChatGPTResponse(blocked, 0, 'hi', 30)).rejects.toMatchObject({
+            code: 'COMMAND_EXEC',
+            message: expect.stringContaining('opencli chatgpt allow once|always|deny'),
+        });
     });
 });
