@@ -83,8 +83,15 @@ function unwrapEvaluateResult(payload) {
   return payload;
 }
 
-function localDateOrdinal(date) {
-  return dateOrdinal(date.getFullYear(), date.getMonth() + 1, date.getDate());
+// Huodongxing writes 今天/明天 and bare MM/DD in China time (UTC+8, no DST), whatever the machine's zone.
+const CHINA_OFFSET_MS = 8 * 3600000;
+
+function chinaDate(date) {
+  return new Date(date.getTime() + CHINA_OFFSET_MS);
+}
+
+function chinaDateOrdinal(date) {
+  return Math.floor(chinaDate(date).getTime() / 86400000);
 }
 
 function parseMonthDayToken(token, year) {
@@ -103,7 +110,7 @@ function parseEventTimeRange(timeText, options = {}) {
   const filterStart = parseYmd(options.date);
   const filterEnd = parseYmd(options.dateTo) ?? filterStart;
   const referenceDate = options.referenceDate instanceof Date ? options.referenceDate : new Date();
-  const referenceOrdinal = localDateOrdinal(referenceDate);
+  const referenceOrdinal = chinaDateOrdinal(referenceDate);
   if (/今天/.test(text)) return { start: referenceOrdinal, end: referenceOrdinal };
   if (/明天/.test(text)) return { start: referenceOrdinal + 1, end: referenceOrdinal + 1 };
   if (/后天/.test(text)) return { start: referenceOrdinal + 2, end: referenceOrdinal + 2 };
@@ -111,7 +118,7 @@ function parseEventTimeRange(timeText, options = {}) {
   const baseYear = options.year ?? (
     cleanText(options.date).match(/^(\d{4})-/)?.[1]
       ? Number(cleanText(options.date).slice(0, 4))
-      : referenceDate.getFullYear()
+      : chinaDate(referenceDate).getUTCFullYear()
   );
   const tokens = Array.from(text.matchAll(/(\d{1,2}\/\d{1,2})/g)).map((match) => match[1]);
   if (tokens.length === 0) return null;

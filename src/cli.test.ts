@@ -906,11 +906,20 @@ describe('adapter eject', () => {
 
 describe('profile list', () => {
   const stdoutSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+  // The machine's own ~/.opencli/browser-profiles.json would list its saved profiles,
+  // so each test gets an empty config dir.
+  const savedConfigDir = process.env.OPENCLI_CONFIG_DIR;
 
   beforeEach(() => {
     process.exitCode = undefined;
+    process.env.OPENCLI_CONFIG_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-profile-list-config-'));
     stdoutSpy.mockClear();
     vi.stubGlobal('fetch', vi.fn());
+  });
+
+  afterEach(() => {
+    if (savedConfigDir === undefined) delete process.env.OPENCLI_CONFIG_DIR;
+    else process.env.OPENCLI_CONFIG_DIR = savedConfigDir;
   });
 
   it('reports stale daemon instead of no profiles when status lacks profile support', async () => {
@@ -971,9 +980,17 @@ describe('browser tab targeting commands', () => {
     return path.join(cacheDir, 'browser-state', `${session}.json`);
   }
 
+  // The machine's own ~/.opencli/browser-profiles.json (a default profile) and OPENCLI_PROFILE would add a
+  // preferredContextId to every connect, so each test gets an empty config dir.
+  const savedEnv = { OPENCLI_CONFIG_DIR: process.env.OPENCLI_CONFIG_DIR, OPENCLI_PROFILE: process.env.OPENCLI_PROFILE };
+  let configDir = '';
+
   beforeEach(() => {
     process.exitCode = undefined;
     process.env.OPENCLI_CACHE_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-browser-tab-state-'));
+    configDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-browser-tab-config-'));
+    process.env.OPENCLI_CONFIG_DIR = configDir;
+    delete process.env.OPENCLI_PROFILE;
     consoleLogSpy.mockClear();
     stderrSpy.mockClear();
     mockBrowserConnect.mockClear();
@@ -1022,6 +1039,14 @@ describe('browser tab targeting commands', () => {
       }),
       session: 'test',
     } as unknown as IPage;
+  });
+
+  afterEach(() => {
+    fs.rmSync(configDir, { recursive: true, force: true });
+    for (const [key, value] of Object.entries(savedEnv)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
   });
 
   function lastJsonLog(): any {
