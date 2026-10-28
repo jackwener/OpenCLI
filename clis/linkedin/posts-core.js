@@ -1,5 +1,6 @@
 import { locatePostCards } from './post-roots.js';
 import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { gotoResilient } from '@jackwener/opencli/browser/utils';
 import {
   assertLinkedInAuthenticated,
   assertSafeLinkedinUrl,
@@ -214,7 +215,7 @@ export function buildPostsScript() {
 export async function collectPosts(page, args) {
   if (!page) throw new CommandExecutionError('Browser session required for linkedin posts');
   const limit = parseLimit(args.limit, DEFAULT_POSTS_LIMIT, MAX_POSTS_LIMIT);
-  await page.goto(activityUrl(args['profile-url']));
+  await gotoResilient(page, activityUrl(args['profile-url']));
   await page.wait(5);
   await assertLinkedInAuthenticated(page, 'LinkedIn posts');
   let rows = [];
