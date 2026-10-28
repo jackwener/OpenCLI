@@ -722,6 +722,16 @@ export function registerBrowserCommands(program: Command): Command {
       emitResult({ url, snapshot, ...(diagnostics ? { diagnostics } : {}) });
     }));
 
+  addBrowserTabOption(browser.command('forms')
+    .description('Inspect top-document form fields, requirements and validation as JSON; never submits'))
+    .action(browserAction(async (page) => {
+      emitResult({
+        url: await page.getCurrentUrl?.() ?? '',
+        scope: 'top-document',
+        ...await page.getFormState(),
+      });
+    }));
+
   addBrowserTabOption(browser.command('frames').description('List cross-origin iframe targets in snapshot order'))
     .action(browserAction(async (page) => {
       const frames = await page.frames?.() ?? [];

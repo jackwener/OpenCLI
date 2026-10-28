@@ -102,6 +102,18 @@ opencli hackernews top --limit 5
 opencli bilibili hot --limit 5
 ```
 
+### Inspect a contact form
+
+Run `opencli browser --session outreach forms --tab <page-id>` for a compact JSON view of
+fields, labels, required flags, browser validation failures and select options.
+It uses the existing form reader and never submits or triggers validation events.
+Password values are masked and hidden fields are omitted. Values longer than 200
+characters carry `valueLength` and `valueTruncated`; use `browser get value` for an
+exact read-back. The output covers the top document only. Use `browser frames`
+for embedded forms. Fill with `browser fill`, inspect again, then click the
+observed submit control only after the recipient and message are approved.
+
+
 ## For Humans
 
 Use OpenCLI directly when you want a reliable command instead of a live browser session:
