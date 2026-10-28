@@ -421,6 +421,37 @@ function parseScreenshotDim(val: string, label: string): number {
 }
 
 
+/**
+ * Releasing a lease keeps opencli's windows for reuse, because the next command
+ * would otherwise open a new window in front of the user. Closing them is an
+ * explicit "done with the browser" step, e.g. at the end of a scheduled run.
+ */
+export function registerWindowsCommands(program: Command): Command {
+  const windowsCmd = program.command('windows').description('Manage the browser windows opencli opens');
+  // Snapshot before applyRootSubcommandSummaries() rewrites .description() to a child-name listing.
+  const originalWindowsDescription = windowsCmd.description();
+  windowsCmd
+    .command('close')
+    .description('Close the adapter and browser-session windows opencli opened in this profile; a window with a command still running stays open')
+    .action(async (_opts: unknown, command: Command) => {
+      try {
+        // Only an explicit --profile is routed here; without one the transport
+        // resolves OPENCLI_PROFILE and the configured default itself.
+        const profile = getCommandOption(command, 'profile');
+        const explicit = typeof profile === 'string' && profile.trim() ? resolveProfileSelection(profile.trim()) : undefined;
+        emitResult(await sendCommand('close-owned-windows', profileRouteParams(explicit)));
+      } catch (err) {
+        if (/Unknown action: close-owned-windows/.test(getErrorMessage(err))) {
+          emitFailure({ code: 'extension_outdated', message: getErrorMessage(err), hint: 'The loaded OpenCLI extension predates this command; reload it in the browser\'s extensions page.' });
+        } else {
+          emitFailure(err);
+        }
+      }
+    });
+  installCommanderNamespaceStructuredHelp(windowsCmd, { globalCommand: program, description: originalWindowsDescription });
+  return windowsCmd;
+}
+
 export function registerBrowserCommands(program: Command): Command {
   const browser = program.command('browser')
     .option('--session <name>', 'Page session (required for page commands)')

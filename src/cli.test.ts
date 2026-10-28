@@ -73,6 +73,7 @@ describe('createProgram root help descriptions', () => {
     expect(descriptionFor(program, 'adapter')).toBe('check, eject, init, reset, status, test');
     expect(descriptionFor(program, 'profile')).toBe('list, rename, use');
     expect(descriptionFor(program, 'daemon')).toBe('restart, status, stop');
+    expect(descriptionFor(program, 'windows')).toBe('close');
     expect(descriptionFor(program, 'external')).toBeUndefined();
   });
 
@@ -1176,6 +1177,39 @@ describe('browser tab targeting commands', () => {
     expect(mockSendCommand).toHaveBeenCalledWith('close-window', { session: 'test', surface: 'browser' });
     const out = lastJsonLog();
     expect(out).toEqual({ unbound: true, session: 'test' });
+  });
+
+  it('closes opencli windows through the daemon close-owned-windows command', async () => {
+    const report = { closed: [{ role: 'automation', windowId: 7, tabs: 3 }], kept: [] };
+    mockSendCommand.mockResolvedValueOnce(report);
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'windows', 'close']);
+
+    expect(mockSendCommand).toHaveBeenCalledWith('close-owned-windows', {});
+    expect(lastJsonLog()).toEqual(report);
+    expect(process.exitCode).toBeUndefined();
+  });
+
+  it('routes windows close to an explicit --profile', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', '--profile', 'ctx-work', 'windows', 'close']);
+
+    expect(mockSendCommand).toHaveBeenCalledWith('close-owned-windows', { contextId: 'ctx-work' });
+  });
+
+  it('fails windows close with a reload hint when the extension predates the command', async () => {
+    mockSendCommand.mockRejectedValueOnce(new BrowserCommandError('Unknown action: close-owned-windows'));
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'windows', 'close']);
+
+    const out = lastJsonLog();
+    expect(out.ok).toBe(false);
+    expect(out.error.message).toContain('Unknown action: close-owned-windows');
+    expect(out.error.hint).toContain('reload it');
+    expect(process.exitCode).toBeDefined();
   });
 
   it('does not print false success when unbind fails', async () => {
