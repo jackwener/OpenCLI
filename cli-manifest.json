@@ -37844,6 +37844,17 @@
         "help": ""
       },
       {
+        "name": "sort",
+        "type": "string",
+        "default": "relevance",
+        "required": false,
+        "help": "Reply order X serves: relevance (default; reaches every reply, including the \"probable spam\" section) or recency (newest first; X stops it early on busy posts).",
+        "choices": [
+          "relevance",
+          "recency"
+        ]
+      },
+      {
         "name": "top-by-engagement",
         "type": "int",
         "default": 0,
