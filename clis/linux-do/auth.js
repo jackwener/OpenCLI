@@ -1,14 +1,25 @@
 import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { registerSiteAuthCommands } from '../_shared/site-auth.js';
 
-async function hasLinuxDoSessionCookie(page) {
+/**
+ * A cookie is usable unless it carries a positive `expires` that already passed.
+ * Chrome reports session cookies as -1 (or omits the field), which stay valid for
+ * this run; only the server can tell whether an unexpired session was revoked.
+ */
+function isSessionCookieAlive(cookie, nowSeconds) {
+  const expires = Number(cookie?.expires);
+  if (!Number.isFinite(expires) || expires <= 0) return true;
+  return expires > nowSeconds;
+}
+
+async function hasLinuxDoSessionCookie(page, nowSeconds = Date.now() / 1000) {
   const cookies = await page.getCookies({ url: 'https://linux.do' });
-  return cookies.some(c => c.name === '_t' && c.value);
+  return cookies.some(c => c.name === '_t' && c.value && isSessionCookieAlive(c, nowSeconds));
 }
 
 async function verifyLinuxDoIdentity(page) {
   if (!await hasLinuxDoSessionCookie(page)) {
-    throw new AuthRequiredError('linux.do', 'Linux.do _t cookie missing — anonymous');
+    throw new AuthRequiredError('linux.do', 'Linux.do _t cookie missing or expired — anonymous');
   }
   await page.goto('https://linux.do/');
   await page.wait(2);
@@ -46,7 +57,7 @@ async function verifyLinuxDoIdentity(page) {
   return { user_id: probe.user_id, username: probe.username, name: probe.name };
 }
 
-export const __test__ = { verifyLinuxDoIdentity };
+export const __test__ = { verifyLinuxDoIdentity, hasLinuxDoSessionCookie, isSessionCookieAlive };
 
 registerSiteAuthCommands({
   site: 'linux-do',

@@ -47,3 +47,34 @@ describe('linux-do auth identity probe', () => {
     await expect(__test__.verifyLinuxDoIdentity(page)).rejects.toBeInstanceOf(errorType);
   });
 });
+
+describe('linux-do quick auth check', () => {
+  const now = Math.floor(Date.now() / 1000);
+
+  it('accepts a session cookie without expiry', () => {
+    expect(__test__.isSessionCookieAlive({ expires: -1 }, now)).toBe(true);
+    expect(__test__.isSessionCookieAlive({}, now)).toBe(true);
+  });
+
+  it('rejects a cookie whose expiry already passed', () => {
+    expect(__test__.isSessionCookieAlive({ expires: now - 60 }, now)).toBe(false);
+    expect(__test__.isSessionCookieAlive({ expires: now + 60 }, now)).toBe(true);
+  });
+
+  it('reports no session when the stored _t cookie is expired', async () => {
+    const page = makePage({ cookies: [{ name: '_t', value: 'session', expires: now - 60 }] });
+
+    await expect(__test__.hasLinuxDoSessionCookie(page, now)).resolves.toBe(false);
+    await expect(__test__.verifyLinuxDoIdentity(page)).rejects.toBeInstanceOf(AuthRequiredError);
+    expect(page.goto).not.toHaveBeenCalled();
+  });
+
+  it('keeps working for a live cookie', async () => {
+    const page = makePage({
+      cookies: [{ name: '_t', value: 'session', expires: now + 600 }],
+      probe: { ok: true, user_id: '42', username: 'alice', name: '' },
+    });
+
+    await expect(__test__.hasLinuxDoSessionCookie(page, now)).resolves.toBe(true);
+  });
+});
