@@ -94,7 +94,8 @@ cli({
         while (rows.length < limit) {
             const remaining = limit - rows.length;
             const count = remaining < PAGE_SIZE ? remaining : PAGE_SIZE;
-            const url = `${CONNECTIONS_PATH}?start=${start}&count=${count}`;
+            // Most recently added first, so a caller can stop once it passes a date.
+            const url = `${CONNECTIONS_PATH}?start=${start}&count=${count}&sortType=RECENTLY_ADDED`;
             const fetched = unwrapEvaluateResult(
                 await page.evaluate(`(${fetchConnections.toString()})(${JSON.stringify(url)}, ${JSON.stringify(csrf)})`),
             );
