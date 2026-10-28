@@ -222,7 +222,7 @@ function isPreConnectFetchError(err: unknown): boolean {
 
 export interface DaemonCommand extends Partial<SlotPolicy> {
   id: string;
-  action: 'chrome-call' | 'chrome-describe' | 'exec' | 'navigate' | 'tabs' | 'cookies' | 'screenshot' | 'close-window' | 'close-owned-tab' | 'set-file-input' | 'insert-text' | 'bind' | 'network-capture-start' | 'network-capture-read' | 'wait-download' | 'cdp' | 'frames' | 'lease-release' | 'slot-acquire';
+  action: 'chrome-call' | 'chrome-describe' | 'exec' | 'navigate' | 'tabs' | 'cookies' | 'screenshot' | 'close-window' | 'close-owned-tab' | 'close-owned-windows' | 'set-file-input' | 'insert-text' | 'bind' | 'network-capture-start' | 'network-capture-read' | 'wait-download' | 'cdp' | 'frames' | 'visual' | 'extension-info' | 'reload-extension' | 'lease-release' | 'slot-acquire';
   retainIncomplete?: boolean;
   /** slot-acquire: pooled site and queue wait budget (policy fields via SlotPolicy). */
   site?: string;
@@ -258,8 +258,13 @@ export interface DaemonCommand extends Partial<SlotPolicy> {
   pattern?: string;
   /** Download wait timeout in milliseconds */
   timeoutMs?: number;
+  visualOp?: 'capture' | 'hover' | 'click' | 'focus' | 'type';
+  visualX?: number;
+  visualY?: number;
   cdpMethod?: string;
   cdpParams?: Record<string, unknown>;
+  /** reload-extension: reload even while an interactive browser session holds a tab. */
+  force?: boolean;
   /** Window foreground/background policy for owned Browser Bridge containers. */
   windowMode?: 'foreground' | 'background';
   /** Custom idle timeout in seconds for this session. Overrides the default. */

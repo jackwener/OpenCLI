@@ -158,6 +158,41 @@ function isDebuggableUrl$1(url) {
   if (!url) return true;
   return url.startsWith("http://") || url.startsWith("https://") || url === "about:blank" || url.startsWith("data:");
 }
+async function foreignExtensionFrames(tabId) {
+  const urls = [];
+  try {
+    const frames = await chrome.webNavigation.getAllFrames({ tabId });
+    for (const frame of frames ?? []) urls.push(frame.url ?? "");
+  } catch (e) {
+    console.warn(`[opencli] cannot list frames of tab ${tabId}: ${e instanceof Error ? e.message : String(e)}`);
+  }
+  try {
+    const answers = await chrome.scripting.executeScript({ target: { tabId, allFrames: true }, func: embeddedFrameSources });
+    for (const answer of answers ?? []) urls.push(...answer?.result ?? []);
+  } catch (e) {
+    console.warn(`[opencli] cannot read embedded frames of tab ${tabId}: ${e instanceof Error ? e.message : String(e)}`);
+  }
+  const found = /* @__PURE__ */ new Set();
+  for (const url of urls) {
+    const match = /^(chrome|edge)-extension:\/\/([a-p]{32})(\/[^?#]*)?/.exec(url);
+    if (match && match[2] !== chrome.runtime.id) found.add(`${match[1]}-extension://${match[2]}${match[3] ?? "/"}`);
+  }
+  return [...found];
+}
+function embeddedFrameSources() {
+  const shadowOf = (el) => el instanceof HTMLElement ? chrome.dom?.openOrClosedShadowRoot?.(el) ?? el.shadowRoot : el.shadowRoot;
+  const sources = [];
+  const roots = [document];
+  for (let root = roots.pop(); root; root = roots.pop()) {
+    for (const el of root.querySelectorAll("*")) {
+      if (el instanceof HTMLIFrameElement || el instanceof HTMLFrameElement || el instanceof HTMLEmbedElement) sources.push(el.src);
+      else if (el instanceof HTMLObjectElement) sources.push(el.data);
+      const shadow = shadowOf(el);
+      if (shadow) roots.push(shadow);
+    }
+  }
+  return sources;
+}
 async function ensureAttached(tabId, aggressiveRetry = false) {
   try {
     const tab = await chrome.tabs.get(tabId);
@@ -221,7 +256,11 @@ async function ensureAttached(tabId, aggressiveRetry = false) {
     } catch {
     }
     console.warn(`[opencli] attach failed for tab ${tabId}: url=${finalUrl}, windowId=${finalWindowId}, error=${lastError}`);
-    const hint = lastError.includes("chrome-extension://") ? ". Tip: another Chrome extension may be interfering — try disabling other extensions" : "";
+    let hint = "";
+    if (lastError.includes("chrome-extension://")) {
+      const frames = await foreignExtensionFrames(tabId);
+      hint = frames.length ? `. Blocking frame: ${frames.join(", ")} (Chrome lets no debugger into a tab that holds another extension's frame. Such a frame is often a password manager's list on a focused field, and it stays: close this tab, and next time set that field's value by script instead of focusing it)` : ". Tip: another Chrome extension may be interfering — try disabling other extensions";
+    }
     throw new Error(`attach failed: ${lastError}${hint}`);
   }
   attached.add(tabId);
@@ -799,6 +838,208 @@ function registerListeners() {
   });
 }
 
+let lastCaptureAt = 0;
+function isWebUrl(url) {
+  return !!url && (url.startsWith("https://") || url.startsWith("http://"));
+}
+async function exactActiveWebTab(tabId) {
+  const tab = await chrome.tabs.get(tabId);
+  if (!isWebUrl(tab.url) || tab.windowId === void 0) throw new Error("Visual action requires an http(s) tab.");
+  const active = await chrome.tabs.query({ windowId: tab.windowId, active: true });
+  if (active.length !== 1 || active[0].id !== tabId) {
+    throw new Error("Visual target is not the active tab in its window; no other tab was captured or clicked.");
+  }
+  return tab;
+}
+async function accessibleFrames(tabId) {
+  const frames = await chrome.webNavigation.getAllFrames({ tabId });
+  if (!frames) throw new Error("Cannot inspect the target tab frames.");
+  const webFrames = frames.filter((frame) => frame.frameId === 0 || isWebUrl(frame.url)).map((frame) => ({ frameId: frame.frameId, parentFrameId: frame.parentFrameId, url: frame.url }));
+  if (!webFrames.some((frame) => frame.frameId === 0)) throw new Error("Target tab main frame is unavailable.");
+  return webFrames;
+}
+async function accessibleFrameIds(tabId) {
+  return (await accessibleFrames(tabId)).map((frame) => frame.frameId);
+}
+function readViewport() {
+  return { url: location.href, width: window.innerWidth, height: window.innerHeight };
+}
+async function captureVisibleTab(tabId) {
+  const before = await exactActiveWebTab(tabId);
+  const [view] = await chrome.scripting.executeScript({ target: { tabId, frameIds: [0] }, func: readViewport });
+  const viewport = view?.result;
+  if (!viewport || viewport.url !== before.url || viewport.width <= 0 || viewport.height <= 0) {
+    throw new Error("Visual target changed during capture.");
+  }
+  const waitMs = Math.max(0, 550 - (Date.now() - lastCaptureAt));
+  if (waitMs) await new Promise((resolve) => setTimeout(resolve, waitMs));
+  lastCaptureAt = Date.now();
+  const dataUrl = await chrome.tabs.captureVisibleTab(before.windowId, { format: "png" });
+  const after = await exactActiveWebTab(tabId);
+  if (after.url !== before.url || !dataUrl.startsWith("data:image/png;base64,")) {
+    throw new Error("Visual target changed or browser returned no PNG.");
+  }
+  return {
+    url: viewport.url,
+    cssWidth: viewport.width,
+    cssHeight: viewport.height,
+    data: dataUrl.slice("data:image/png;base64,".length),
+    transport: "extension"
+  };
+}
+function pointInFrame(op, x, y) {
+  if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || y < 0 || x >= innerWidth || y >= innerHeight) {
+    throw new Error("Point is outside this frame.");
+  }
+  let hit = document.elementFromPoint(x, y);
+  while (hit?.shadowRoot) {
+    const inner = hit.shadowRoot.elementFromPoint(x, y);
+    if (!inner || inner === hit) break;
+    hit = inner;
+  }
+  if (!hit) throw new Error("Nothing is visible at the point.");
+  if (hit instanceof HTMLIFrameElement) {
+    const rect = hit.getBoundingClientRect();
+    return {
+      kind: "iframe",
+      src: hit.src,
+      left: rect.left,
+      top: rect.top,
+      clientLeft: hit.clientLeft,
+      clientTop: hit.clientTop,
+      transform: getComputedStyle(hit).transform
+    };
+  }
+  const target = hit.closest('button,a,input,label,select,textarea,[role="button"],[role="link"]') ?? hit;
+  const mouse = (type) => target.dispatchEvent(new MouseEvent(type, {
+    bubbles: true,
+    cancelable: true,
+    composed: true,
+    clientX: x,
+    clientY: y,
+    button: 0
+  }));
+  if (op === "hover") {
+    mouse("mouseover");
+    mouse("mousemove");
+    return { kind: "element", tag: target.tagName };
+  }
+  if (op !== "click") throw new Error("Unknown visual point operation.");
+  if (target instanceof HTMLElement) target.focus({ preventScroll: true });
+  mouse("mousedown");
+  mouse("mouseup");
+  if (target instanceof HTMLElement) target.click();
+  else mouse("click");
+  return { kind: "element", tag: target.tagName };
+}
+async function pointAction(tabId, op, x, y) {
+  await exactActiveWebTab(tabId);
+  const frames = await accessibleFrames(tabId);
+  let frame = frames.find((candidate) => candidate.frameId === 0);
+  for (let depth = 0; depth < 8; depth++) {
+    await exactActiveWebTab(tabId);
+    const [answer] = await chrome.scripting.executeScript({
+      target: { tabId, frameIds: [frame.frameId] },
+      func: pointInFrame,
+      args: [op, x, y]
+    });
+    const result = answer?.result;
+    if (!result) throw new Error("Visual point target frame did not answer.");
+    if (result.kind === "element") return { dispatched: true, input: "synthetic", tag: result.tag };
+    if (result.transform !== "none") throw new Error("Transformed iframe coordinates are unsupported.");
+    if (/^(chrome|edge)-extension:\/\//.test(result.src)) {
+      throw new Error("Point is inside protected extension UI.");
+    }
+    const children = frames.filter(
+      (candidate) => candidate.parentFrameId === frame.frameId && candidate.url === result.src
+    );
+    if (children.length !== 1) {
+      throw new Error("Cannot uniquely match the visible iframe to a web frame. No click was sent.");
+    }
+    x -= result.left + result.clientLeft;
+    y -= result.top + result.clientTop;
+    frame = children[0];
+  }
+  throw new Error("Visual point crossed too many nested iframes.");
+}
+function readFocusedControl() {
+  let element = document.activeElement;
+  while (element?.shadowRoot?.activeElement) element = element.shadowRoot.activeElement;
+  const hasFocus = document.hasFocus();
+  if (element instanceof HTMLTextAreaElement) return { kind: "textarea", hasFocus };
+  if (element instanceof HTMLInputElement && !["hidden", "button", "submit", "reset", "checkbox", "radio", "file", "image", "range", "color"].includes(element.type)) {
+    return { kind: "input", hasFocus };
+  }
+  if (element instanceof HTMLElement && element.isContentEditable) return { kind: "contenteditable", hasFocus };
+  return { kind: "other", hasFocus };
+}
+async function focusCandidates(tabId) {
+  const ids = await accessibleFrameIds(tabId);
+  const candidates = [];
+  for (const frameId of ids) {
+    try {
+      const [answer] = await chrome.scripting.executeScript({
+        target: { tabId, frameIds: [frameId] },
+        func: readFocusedControl
+      });
+      const state = answer?.result;
+      if (state && state.kind !== "other") {
+        candidates.push({ frameId, kind: state.kind, hasFocus: state.hasFocus });
+      }
+    } catch (error) {
+      if (frameId === 0) throw error;
+    }
+  }
+  return candidates;
+}
+async function exactFocusedCandidate(tabId) {
+  await exactActiveWebTab(tabId);
+  const candidates = await focusCandidates(tabId);
+  const focused = candidates.filter((candidate) => candidate.hasFocus);
+  const choices = focused.length ? focused : candidates;
+  if (choices.length !== 1) throw new Error(
+    choices.length ? "More than one text control appears focused." : "No text control is focused."
+  );
+  return choices[0];
+}
+async function focusedControl(tabId) {
+  const candidate = await exactFocusedCandidate(tabId);
+  return { kind: candidate.kind, frameId: candidate.frameId };
+}
+function insertFocusedText(text, expectedKind) {
+  let element = document.activeElement;
+  while (element?.shadowRoot?.activeElement) element = element.shadowRoot.activeElement;
+  if (expectedKind === "input" && element instanceof HTMLInputElement || expectedKind === "textarea" && element instanceof HTMLTextAreaElement) {
+    const control = element;
+    const start = control.selectionStart ?? control.value.length;
+    const end = control.selectionEnd ?? start;
+    const next = control.value.slice(0, start) + text + control.value.slice(end);
+    const prototype = control instanceof HTMLInputElement ? HTMLInputElement.prototype : HTMLTextAreaElement.prototype;
+    const setter = Object.getOwnPropertyDescriptor(prototype, "value")?.set;
+    if (!setter) throw new Error("Text control has no native value setter.");
+    setter.call(control, next);
+    control.setSelectionRange(start + text.length, start + text.length);
+    control.dispatchEvent(new InputEvent("input", { bubbles: true, composed: true, data: text, inputType: "insertText" }));
+    return { typed: true, kind: expectedKind };
+  }
+  if (expectedKind === "contenteditable" && element instanceof HTMLElement && element.isContentEditable) {
+    if (!document.execCommand("insertText", false, text)) throw new Error("Contenteditable insertion was rejected.");
+    return { typed: true, kind: expectedKind };
+  }
+  throw new Error("Focused text control changed before insertion.");
+}
+async function typeFocusedText(tabId, text) {
+  const candidate = await exactFocusedCandidate(tabId);
+  await exactActiveWebTab(tabId);
+  const [answer] = await chrome.scripting.executeScript({
+    target: { tabId, frameIds: [candidate.frameId] },
+    func: insertFocusedText,
+    args: [text, candidate.kind]
+  });
+  if (!answer?.result?.typed) throw new Error("Browser did not confirm text insertion.");
+  return { typed: true, kind: candidate.kind, frameId: candidate.frameId, input: "synthetic" };
+}
+
 const targetToTab = /* @__PURE__ */ new Map();
 const tabToTarget = /* @__PURE__ */ new Map();
 async function resolveTargetId(tabId) {
@@ -866,6 +1107,9 @@ function trim(journal) {
   ids.sort((a, b) => journal[a].ts - journal[b].ts);
   for (const id of ids.slice(0, ids.length - JOURNAL_MAX_ENTRIES)) delete journal[id];
 }
+function holdsSecrets(cmd) {
+  return cmd.action === "cdp" && typeof cmd.cdpMethod === "string" && cmd.cdpMethod.startsWith("WebAuthn.");
+}
 function resultByteLength(result) {
   try {
     return JSON.stringify(result).length;
@@ -888,7 +1132,7 @@ async function executeWithJournal(cmd, execute) {
         id,
         ok: false,
         errorCode: "result_evicted",
-        error: "Command already executed, but its result was too large to record for replay.",
+        error: "Command already executed, but its result was not recorded for replay (too large, or it held secrets).",
         errorHint: UNKNOWN_OUTCOME_HINT
       };
     }
@@ -910,7 +1154,7 @@ async function executeWithJournal(cmd, execute) {
     } catch (err) {
       result = { id, ok: false, error: err instanceof Error ? err.message : String(err) };
     }
-    journal[id] = resultByteLength(result) <= JOURNAL_RESULT_MAX_BYTES ? { status: "done", ts: Date.now(), result } : { status: "done", ts: Date.now() };
+    journal[id] = !holdsSecrets(cmd) && resultByteLength(result) <= JOURNAL_RESULT_MAX_BYTES ? { status: "done", ts: Date.now(), result } : { status: "done", ts: Date.now() };
     persist();
     return result;
   })();
@@ -1741,6 +1985,9 @@ async function getAutomationWindow(leaseKey, initialUrl) {
 }
 chrome.windows.onRemoved.addListener(async (windowId) => {
   await workerReady;
+  await forgetClosedWindow(windowId);
+});
+async function forgetClosedWindow(windowId) {
   for (const container of Object.values(ownedContainers)) {
     if (container.windowId === windowId) {
       container.windowId = null;
@@ -1757,7 +2004,7 @@ chrome.windows.onRemoved.addListener(async (windowId) => {
     }
   }
   await persistRuntimeState();
-});
+}
 chrome.tabs.onRemoved.addListener(async (tabId) => {
   await workerReady;
   evictTab(tabId);
@@ -1865,6 +2112,21 @@ async function handleCommand(cmd) {
       return errorResult(cmd.id, error);
     }
   }
+  if (cmd.action === "close-owned-windows") {
+    try {
+      return await handleCloseOwnedWindows(cmd);
+    } catch (err) {
+      return errorResult(cmd.id, err);
+    }
+  }
+  if (cmd.action === "extension-info") return handleExtensionInfo(cmd);
+  if (cmd.action === "reload-extension") {
+    try {
+      return await handleReloadExtension(cmd);
+    } catch (err) {
+      return errorResult(cmd.id, err);
+    }
+  }
   const session = getSessionName(cmd.session);
   const surface = getCommandSurface(cmd);
   const leaseKey = getLeaseKey(session, surface);
@@ -1894,6 +2156,8 @@ async function handleCommand(cmd) {
         return await handleCookies(cmd);
       case "screenshot":
         return await handleScreenshot(cmd, leaseKey);
+      case "visual":
+        return await handleVisual(cmd, leaseKey);
       case "close-owned-tab":
       case "close-window":
         return await handleCloseWindow(cmd, leaseKey);
@@ -1999,8 +2263,25 @@ async function resolveCommandTabId(cmd) {
   if (cmd.page) return resolveTabId$1(cmd.page);
   return void 0;
 }
-async function resolveTab(tabId, leaseKey, initialUrl) {
+async function resolveTab(tabId, leaseKey, initialUrl, strictExplicit = false) {
   const existingSession = automationSessions.get(leaseKey);
+  if (strictExplicit) {
+    if (tabId === void 0) throw new CommandFailure("target_tab_gone", "The requested tab no longer exists.");
+    let tab;
+    try {
+      tab = await chrome.tabs.get(tabId);
+    } catch {
+      throw new CommandFailure("target_tab_gone", "The requested tab no longer exists.");
+    }
+    if (!isDebuggableUrl(tab.url)) {
+      throw new CommandFailure("target_tab_not_debuggable", `The requested tab is not debuggable (${tab.url ?? "unknown URL"}).`);
+    }
+    const matchesSession = existingSession ? existingSession.preferredTabId !== null ? existingSession.preferredTabId === tabId : tab.windowId === existingSession.windowId : false;
+    if (!matchesSession) {
+      throw new CommandFailure("target_tab_mismatch", "The requested tab is outside this browser session.");
+    }
+    return { tabId, tab };
+  }
   if (tabId !== void 0) {
     try {
       const tab = await chrome.tabs.get(tabId);
@@ -2097,8 +2378,8 @@ async function pageScopedResult(id, tabId, data) {
   const page = await resolveTargetId(tabId);
   return { id, ok: true, data, page };
 }
-async function resolveTabId(tabId, leaseKey, initialUrl) {
-  const resolved = await resolveTab(tabId, leaseKey, initialUrl);
+async function resolveTabId(tabId, leaseKey, initialUrl, strictExplicit = false) {
+  const resolved = await resolveTab(tabId, leaseKey, initialUrl, strictExplicit);
   return resolved.tabId;
 }
 async function listAutomationTabs(leaseKey) {
@@ -2151,7 +2432,7 @@ function errorResult(id, err) {
 async function handleExec(cmd, leaseKey) {
   if (!cmd.code) return { id: cmd.id, ok: false, error: "Missing code" };
   const cmdTabId = await resolveCommandTabId(cmd);
-  const tabId = await resolveTabId(cmdTabId, leaseKey);
+  const tabId = await resolveTabId(cmdTabId, leaseKey, void 0, Boolean(cmd.page));
   try {
     const aggressive = getSurfaceFromKey(leaseKey) === "browser";
     if (cmd.frameIndex != null) {
@@ -2430,6 +2711,38 @@ async function handleScreenshot(cmd, leaseKey) {
     return errorResult(cmd.id, err);
   }
 }
+async function handleVisual(cmd, leaseKey) {
+  const tabId = await resolveTabId(await resolveCommandTabId(cmd), leaseKey, void 0, true);
+  try {
+    let data;
+    switch (cmd.visualOp) {
+      case "capture":
+        data = await captureVisibleTab(tabId);
+        break;
+      case "hover":
+      case "click":
+        if (!Number.isFinite(cmd.visualX) || !Number.isFinite(cmd.visualY)) {
+          return { id: cmd.id, ok: false, errorCode: "invalid_visual_point", error: "Visual point requires finite X and Y." };
+        }
+        data = await pointAction(tabId, cmd.visualOp, cmd.visualX, cmd.visualY);
+        break;
+      case "focus":
+        data = await focusedControl(tabId);
+        break;
+      case "type":
+        if (typeof cmd.text !== "string") {
+          return { id: cmd.id, ok: false, errorCode: "invalid_visual_text", error: "Visual type requires text." };
+        }
+        data = await typeFocusedText(tabId, cmd.text);
+        break;
+      default:
+        return { id: cmd.id, ok: false, errorCode: "invalid_visual_operation", error: "Unknown visual operation." };
+    }
+    return pageScopedResult(cmd.id, tabId, data);
+  } catch (err) {
+    return errorResult(cmd.id, err);
+  }
+}
 const CDP_ALLOWLIST = /* @__PURE__ */ new Set([
   // Agent DOM context
   "Accessibility.enable",
@@ -2456,7 +2769,14 @@ const CDP_ALLOWLIST = /* @__PURE__ */ new Set([
   "Runtime.enable",
   // Emulation (used by screenshot full-page)
   "Emulation.setDeviceMetricsOverride",
-  "Emulation.clearDeviceMetricsOverride"
+  "Emulation.clearDeviceMetricsOverride",
+  // Virtual authenticator scoped to the lease tab (passkey sign-in without OS UI)
+  "WebAuthn.enable",
+  "WebAuthn.disable",
+  "WebAuthn.addVirtualAuthenticator",
+  "WebAuthn.removeVirtualAuthenticator",
+  "WebAuthn.addCredential",
+  "WebAuthn.getCredentials"
 ]);
 async function handleCdp(cmd, leaseKey) {
   if (!cmd.cdpMethod) return { id: cmd.id, ok: false, error: "Missing cdpMethod" };
@@ -2464,7 +2784,7 @@ async function handleCdp(cmd, leaseKey) {
     return { id: cmd.id, ok: false, error: `CDP method not permitted: ${cmd.cdpMethod}` };
   }
   const cmdTabId = await resolveCommandTabId(cmd);
-  const tabId = await resolveTabId(cmdTabId, leaseKey);
+  const tabId = await resolveTabId(cmdTabId, leaseKey, void 0, Boolean(cmd.page));
   try {
     const aggressive = getSurfaceFromKey(leaseKey) === "browser";
     await ensureAttached(tabId, aggressive);
@@ -2528,6 +2848,124 @@ async function handleCloseWindow(cmd, leaseKey) {
   const sessionName = automationSessions.get(leaseKey)?.session ?? getSessionFromKey(leaseKey);
   await releaseLease(leaseKey, "explicit close");
   return { id: cmd.id, ok: true, data: { closed: true, session: sessionName } };
+}
+let ownedWindowCloseTimeoutMs = 5e3;
+async function handleCloseOwnedWindows(cmd) {
+  return withLeaseMutation(async () => {
+    const report = { closed: [], kept: [] };
+    for (const role of ["automation", "interactive"]) {
+      const container = ownedContainers[role];
+      const windowId = container.windowId;
+      if (windowId === null) continue;
+      if ([...activeCommandCounts.keys()].some((leaseKey) => getOwnedWindowRole(leaseKey) === role)) {
+        report.kept.push({ role, windowId, reason: "busy" });
+        continue;
+      }
+      let tabs;
+      try {
+        await chrome.windows.get(windowId);
+        tabs = await chrome.tabs.query({ windowId });
+      } catch {
+        await forgetClosedWindow(windowId);
+        continue;
+      }
+      const ownedIds = /* @__PURE__ */ new Set();
+      for (const tab of tabs) {
+        if (tab.id === void 0) continue;
+        if (role === "automation" || isOwnedInteractiveTab(tab, windowId)) ownedIds.add(tab.id);
+      }
+      if (ownedIds.size < tabs.length) {
+        if (ownedIds.size > 0) await chrome.tabs.remove([...ownedIds]).catch(() => {
+        });
+        container.windowId = null;
+        container.groupId = null;
+        await persistRuntimeState();
+        report.kept.push({ role, windowId, reason: "user_tabs", closedTabs: ownedIds.size });
+        continue;
+      }
+      void chrome.windows.remove(windowId).catch(() => {
+      });
+      if (!await windowClosedBefore(windowId, Date.now() + ownedWindowCloseTimeoutMs)) {
+        report.kept.push({ role, windowId, reason: "close_blocked" });
+        continue;
+      }
+      await forgetClosedWindow(windowId);
+      console.log(`[opencli] Closed owned ${role} window ${windowId} (${tabs.length} tabs, explicit close)`);
+      report.closed.push({ role, windowId, tabs: tabs.length });
+    }
+    return { id: cmd.id, ok: true, data: report };
+  });
+}
+async function windowClosedBefore(windowId, deadline) {
+  for (; ; ) {
+    const open = await chrome.windows.get(windowId).then(() => true, () => false);
+    if (!open) return true;
+    if (Date.now() >= deadline) return false;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+}
+let selfReloadDelayMs = 300;
+function currentBuildId() {
+  return "0cf143740df3d4f2" ;
+}
+function liveSessionSummary() {
+  let running = 0;
+  for (const count of activeCommandCounts.values()) running += count;
+  const interactive = [...automationSessions.keys()].filter((key) => getSurfaceFromKey(key) === "browser").map((key) => getSessionFromKey(key));
+  return { running, interactive };
+}
+function handleExtensionInfo(cmd) {
+  const live = liveSessionSummary();
+  return {
+    id: cmd.id,
+    ok: true,
+    data: {
+      version: chrome.runtime.getManifest().version,
+      buildId: currentBuildId(),
+      contextId: currentContextId,
+      runningCommands: live.running,
+      interactiveSessions: live.interactive
+    }
+  };
+}
+async function handleReloadExtension(cmd) {
+  const live = liveSessionSummary();
+  if (live.running > 0) {
+    return {
+      id: cmd.id,
+      ok: false,
+      errorCode: "extension_busy",
+      error: `${live.running} opencli command(s) still running in this browser profile`,
+      errorHint: "Wait for them to finish, then reload again."
+    };
+  }
+  if (live.interactive.length > 0 && cmd.force !== true) {
+    return {
+      id: cmd.id,
+      ok: false,
+      errorCode: "extension_busy",
+      error: `Interactive browser session(s) still hold a tab: ${live.interactive.join(", ")}`,
+      errorHint: "A reload drops their tabs. Finish those sessions first, or pass --force."
+    };
+  }
+  const closed = await handleCloseOwnedWindows(cmd);
+  const buildId = currentBuildId();
+  console.log(`[opencli] Reloading extension on request (running build ${buildId})`);
+  setTimeout(() => chrome.runtime.reload(), selfReloadDelayMs);
+  return { id: cmd.id, ok: true, data: { reloading: true, buildId, windows: closed.ok ? closed.data : null } };
+}
+function isOwnedInteractiveTab(tab, windowId) {
+  const groupId = tab.groupId;
+  if (typeof groupId === "number" && groupId >= 0 && (groupId === ownedContainers.interactive.groupId || interactiveGroupLedger.has(groupId))) {
+    return true;
+  }
+  if (tab.url === BLANK_PAGE) return true;
+  for (const [leaseKey, session] of automationSessions.entries()) {
+    if (session.owned && session.windowId === windowId && session.preferredTabId === tab.id && getOwnedWindowRole(leaseKey) === "interactive") {
+      return true;
+    }
+  }
+  return false;
 }
 async function handleSetFileInput(cmd, leaseKey) {
   if (!cmd.files || !Array.isArray(cmd.files) || cmd.files.length === 0) {

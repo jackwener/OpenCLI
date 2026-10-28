@@ -142,6 +142,8 @@ export interface IPage {
   getActivePage?(): string | undefined;
   /** Bind the page object to a specific page identity (targetId). */
   setActivePage?(page?: string): void;
+  /** Browser-native visual action on an exact tab when chrome.debugger is blocked. */
+  visual?(op: 'capture' | 'hover' | 'click' | 'focus' | 'type', params?: { x?: number; y?: number; text?: string }): Promise<unknown>;
   /** Send a raw CDP command via chrome.debugger passthrough. */
   cdp?(method: string, params?: Record<string, unknown>): Promise<unknown>;
   /** Accept or dismiss the currently open JavaScript alert/confirm/prompt dialog. */

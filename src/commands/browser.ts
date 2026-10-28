@@ -17,6 +17,10 @@ import { inferShape } from '../browser/shape.js';
 import { TargetError, type TargetErrorCode } from '../browser/target-errors.js';
 import { getAttributesResolvedJs, getTextResolvedJs, getValueResolvedJs, isAutocompleteResolvedJs, resolveTargetJs, selectResolvedJs, type ResolveOptions, type TargetMatchLevel } from '../browser/target-resolver.js';
 import { EXIT_CODES, getErrorMessage } from '../errors.js';
+import { ExtensionReloadError, readDiskBuildId, readExtensionInfo, reloadExtension } from '../extension-reload.js';
+import { findPackageRoot } from '../package-paths.js';
+import { VisualActionError, captureVisualSnapshot, encodeVisualCapture, decodeVisualCapture, assertVisualSnapshot, parseVisualPoint, isProtectedAttachError } from '../browser/visual-action.js';
+import { fileURLToPath } from 'node:url';
 import { installCommanderNamespaceStructuredHelp } from '../help.js';
 import { log } from '../logger.js';
 import type { BrowserWindowMode } from '../runtime.js';
@@ -27,6 +31,20 @@ import { emitHook, type HookContext } from '../hooks.js';
 import { captureCommandOutput, type CommandOutputCapture, emitFailure, emitResult } from '../command-output.js';
 const BROWSER_TAB_OPTION_DESCRIPTION = 'Target tab/page identity returned by "browser open", "browser tab new", or "browser tab list"';
 const FOLLOW_POLL_MS = 1_000;
+const BROWSER_COMMANDS_FILE = fileURLToPath(import.meta.url);
+
+function reportVisualError(error: VisualActionError): void {
+  emitFailure({ code: error.code, message: error.message, ...(error.hint && { hint: error.hint }) }, EXIT_CODES.USAGE_ERROR);
+}
+
+function reportVisualUnknown(error: unknown): void {
+  emitFailure({
+    code: 'outcome_unknown',
+    message: 'The visual action may have reached the page.',
+    details: getErrorMessage(error),
+    hint: 'Inspect this exact tab and reconcile the result before any retry.',
+  }, EXIT_CODES.GENERIC_ERROR);
+}
 
 type BrowserNetworkItem = {
   url: string;
@@ -421,6 +439,95 @@ function parseScreenshotDim(val: string, label: string): number {
 }
 
 
+/**
+ * Releasing a lease keeps opencli's windows for reuse, because the next command
+ * would otherwise open a new window in front of the user. Closing them is an
+ * explicit "done with the browser" step, e.g. at the end of a scheduled run.
+ */
+export function registerWindowsCommands(program: Command): Command {
+  const windowsCmd = program.command('windows').description('Manage the browser windows opencli opens');
+  // Snapshot before applyRootSubcommandSummaries() rewrites .description() to a child-name listing.
+  const originalWindowsDescription = windowsCmd.description();
+  windowsCmd
+    .command('close')
+    .description('Close the adapter and browser-session windows opencli opened in this profile; a window with a command still running stays open')
+    .action(async (_opts: unknown, command: Command) => {
+      try {
+        // Only an explicit --profile is routed here; without one the transport
+        // resolves OPENCLI_PROFILE and the configured default itself.
+        const profile = getCommandOption(command, 'profile');
+        const explicit = typeof profile === 'string' && profile.trim() ? resolveProfileSelection(profile.trim()) : undefined;
+        emitResult(await sendCommand('close-owned-windows', profileRouteParams(explicit)));
+      } catch (err) {
+        if (/Unknown action: close-owned-windows/.test(getErrorMessage(err))) {
+          emitFailure({ code: 'extension_outdated', message: getErrorMessage(err), hint: 'The loaded OpenCLI extension predates this command; reload it in the browser\'s extensions page.' });
+        } else {
+          emitFailure(err);
+        }
+      }
+    });
+  installCommanderNamespaceStructuredHelp(windowsCmd, { globalCommand: program, description: originalWindowsDescription });
+  return windowsCmd;
+}
+
+/**
+ * An unpacked extension runs new code only after a reload. `extension reload`
+ * asks the extension to reload itself and waits until it runs the build on
+ * disk, so an agent never needs the browser's extensions page.
+ */
+export function registerExtensionCommands(program: Command): Command {
+  const extensionCmd = program.command('extension').description('Check or reload the OpenCLI browser extension in a profile');
+  const originalExtensionDescription = extensionCmd.description();
+  const extensionRoute = (command: Command) => {
+    // Only an explicit --profile is routed here; without one the transport
+    // resolves OPENCLI_PROFILE and the configured default itself.
+    const profile = getCommandOption(command, 'profile');
+    const explicit = typeof profile === 'string' && profile.trim() ? resolveProfileSelection(profile.trim()) : undefined;
+    return profileRouteParams(explicit) as Record<string, unknown>;
+  };
+  const extensionSend = (action: 'extension-info' | 'reload-extension', params: Record<string, unknown>) => sendCommand(action, params);
+  const failExtensionCommand = (err: unknown) => {
+    if (err instanceof ExtensionReloadError) {
+      emitFailure({ code: err.code, message: err.message, ...(err.hint ? { hint: err.hint } : {}) }, EXIT_CODES.GENERIC_ERROR);
+    } else {
+      emitFailure(err);
+    }
+  };
+  extensionCmd
+    .command('info')
+    .description('Show the extension build this profile runs and whether it matches the build on disk')
+    .action(async (_opts: unknown, command: Command) => {
+      try {
+        const info = await readExtensionInfo(extensionSend, extensionRoute(command));
+        const disk = readDiskBuildId(findPackageRoot(BROWSER_COMMANDS_FILE));
+        emitResult({ ...info, diskBuildId: disk, current: disk !== null && info.buildId === disk });
+      } catch (err) {
+        failExtensionCommand(err);
+      }
+    });
+  extensionCmd
+    .command('reload')
+    .description('Reload the extension from disk in this profile and wait until it runs the on-disk build; refuses while a command is running')
+    .option('--force', 'Reload even while an interactive browser session holds a tab (the reload drops that tab)')
+    .option('--timeout <seconds>', 'Seconds to wait for the reloaded extension to reconnect', '30')
+    .action(async (opts: { force?: boolean; timeout?: string }, command: Command) => {
+      try {
+        const timeoutSeconds = Number.parseInt(String(opts.timeout ?? '30'), 10);
+        emitResult(await reloadExtension({
+          send: extensionSend,
+          diskBuildId: readDiskBuildId(findPackageRoot(BROWSER_COMMANDS_FILE)),
+          route: extensionRoute(command),
+          force: opts.force === true,
+          timeoutMs: (Number.isFinite(timeoutSeconds) && timeoutSeconds > 0 ? timeoutSeconds : 30) * 1000,
+        }));
+      } catch (err) {
+        failExtensionCommand(err);
+      }
+    });
+  installCommanderNamespaceStructuredHelp(extensionCmd, { globalCommand: program, description: originalExtensionDescription });
+  return extensionCmd;
+}
+
 export function registerBrowserCommands(program: Command): Command {
   const browser = program.command('browser')
     .option('--session <name>', 'Page session (required for page commands)')
@@ -733,8 +840,37 @@ export function registerBrowserCommands(program: Command): Command {
     .option('--annotate', 'Overlay visible browser state ref labels on the screenshot', false)
     .option('--width <n>', 'Override viewport width in CSS pixels for this screenshot only', (v: string) => parseScreenshotDim(v, 'width'))
     .option('--height <n>', 'Override viewport height in CSS pixels for this screenshot only (ignored with --full-page)', (v: string) => parseScreenshotDim(v, 'height'))
+    .option('--for-click', 'Capture an unmodified viewport with a short-lived point-click descriptor', false)
     .description('Take screenshot')
     .action(browserAction(async (page, path, opts) => {
+      if (opts.forClick === true) {
+        const tab = typeof opts.tab === 'string' ? opts.tab : '';
+        if (!path || !tab || page.getActivePage?.() !== tab
+            || opts.fullPage === true || opts.annotate === true
+            || opts.width !== undefined || opts.height !== undefined) {
+          reportVisualError(new VisualActionError(
+            'visual_usage',
+            '--for-click requires a screenshot path and exact --tab; --full-page, --annotate, --width, and --height are not supported.',
+          ));
+          return;
+        }
+        try {
+          const snapshot = await captureVisualSnapshot(page);
+          fs.writeFileSync(path, snapshot.png);
+          emitResult({
+            path,
+            tab,
+            image: { width: snapshot.imageWidth, height: snapshot.imageHeight },
+            cssViewport: { width: snapshot.cssWidth, height: snapshot.cssHeight },
+            capture: encodeVisualCapture(snapshot, tab),
+            input: snapshot.transport === 'extension' ? 'synthetic' : 'native',
+          });
+        } catch (err) {
+          if (err instanceof VisualActionError) { reportVisualError(err); return; }
+          throw err;
+        }
+        return;
+      }
       const shotOpts: ScreenshotOptions = {
         fullPage: opts.fullPage === true,
         annotate: opts.annotate === true,
@@ -1358,9 +1494,64 @@ export function registerBrowserCommands(program: Command): Command {
     addSemanticLocatorOptions(browser.command('click'))
       .argument('[target]', 'Numeric ref (from browser state / find), CSS selector, or omit when using --role/--name/etc.')
       .option('--nth <n>', 'When <target> is a multi-match CSS selector, pick the nth match (0-based)')
+      .option('--point <x,y>', 'Click image-pixel point from a --for-click screenshot')
+      .option('--capture <descriptor>', 'Capture descriptor returned by screenshot --for-click')
       .description('Click element — JSON envelope {clicked, target, matches_n}'),
   )
     .action(browserAction(async (page, target, opts) => {
+      if (opts?.point !== undefined || opts?.capture !== undefined) {
+        const tab = typeof opts.tab === 'string' ? opts.tab : '';
+        if (target !== undefined || semanticLocatorFromOptions(opts ?? {}) || opts.nth !== undefined
+            || !tab || page.getActivePage?.() !== tab || typeof opts.capture !== 'string') {
+          reportVisualError(new VisualActionError('visual_usage', 'Point click requires --point, --capture, and exact --tab, without an element target or semantic locator.'));
+          return;
+        }
+        if (typeof page.cdp !== 'function') {
+          reportVisualError(new VisualActionError('visual_unsupported', 'This browser backend does not support CDP visual actions.'));
+          return;
+        }
+        let point: { x: number; y: number };
+        let capture;
+        try {
+          capture = decodeVisualCapture(opts.capture);
+          if (capture.tab !== tab) throw new VisualActionError('capture_tab_changed', 'The target tab differs from the screenshot tab.');
+          point = parseVisualPoint(opts.point, capture);
+        } catch (err) {
+          if (err instanceof VisualActionError) { reportVisualError(err); return; }
+          throw err;
+        }
+        try {
+          if (capture.transport === 'extension') {
+            if (typeof page.visual !== 'function') {
+              throw new VisualActionError('visual_unsupported', 'Browser extension visual click is unavailable.');
+            }
+            await page.visual('hover', point);
+            const fresh = await captureVisualSnapshot(page, 'extension');
+            assertVisualSnapshot(capture, tab, fresh);
+            await page.visual('click', point);
+            emitResult({ clicked: true, point: opts.point, tab, input: 'synthetic', outcome: 'dispatched_unverified' });
+          } else {
+            // Moving can change hover menus. Verify the screenshot only after pointer movement.
+            try {
+              await page.cdp('Input.dispatchMouseEvent', { type: 'mouseMoved', ...point });
+            } catch (error) {
+              if (isProtectedAttachError(error)) {
+                throw new VisualActionError('capture_backend_changed', 'Protected extension UI appeared. Take a new screenshot before clicking.');
+              }
+              throw error;
+            }
+            const fresh = await captureVisualSnapshot(page);
+            assertVisualSnapshot(capture, tab, fresh);
+            await page.cdp('Input.dispatchMouseEvent', { type: 'mousePressed', ...point, button: 'left', clickCount: 1 });
+            await page.cdp('Input.dispatchMouseEvent', { type: 'mouseReleased', ...point, button: 'left', clickCount: 1 });
+            emitResult({ clicked: true, point: opts.point, tab, input: 'native', outcome: 'dispatched_unverified' });
+          }
+        } catch (err) {
+          if (err instanceof VisualActionError) { reportVisualError(err); return; }
+          reportVisualUnknown(err);
+        }
+        return;
+      }
       const resolvedTarget = await resolveExplicitOrSemanticTarget(page, target, opts ?? {}, 'write');
       if (typeof resolvedTarget !== 'string' && 'error' in resolvedTarget) {
         emitFailure(resolvedTarget.error, EXIT_CODES.USAGE_ERROR);
@@ -1386,9 +1577,65 @@ export function registerBrowserCommands(program: Command): Command {
       .argument('[targetOrText]', 'Numeric ref/CSS target, or text when using --role/--name/etc.')
       .argument('[text]', 'Text to type')
       .option('--nth <n>', 'When <target> is a multi-match CSS selector, pick the nth match (0-based)')
+      .option('--focused', 'Insert text into the currently focused text control using native input', false)
       .description('Click element, then type text — JSON envelope {typed, text, target, matches_n, autocomplete}'),
   )
     .action(browserAction(async (page, targetOrText, text, opts) => {
+      if (opts?.focused === true) {
+        const tab = typeof opts.tab === 'string' ? opts.tab : '';
+        if (typeof targetOrText !== 'string' || text !== undefined || !tab
+            || page.getActivePage?.() !== tab || semanticLocatorFromOptions(opts ?? {}) || opts.nth !== undefined) {
+          reportVisualError(new VisualActionError('visual_usage', 'Focused typing requires one text argument and exact --tab, without a target or semantic locator.'));
+          return;
+        }
+        if (typeof page.nativeType !== 'function') {
+          reportVisualError(new VisualActionError('visual_unsupported', 'This browser backend does not support native text insertion.'));
+          return;
+        }
+        let focus: { kind?: string; tag?: string };
+        let synthetic = false;
+        try {
+          focus = await page.evaluate(`(() => {
+            let el = document.activeElement;
+            while (el && el.shadowRoot && el.shadowRoot.activeElement) el = el.shadowRoot.activeElement;
+            if (!el) return { kind: 'none' };
+            if (el.tagName === 'IFRAME') return { kind: 'iframe' };
+            if (el.tagName === 'TEXTAREA') return { kind: 'textarea' };
+            if (el.tagName === 'INPUT' && !['hidden', 'button', 'submit', 'reset', 'checkbox', 'radio', 'file', 'image', 'range', 'color'].includes(el.type)) return { kind: 'input' };
+            if (el.isContentEditable) return { kind: 'contenteditable' };
+            return { kind: 'unsupported', tag: el.tagName };
+          })()`) as { kind?: string; tag?: string };
+        } catch (error) {
+          if (!isProtectedAttachError(error) || typeof page.visual !== 'function') throw error;
+          focus = await page.visual('focus') as { kind?: string; tag?: string };
+          synthetic = true;
+        }
+        if (!['input', 'textarea', 'contenteditable', 'iframe'].includes(focus?.kind ?? '')) {
+          reportVisualError(new VisualActionError('focus_not_text', `Focused element is not a text control (${focus?.tag ?? focus?.kind ?? 'unknown'}).`));
+          return;
+        }
+        try {
+          if (synthetic) {
+            await page.visual!('type', { text: targetOrText });
+          } else {
+            try {
+              await page.nativeType(targetOrText);
+            } catch (error) {
+              if (!isProtectedAttachError(error) || typeof page.visual !== 'function') throw error;
+              focus = await page.visual('focus') as { kind?: string; tag?: string };
+              await page.visual('type', { text: targetOrText });
+              synthetic = true;
+            }
+          }
+          emitResult({
+            typed: true, characters: targetOrText.length, tab,
+            focus: focus.kind, input: synthetic ? 'synthetic' : 'native', outcome: 'dispatched_unverified',
+          });
+        } catch (err) {
+          reportVisualUnknown(err);
+        }
+        return;
+      }
       const resolved = await resolveWriteTargetAndValueOrPrint(page, targetOrText, text, opts ?? {}, 'text');
       if (!resolved) return;
       const parsed = nthToResolveOpts(opts?.nth);

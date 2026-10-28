@@ -9,6 +9,7 @@ import { cli, getRegistry, Strategy } from './registry.js';
 import { BrowserCommandError } from './browser/daemon-client.js';
 import type { IPage } from './types.js';
 import { TargetError } from './browser/target-errors.js';
+import { encodeVisualCapture } from './browser/visual-action.js';
 import { PKG_VERSION } from './version.js';
 
 const {
@@ -73,6 +74,7 @@ describe('createProgram root help descriptions', () => {
     expect(descriptionFor(program, 'adapter')).toBe('check, eject, init, reset, status, test');
     expect(descriptionFor(program, 'profile')).toBe('list, rename, use');
     expect(descriptionFor(program, 'daemon')).toBe('restart, status, stop');
+    expect(descriptionFor(program, 'windows')).toBe('close');
     expect(descriptionFor(program, 'external')).toBeUndefined();
   });
 
@@ -435,7 +437,7 @@ describe('createProgram root help descriptions', () => {
         usage: 'opencli browser click [target] [options]',
         positionals: [{ name: 'target' }],
       });
-      expect(click.command_options.map((option: any) => option.name)).toEqual(['role', 'name', 'label', 'text', 'testid', 'nth', 'tab', 'session', 'window', 'profile']);
+      expect(click.command_options.map((option: any) => option.name)).toEqual(['role', 'name', 'label', 'text', 'testid', 'nth', 'point', 'capture', 'tab', 'session', 'window', 'profile']);
 
       const tabList = data.commands.find((cmd: any) => cmd.name === 'tab list');
       expect(tabList).toMatchObject({
@@ -519,7 +521,7 @@ describe('createProgram root help descriptions', () => {
           usage: 'opencli browser click --help -f json',
         },
       });
-      expect(data.command_options.map((option: any) => option.name)).toEqual(['role', 'name', 'label', 'text', 'testid', 'nth', 'tab', 'session', 'window', 'profile']);
+      expect(data.command_options.map((option: any) => option.name)).toEqual(['role', 'name', 'label', 'text', 'testid', 'nth', 'point', 'capture', 'tab', 'session', 'window', 'profile']);
       // session is hidden; only `window` surfaces as a namespace option.
       expect(data.namespace_options.map((option: any) => option.name)).toEqual(['session', 'window']);
       expect(data.global_options.map((option: any) => option.name)).toContain('profile');
@@ -1176,6 +1178,63 @@ describe('browser tab targeting commands', () => {
     expect(mockSendCommand).toHaveBeenCalledWith('close-window', { session: 'test', surface: 'browser' });
     const out = lastJsonLog();
     expect(out).toEqual({ unbound: true, session: 'test' });
+  });
+
+  it('closes opencli windows through the daemon close-owned-windows command', async () => {
+    const report = { closed: [{ role: 'automation', windowId: 7, tabs: 3 }], kept: [] };
+    mockSendCommand.mockResolvedValueOnce(report);
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'windows', 'close']);
+
+    expect(mockSendCommand).toHaveBeenCalledWith('close-owned-windows', {});
+    expect(lastJsonLog()).toEqual(report);
+    expect(process.exitCode).toBeUndefined();
+  });
+
+  it('routes windows close to an explicit --profile', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', '--profile', 'ctx-work', 'windows', 'close']);
+
+    expect(mockSendCommand).toHaveBeenCalledWith('close-owned-windows', { contextId: 'ctx-work' });
+  });
+
+  it('fails windows close with a reload hint when the extension predates the command', async () => {
+    mockSendCommand.mockRejectedValueOnce(new BrowserCommandError('Unknown action: close-owned-windows'));
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'windows', 'close']);
+
+    const out = lastJsonLog();
+    expect(out.ok).toBe(false);
+    expect(out.error.message).toContain('Unknown action: close-owned-windows');
+    expect(out.error.hint).toContain('reload it');
+    expect(process.exitCode).toBeDefined();
+  });
+
+  it('reports the extension build a profile runs through the daemon extension-info command', async () => {
+    mockSendCommand.mockResolvedValueOnce({ version: '1.0.24', buildId: 'ffffffffffffffff', contextId: 'ctx-work', runningCommands: 0, interactiveSessions: [] });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', '--profile', 'ctx-work', 'extension', 'info']);
+
+    expect(mockSendCommand).toHaveBeenCalledWith('extension-info', { contextId: 'ctx-work' });
+    expect(lastJsonLog()).toEqual(expect.objectContaining({ buildId: 'ffffffffffffffff', contextId: 'ctx-work', current: false }));
+    expect(process.exitCode).toBeUndefined();
+  });
+
+  it('names the one manual reload when the loaded extension predates self-reload', async () => {
+    mockSendCommand.mockRejectedValueOnce(new BrowserCommandError('Unknown action: extension-info'));
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'extension', 'reload']);
+
+    const out = lastJsonLog();
+    expect(out.ok).toBe(false);
+    expect(out.error.code).toBe('extension_predates_reload');
+    expect(out.error.hint).toContain('Reload it once by hand');
+    expect(process.exitCode).toBeDefined();
   });
 
   it('does not print false success when unbind fails', async () => {
@@ -2466,6 +2525,95 @@ function installSelectorFirstTestHarness(label: string, pageOverrides: () => Par
 
   return { lastJsonLog };
 }
+
+describe('browser visual action commands', () => {
+  const { lastJsonLog } = installSelectorFirstTestHarness('visual-action', () => ({
+    evaluate: vi.fn().mockResolvedValue({ kind: 'input' }),
+    nativeType: vi.fn().mockResolvedValue(undefined),
+    cdp: vi.fn(),
+  }));
+
+  function png(variant = 0): Buffer {
+    const data = Buffer.alloc(25);
+    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]).copy(data);
+    data.write('IHDR', 12, 'ascii');
+    data.writeUInt32BE(200, 16);
+    data.writeUInt32BE(100, 20);
+    data[24] = variant;
+    return data;
+  }
+
+  function snapshot(variant = 0) {
+    return {
+      url: 'https://example.test/form', png: png(variant),
+      imageWidth: 200, imageHeight: 100, cssWidth: 100, cssHeight: 50,
+    };
+  }
+
+  it('captures an exact-tab screenshot and clicks after rechecking the moved-pointer view', async () => {
+    const events: string[] = [];
+    (browserState.page!.cdp as any).mockImplementation(async (method: string) => {
+      events.push(method);
+      if (method === 'Page.getFrameTree') return { frameTree: { frame: { url: snapshot().url } } };
+      if (method === 'Page.getLayoutMetrics') return { cssVisualViewport: { clientWidth: 100, clientHeight: 50 } };
+      if (method === 'Page.captureScreenshot') return { data: png().toString('base64') };
+      return {};
+    });
+    const shotPath = path.join(process.env.OPENCLI_CACHE_DIR!, 'visual.png');
+    await createProgram('', '').parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'screenshot', shotPath, '--for-click', '--tab', 'tab-1']);
+    const descriptor = lastJsonLog().capture;
+    expect(fs.readFileSync(shotPath)).toEqual(png());
+    expect(lastJsonLog().cssViewport).toEqual({ width: 100, height: 50 });
+
+    events.length = 0;
+    await createProgram('', '').parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'click', '--point', '99,49', '--capture', descriptor, '--tab', 'tab-1']);
+    expect(events).toEqual([
+      'Input.dispatchMouseEvent', 'Page.getFrameTree', 'Page.getLayoutMetrics',
+      'Page.captureScreenshot', 'Input.dispatchMouseEvent', 'Input.dispatchMouseEvent',
+    ]);
+    expect((browserState.page!.cdp as any).mock.calls.at(-2)[1]).toMatchObject({ type: 'mousePressed', x: 49.75, y: 24.75 });
+    expect(lastJsonLog()).toMatchObject({ clicked: true, outcome: 'dispatched_unverified', tab: 'tab-1' });
+  });
+
+  it('rejects a hover redraw before dispatching a press', async () => {
+    const descriptor = encodeVisualCapture(snapshot(), 'tab-1');
+    (browserState.page!.cdp as any).mockImplementation(async (method: string) => {
+      if (method === 'Page.getFrameTree') return { frameTree: { frame: { url: snapshot().url } } };
+      if (method === 'Page.getLayoutMetrics') return { cssVisualViewport: { clientWidth: 100, clientHeight: 50 } };
+      if (method === 'Page.captureScreenshot') return { data: png(1).toString('base64') };
+      return {};
+    });
+    await createProgram('', '').parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'click', '--point', '99,49', '--capture', descriptor, '--tab', 'tab-1']);
+    expect(lastJsonLog().error.code).toBe('capture_stale');
+    expect((browserState.page!.cdp as any).mock.calls.filter(([method]: [string]) => method === 'Input.dispatchMouseEvent')).toHaveLength(1);
+  });
+
+  it('reports an ambiguous result if delivery fails after a click starts', async () => {
+    const descriptor = encodeVisualCapture(snapshot(), 'tab-1');
+    (browserState.page!.cdp as any).mockImplementation(async (method: string, params?: { type?: string }) => {
+      if (method === 'Page.getFrameTree') return { frameTree: { frame: { url: snapshot().url } } };
+      if (method === 'Page.getLayoutMetrics') return { cssVisualViewport: { clientWidth: 100, clientHeight: 50 } };
+      if (method === 'Page.captureScreenshot') return { data: png().toString('base64') };
+      if (params?.type === 'mouseReleased') throw new Error('connection lost');
+      return {};
+    });
+    await createProgram('', '').parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'click', '--point', '99,49', '--capture', descriptor, '--tab', 'tab-1']);
+    expect(lastJsonLog().error.code).toBe('outcome_unknown');
+    expect(lastJsonLog().error.hint).toContain('reconcile');
+  });
+
+  it('types into a focused text control and rejects other focus', async () => {
+    await createProgram('', '').parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'type', '--focused', '你好', '--tab', 'tab-1']);
+    expect(browserState.page!.nativeType).toHaveBeenCalledWith('你好');
+    expect(lastJsonLog()).toMatchObject({ typed: true, focus: 'input', outcome: 'dispatched_unverified' });
+
+    (browserState.page!.evaluate as any).mockResolvedValueOnce({ kind: 'unsupported', tag: 'BODY' });
+    (browserState.page!.nativeType as any).mockClear();
+    await createProgram('', '').parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'type', '--focused', 'x', '--tab', 'tab-1']);
+    expect(lastJsonLog().error.code).toBe('focus_not_text');
+    expect(browserState.page!.nativeType).not.toHaveBeenCalled();
+  });
+});
 
 describe('browser find command', () => {
   const { lastJsonLog } = installSelectorFirstTestHarness('find', () => ({

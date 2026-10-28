@@ -122,6 +122,49 @@ describe('cdp attach recovery', () => {
     );
   });
 
+  it('names the other extension frame that blocks attach, without its query', async () => {
+    const { chrome, debuggerApi, scripting } = createChromeMock();
+    const own = 'kdjokibpmaoocniakcibhhokinfpjnik';
+    debuggerApi.attach = vi.fn(async () => {
+      throw new Error('Cannot access a chrome-extension:// URL of different extension');
+    });
+    scripting.executeScript = vi.fn(async () => [
+      { result: ['https://ads.test/frame', 'chrome-extension://pejdijmoenmkgeppbflobdenhhabjlaj/completion_list.html?token=secret#x'] },
+      { result: [`chrome-extension://${own}/own.html`] },
+    ]) as any;
+    vi.stubGlobal('chrome', {
+      ...chrome,
+      runtime: { id: own },
+      webNavigation: { getAllFrames: vi.fn(async () => [{ frameId: 0, parentFrameId: -1, url: 'http://127.0.0.1/' }]) },
+    });
+
+    const mod = await import('./cdp');
+    const error = await mod.ensureAttached(1).catch((e: Error) => e);
+
+    expect(error).toBeInstanceOf(Error);
+    const message = (error as Error).message;
+    expect(message).toContain('attach failed: Cannot access a chrome-extension:// URL of different extension');
+    expect(message).toContain('Blocking frame: chrome-extension://pejdijmoenmkgeppbflobdenhhabjlaj/completion_list.html (');
+    expect(message).not.toContain('secret');
+    expect(message).not.toContain(own);
+    expect(scripting.executeScript).toHaveBeenCalledWith(expect.objectContaining({ target: { tabId: 1, allFrames: true } }));
+  });
+
+  it('keeps the generic tip when no other extension frame can be found', async () => {
+    const { chrome, debuggerApi, scripting } = createChromeMock();
+    debuggerApi.attach = vi.fn(async () => {
+      throw new Error('Cannot access a chrome-extension:// URL of different extension');
+    });
+    scripting.executeScript = vi.fn(async () => { throw new Error('Cannot access contents of the page'); }) as any;
+    vi.stubGlobal('chrome', { ...chrome, webNavigation: { getAllFrames: vi.fn(async () => null) } });
+
+    const mod = await import('./cdp');
+    const error = await mod.ensureAttached(1).catch((e: Error) => e);
+
+    expect((error as Error).message).toContain('Tip: another Chrome extension may be interfering');
+    expect((error as Error).message).not.toContain('Blocking frame');
+  });
+
 });
 
 function chromeMockForScreenshot(content: { width: number; height: number } = { width: 1024, height: 2048 }) {

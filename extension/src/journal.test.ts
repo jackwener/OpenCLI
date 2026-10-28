@@ -95,6 +95,21 @@ describe('command journal', () => {
     expect(execute).toHaveBeenCalledTimes(1);
   });
 
+  it('never writes a WebAuthn result to session storage, because it can hold a private key', async () => {
+    const secret = 'cHJpdmF0ZS1rZXk=';
+    const cmd: Command = { id: 'cmd-webauthn', action: 'cdp', cdpMethod: 'WebAuthn.getCredentials', cdpParams: { authenticatorId: 'a' }, session: 's', surface: 'adapter' };
+    const execute = vi.fn(async (c: Command): Promise<Result> => ({ id: c.id, ok: true, data: { credentials: [{ privateKey: secret }] } }));
+
+    const first = await executeWithJournal(cmd, execute);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const replay = await executeWithJournal(cmd, execute);
+
+    expect((first.data as any).credentials[0].privateKey).toBe(secret);
+    expect(JSON.stringify(sessionStorage._dump())).not.toContain(secret);
+    expect(replay.errorCode).toBe('result_evicted');
+    expect(execute).toHaveBeenCalledTimes(1);
+  });
+
   it('records a thrown execution as a done error result and replays it', async () => {
     const execute = vi.fn(async () => { throw new Error('boom'); });
 
