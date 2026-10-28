@@ -11,7 +11,7 @@ description: 基于 opencli 命令的智能搜索路由器。当用户想要使�
 
 每次使用前，必须先做下面两步：
 
-- 运行 `opencli list -f yaml`
+- 运行 `opencli list -f json [query]`，在内置命令和适配器中搜索命令名称及描述。返回结果采用紧凑的分页格式：`{ok:true,data:{commands,total,nextOffset?}}`，通过 `--offset <nextOffset>` 参数继续获取后续结果。
 - 用 live registry 确认候选站点是否存在，并检查 `strategy`、`browser`、`domain`
 
 选定站点后，必须再做下面两步：
@@ -42,7 +42,7 @@ description: 基于 opencli 命令的智能搜索路由器。当用户想要使�
 
 计数规则：
 
-- `opencli list -f yaml`、`opencli <site> -h`、`opencli <site> <command> -h` 属于预检与帮助，不计入搜索次数
+- `opencli list -f json`、`opencli <site> -h`、`opencli <site> <command> -h` 属于预检与帮助，不计入搜索次数
 - 一次真正的 `opencli <site> ...` 搜索/查询执行，计为该站点 1 次调用
 - 同站点因为报错、超时、验证码、反爬、登录态异常而失败，也算 1 次调用，不要无限重试
 
@@ -136,7 +136,7 @@ description: 基于 opencli 命令的智能搜索路由器。当用户想要使�
 - 不要因为单个源失败而中止整个搜索
 - 记录：「已跳过：<site> 不可用」
 - 回退到同类其他站点，或回退到一个 AI 源
-- 始终以 `opencli list -f yaml` 与 `opencli <site> -h` 的实际结果为准
+- 始终以 `opencli list -f json` 与 `opencli <site> -h` 的实际结果为准
 
 不要假设任何站点“绝对可用”。即使是公开站点，也以当前环境中的 live help 和执行结果为准。
 
