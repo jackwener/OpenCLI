@@ -47,6 +47,8 @@ export interface Command {
   url?: string;
   /** Sub-operation for tabs: list, new, close, select */
   op?: 'list' | 'new' | 'close' | 'select';
+  /** tabs new: open the new tab IN PLACE OF the lease's current one, closing it. */
+  replace?: boolean;
   /** Tab index for tabs select/close */
   index?: number;
   /** Cookie domain filter */

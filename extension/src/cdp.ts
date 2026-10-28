@@ -63,6 +63,76 @@ export type DownloadWaitResult = {
 
 const networkCaptures = new Map<number, NetworkCaptureState>();
 
+type OpenDialog = { type: string; message: string; url: string };
+
+/**
+ * Native JavaScript dialogs (alert/confirm/prompt/beforeunload) block the page:
+ * Runtime.evaluate on a blocked tab never returns. Chrome announces each one with
+ * Page.javascriptDialogOpening, so page commands fail fast with a named error
+ * instead of a 60s timeout, and a lease release can accept the beforeunload
+ * prompt raised by its own navigation.
+ */
+const openDialogs = new Map<number, OpenDialog>();
+const acceptBeforeUnload = new Set<number>();
+
+export function getOpenDialog(tabId: number): OpenDialog | undefined {
+  return openDialogs.get(tabId);
+}
+
+export function assertNoOpenDialog(tabId: number): void {
+  const dialog = openDialogs.get(tabId);
+  if (!dialog) return;
+  const text = dialog.type === 'beforeunload' ? 'Leave site?' : dialog.message;
+  throw new Error(
+    `JavaScript dialog is open (${dialog.type}: ${JSON.stringify(text)}) on ${dialog.url || `tab ${tabId}`}; the page is blocked until it is accepted or dismissed`,
+  );
+}
+
+async function acceptReleaseDialog(tabId: number, dialog: OpenDialog): Promise<void> {
+  console.warn(`[opencli] Accepting beforeunload prompt on released tab ${tabId} (${dialog.url})`);
+  try {
+    await sendDebuggerCommand({ tabId }, 'Page.handleJavaScriptDialog', { accept: true }, CDP_PROBE_TIMEOUT_MS);
+  } catch (err) {
+    console.warn(`[opencli] Could not accept beforeunload prompt on tab ${tabId}: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
+/**
+ * Leave a page whose lease is over (navigate away or close), accepting the
+ * beforeunload prompt that leaving raises. Only for tabs opencli owns: nobody is
+ * working in them any more, and an unanswered prompt strands the tab. Waits for
+ * `settled` so the prompt is still answered when Chrome raises it after `leave`
+ * has already resolved. Call before detaching — a detached debugger sees no events.
+ */
+export async function abandonPage(
+  tabId: number,
+  leave: () => Promise<void>,
+  settled: () => Promise<boolean>,
+  timeoutMs: number = 5_000,
+): Promise<void> {
+  acceptBeforeUnload.add(tabId);
+  try {
+    // A release can follow a detach (navigate detaches when no capture is armed),
+    // and a detached debugger never sees the prompt. Re-attach first; a tab that
+    // cannot be attached is left to `leave` as before.
+    await ensureAttached(tabId).catch((err) => {
+      console.warn(`[opencli] Releasing tab ${tabId} without a debugger: ${err instanceof Error ? err.message : String(err)}`);
+    });
+    const pending = openDialogs.get(tabId);
+    if (pending?.type === 'beforeunload') await acceptReleaseDialog(tabId, pending);
+    await leave();
+    const deadline = Date.now() + timeoutMs;
+    let done = await settled();
+    while (!done && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      done = await settled();
+    }
+    if (!done) console.warn(`[opencli] Tab ${tabId} did not leave its page within ${timeoutMs}ms during release`);
+  } finally {
+    acceptBeforeUnload.delete(tabId);
+  }
+}
+
 /**
  * Default deadline for a single chrome.debugger command. chrome.debugger has
  * no timeout of its own: a page-blocking native dialog (alert/confirm/print/
@@ -130,6 +200,9 @@ export async function ensureAttached(tabId: number, aggressiveRetry: boolean = f
   }
 
   if (attached.has(tabId)) {
+    // A dialog blocks the page, not the debugger: the probe would time out and
+    // force a re-attach that forgets the dialog.
+    if (openDialogs.has(tabId)) return;
     // Verify the debugger is still actually attached by sending a harmless command
     try {
       await sendDebuggerCommand({ tabId }, 'Runtime.evaluate', {
@@ -211,6 +284,12 @@ export async function ensureAttached(tabId: number, aggressiveRetry: boolean = f
   } catch {
     // Some pages may not need explicit enable
   }
+  try {
+    // Page events carry javascriptDialogOpening/Closed (see openDialogs).
+    await sendDebuggerCommand({ tabId }, 'Page.enable');
+  } catch {
+    // Without Page events a dialog still surfaces, later, as a CDP timeout.
+  }
 
   // Restore network capture that the re-attach (detach + onDetach) tore down.
   // The detach always disables the CDP Network domain, so re-enable it and put
@@ -241,6 +320,7 @@ export async function evaluate(
   // cache so the next attempt re-attaches.
   try {
     await ensureAttached(tabId, aggressiveRetry);
+    assertNoOpenDialog(tabId);
 
     const result = await sendDebuggerCommand({ tabId }, 'Runtime.evaluate', {
       expression,
@@ -612,6 +692,7 @@ export async function insertText(
   text: string,
 ): Promise<void> {
   await ensureAttached(tabId);
+  assertNoOpenDialog(tabId);
   await sendDebuggerCommand({ tabId }, 'Input.insertText', { text });
 }
 
@@ -664,6 +745,7 @@ export async function evaluateInFrame(
   timeoutMs: number = CDP_COMMAND_TIMEOUT_MS,
 ): Promise<unknown> {
   await ensureAttached(tabId, aggressiveRetry);
+  assertNoOpenDialog(tabId);
 
   await sendDebuggerCommand({ tabId }, 'Runtime.enable').catch(() => {});
 
@@ -830,6 +912,7 @@ export async function detach(tabId: number): Promise<void> {
   attached.delete(tabId);
   networkCaptures.delete(tabId);
   tabFrameContexts.delete(tabId);
+  openDialogs.delete(tabId);
   try { await chrome.debugger.detach({ tabId }); } catch { /* ignore */ }
 }
 
@@ -838,6 +921,7 @@ export function registerListeners(): void {
     attached.delete(tabId);
     networkCaptures.delete(tabId);
     tabFrameContexts.delete(tabId);
+    openDialogs.delete(tabId);
     clearFrameTargetsForTab(tabId);
   });
   chrome.debugger.onDetach.addListener((source) => {
@@ -845,10 +929,23 @@ export function registerListeners(): void {
       attached.delete(source.tabId);
       networkCaptures.delete(source.tabId);
       tabFrameContexts.delete(source.tabId);
+      openDialogs.delete(source.tabId);
       clearFrameTargetsForTab(source.tabId);
       return;
     }
     if (source.targetId) clearFrameTarget(source.targetId);
+  });
+  chrome.debugger.onEvent.addListener((source, method, params: any) => {
+    const tabId = source.tabId;
+    if (!tabId) return;
+    if (method === 'Page.javascriptDialogOpening') {
+      const dialog = { type: String(params?.type || 'alert'), message: String(params?.message || ''), url: String(params?.url || '') };
+      openDialogs.set(tabId, dialog);
+      console.warn(`[opencli] JavaScript dialog opened on tab ${tabId}: ${dialog.type} ${dialog.url}`);
+      if (dialog.type === 'beforeunload' && acceptBeforeUnload.has(tabId)) void acceptReleaseDialog(tabId, dialog);
+    } else if (method === 'Page.javascriptDialogClosed') {
+      openDialogs.delete(tabId);
+    }
   });
   // Invalidate attached cache when tab URL changes to non-debuggable
   chrome.tabs.onUpdated.addListener(async (tabId, info) => {
