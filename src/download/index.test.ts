@@ -133,6 +133,32 @@ describe('download helpers', { retry: process.platform === 'win32' ? 2 : 0 }, ()
     expect(fs.readFileSync(destPath, 'utf8')).toBe('ok');
   });
 
+  it.each([false, true])('times out a stalled body without replacing an existing destination (%s)', async (existing) => {
+    const baseUrl = await startServer((_req, res) => {
+      res.writeHead(200, { 'Content-Type': 'application/octet-stream' });
+      res.write('partial');
+      // Bound the pre-fix failure: without a body timeout this completes successfully.
+      const finish = setTimeout(() => res.end('late'), 2000);
+      res.once('close', () => clearTimeout(finish));
+    });
+    const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'opencli-dl-timeout-'));
+    tempDirs.push(tempDir);
+    const destPath = path.join(tempDir, 'file.bin');
+    if (existing) fs.writeFileSync(destPath, 'original');
+    let received = 0;
+
+    const result = await httpDownload(`${baseUrl}/stalled`, destPath, {
+      timeout: 500,
+      onProgress: (size) => { received = size; },
+    });
+
+    expect(result).toMatchObject({ success: false, size: 0 });
+    expect(received).toBeGreaterThan(0);
+    expect(fs.existsSync(`${destPath}.tmp`)).toBe(false);
+    if (existing) expect(fs.readFileSync(destPath, 'utf8')).toBe('original');
+    else expect(fs.existsSync(destPath)).toBe(false);
+  });
+
   it.skipIf(process.platform === 'win32')('writes the Netscape cookie file with 0o600 owner-only permissions', async () => {
     const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'opencli-dl-'));
     tempDirs.push(tempDir);

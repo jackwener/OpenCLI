@@ -149,8 +149,6 @@ export async function httpDownload(
       signal: controller.signal,
       redirect: 'manual',
     });
-    clearTimeout(timer);
-
     // Handle redirects before creating any file handles.
     if (response.status >= 300 && response.status < 400) {
       const location = response.headers.get('location');
@@ -213,9 +211,10 @@ export async function httpDownload(
       return { success: false, size: 0, error: getErrorMessage(err) };
     }
   } catch (err) {
-    clearTimeout(timer);
     await cleanupTempFile();
     return { success: false, size: 0, error: err instanceof Error ? err.message : String(err) };
+  } finally {
+    clearTimeout(timer);
   }
 }
 
