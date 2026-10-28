@@ -109,6 +109,16 @@ describe('evalExpr', () => {
   it('applies join filter', () => {
     expect(evalExpr('item.tags | join(,)', { item: { tags: ['a', 'b', 'c'] } })).toBe('a,b,c');
   });
+
+  it.each(["''", '""'])('preserves an explicit empty join separator %s', (separator) => {
+    expect(render('${{ item.parts | join(' + separator + ') }}', {
+      item: { parts: ['https://example.com/', 'article/', '123'] },
+    })).toBe('https://example.com/article/123');
+  });
+
+  it('uses the default separator when join has no argument', () => {
+    expect(evalExpr('item.tags | join', { item: { tags: ['a', 'b'] } })).toBe('a, b');
+  });
   it('applies upper filter', () => {
     expect(evalExpr('item.name | upper', { item: { name: 'hello' } })).toBe('HELLO');
   });

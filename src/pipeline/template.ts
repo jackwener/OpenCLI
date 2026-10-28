@@ -90,7 +90,7 @@ function applyFilter(filterExpr: string, value: unknown): unknown {
       return value;
     }
     case 'join':
-      return Array.isArray(value) ? value.join(filterArg || ', ') : value;
+      return Array.isArray(value) ? value.join(rawArgs === undefined ? ', ' : filterArg) : value;
     case 'upper':
       return typeof value === 'string' ? value.toUpperCase() : value;
     case 'lower':
