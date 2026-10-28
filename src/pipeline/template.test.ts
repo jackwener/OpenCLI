@@ -124,6 +124,26 @@ describe('evalExpr', () => {
   it('applies length filter', () => {
     expect(evalExpr('item.items | length', { item: { items: [1, 2, 3] } })).toBe(3);
   });
+  it.each([
+    ['https://cdn.example/images/photo.jpg?token=a.b#preview', 'photo.jpg', '.jpg'],
+    ['https://cdn.example/images/photo.jpg?next=/other/file.png', 'photo.jpg', '.jpg'],
+    ['https://cdn.example/images/photo.jpg#preview/other.png', 'photo.jpg', '.jpg'],
+    ['https://cdn.example/download?format=.json', 'download', ''],
+    ['file:///tmp/report.pdf?version=2#page=1', 'report.pdf', '.pdf'],
+  ])('extracts filenames from the pathname of %s', (url, basename, ext) => {
+    expect(evalExpr('item.url | basename', { item: { url } })).toBe(basename);
+    expect(evalExpr('item.url | ext', { item: { url } })).toBe(ext);
+  });
+  it.each([
+    ['/tmp/report.pdf', 'report.pdf', '.pdf'],
+    [String.raw`C:\reports\report.pdf`, 'report.pdf', '.pdf'],
+    ['report?draft#1.txt', 'report?draft#1.txt', '.txt'],
+    ['archive.tar.gz', 'archive.tar.gz', '.gz'],
+    ['README', 'README', ''],
+  ])('preserves filename filters for the local path %s', (url, basename, ext) => {
+    expect(evalExpr('item.url | basename', { item: { url } })).toBe(basename);
+    expect(evalExpr('item.url | ext', { item: { url } })).toBe(ext);
+  });
   it('applies json filter to strings with quotes', () => {
     expect(evalExpr('args.keyword | json', { args: { keyword: "O'Reilly" } })).toBe('"O\'Reilly"');
   });

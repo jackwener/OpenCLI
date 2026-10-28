@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import * as fs from 'node:fs';
 import type { IPage } from '../../types.js';
 
 const { mockHttpDownload, mockYtdlpDownload, mockExportCookiesToNetscape } = vi.hoisted(() => ({
@@ -56,6 +57,29 @@ describe('stepDownload', () => {
     mockYtdlpDownload.mockReset();
     mockYtdlpDownload.mockResolvedValue({ success: true, size: 2 });
     mockExportCookiesToNetscape.mockReset();
+  });
+
+  it('saves a document using the URL pathname as its templated filename', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-url-filename-'));
+    try {
+      const result = await stepDownload(null, {
+        url: '${{ item.url }}',
+        dir,
+        filename: '${{ item.url | basename }}',
+        type: 'document',
+        content: '${{ item.content }}',
+        progress: false,
+      }, [{ url: 'https://example.com/report.md?next=/wrong.json#preview', content: '# Report' }], {});
+
+      expect(result).toEqual([
+        expect.objectContaining({ _download: expect.objectContaining({ status: 'success', path: path.join(dir, 'report.md') }) }),
+      ]);
+      expect(fs.readdirSync(dir)).toEqual(['report.md']);
+      expect(fs.readFileSync(path.join(dir, 'report.md'), 'utf8')).toBe('# Report');
+      expect(mockHttpDownload).not.toHaveBeenCalled();
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it('scopes browser cookies to each direct-download target domain', async () => {

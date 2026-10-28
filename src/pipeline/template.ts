@@ -68,6 +68,18 @@ export function evalExpr(expr: string, ctx: RenderContext): unknown {
   return evalJsExpr(expr, { args, item, data, root, index });
 }
 
+/** Resolve URL pathnames without interpreting local filename characters as URL syntax. */
+function getFilenamePath(value: string): string {
+  if (/^[a-z][a-z\d+.-]*:\/\//i.test(value)) {
+    try {
+      return new URL(value).pathname;
+    } catch {
+      // Preserve the existing path behavior for strings that are not valid URLs.
+    }
+  }
+  return value;
+}
+
 /**
  * Apply a named filter to a value.
  * Supported filters:
@@ -133,15 +145,17 @@ function applyFilter(filterExpr: string, value: unknown): unknown {
     case 'ext': {
       // Extract file extension from URL or path
       if (typeof value !== 'string') return value;
-      const lastDot = value.lastIndexOf('.');
-      const lastSlash = Math.max(value.lastIndexOf('/'), value.lastIndexOf('\\'));
-      return lastDot > lastSlash ? value.slice(lastDot) : '';
+      const filenamePath = getFilenamePath(value);
+      const lastDot = filenamePath.lastIndexOf('.');
+      const lastSlash = Math.max(filenamePath.lastIndexOf('/'), filenamePath.lastIndexOf('\\'));
+      return lastDot > lastSlash ? filenamePath.slice(lastDot) : '';
     }
     case 'basename': {
       // Extract filename from URL or path
       if (typeof value !== 'string') return value;
-      const parts = value.split(/[/\\]/);
-      return parts[parts.length - 1] || value;
+      const filenamePath = getFilenamePath(value);
+      const parts = filenamePath.split(/[/\\]/);
+      return parts[parts.length - 1] || filenamePath;
     }
     case 'urlencode':
       return typeof value === 'string' ? encodeURIComponent(value) : value;
