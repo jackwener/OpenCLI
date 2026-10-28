@@ -1,6 +1,7 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
-import { unwrapEvaluateResult } from './shared.js';
+import { LINKEDIN_AUTH_WALL_JS, unwrapEvaluateResult } from './shared.js';
+import { gotoResilient } from '@jackwener/opencli/browser/utils';
 
 const LINKEDIN_DOMAIN = 'www.linkedin.com';
 
@@ -122,10 +123,16 @@ function assessProfileSafety(probe, expectedName, expectedProfileUrl) {
     return { ok: false, safety: 'routine_non_connectable', connectable: false, blockReason: 'connect_button_not_found', expectedValue: expected, actualValue: actual, observedUrl: actualUrl };
 }
 
-function buildProfileProbeScript(expectedName = '') {
-    return String.raw`(() => {
-    const clean = (s) => String(s || '').replace(/[\u00a0\u202f]/g, ' ').replace(/\s+/g, ' ').trim();
-    const expectedName = ${JSON.stringify(expectedName)};
+// Shared by BOTH in-page scripts below: how an expected name becomes tokens, and which controls
+// belong to the profile owner. The dry-run probe and the send path used to resolve the owner
+// separately, and on 2026-08-31 only the probe learned to find the 2026 action bar. From 2026-09-17
+// the dry-run therefore reported profiles connectable via More while the send, still looking in the
+// Follow button's bare parent, refused every one of them with owner_more_button_not_found. With one
+// resolution the send acts on exactly the scope the dry-run verified.
+//
+// Page-side contract: clean() is defined before OWNER_NAME_JS; ariaLabel(), labelOf() and
+// namesOwner() are defined before OWNER_SCOPE_JS.
+const OWNER_NAME_JS = String.raw`
     const normalizeName = (s) => clean(s)
       .replace(/\s*[•·]\s*(?:1st|2nd|3rd\+?|degree connection).*$/i, '')
       .replace(/\s+LinkedIn.*$/i, '')
@@ -135,10 +142,91 @@ function buildProfileProbeScript(expectedName = '') {
       .trim()
       .toLowerCase();
     const tokens = (s) => normalizeName(s).replace(/[.'-]+/g, ' ').split(/\s+/).map((t) => t.trim()).filter((t) => t.length >= 2);
+`;
+
+const OWNER_SCOPE_JS = String.raw`
+    // Find the profile's action bar WITHOUT depending on class names. The 2026 markup obfuscates
+    // them (classes like _02c5e36f), so none of the selectors below match any more and the old
+    // parentElement fallback landed on a wrapper holding only the primary button.
+    // On a profile whose primary action is Follow, that put the Connect "More" menu outside the
+    // scope entirely: seven of twenty-six real profiles came back connect_button_not_found on
+    // 2026-08-31 while visibly showing the control. The action bar is instead the nearest ancestor
+    // holding two or more distinct action controls — true whatever this month's class names are,
+    // and far narrower than falling back to <main>, which drags in "People also viewed".
+    const ACTION_LABEL = /^(connect|follow|message|more|pending)$/i;
+    // A control that positively names SOMEONE ELSE. "People also viewed" and the sidebar render
+    // "Invite <name> to connect" / "Follow <name>" for other members, so a scope containing one of
+    // these is not this profile's action bar however plausible its shape.
+    const namesAnotherMember = (el) => {
+      const aria = ariaLabel(el);
+      if (!aria) return false;
+      if (!/invite .* to connect/i.test(aria) && !/^(follow|message)\s+\S/i.test(aria)) return false;
+      return !namesOwner(el);
+    };
+    const controlsIn = (node) => (node && node.querySelectorAll
+      ? Array.from(node.querySelectorAll('button, [role="button"], a')).filter((el) => el.offsetParent !== null)
+      : []);
+    const actionCountIn = (node) => {
+      const labels = controlsIn(node).map((el) => labelOf(el)).filter((label) => ACTION_LABEL.test(label));
+      return new Set(labels.map((label) => label.toLowerCase())).size;
+    };
+    // Bound the walk by IDENTITY rather than by depth. Depth is the thing LinkedIn changes: on the
+    // 2026 markup the action bar renders OUTSIDE <main>, so a node !== main guard never fires and
+    // the whole-main test alone is dead code, leaving a bare depth cap two levels short of the
+    // first ancestor that holds another member's Connect button. Identity is the property that
+    // actually matters, so refuse any candidate containing a control naming someone else and let
+    // the old parentElement fallback stand — a quiet not_connectable beats inviting a stranger.
+    const actionBarOf = (el) => {
+      let node = el;
+      for (let depth = 0; depth < 8 && node && node.parentElement; depth += 1) {
+        node = node.parentElement;
+        if (controlsIn(node).some(namesAnotherMember)) return null;
+        if (actionCountIn(node) >= 2) return node;
+      }
+      return null;
+    };
+    // The owner's action scope. wholeMain says it cannot be trusted: it is the whole <main>, which
+    // also holds the "People also viewed" controls, or it contains another member's control. Not
+    // just scope === main: measured live, the 2026 action bar is not inside <main> at all, so that
+    // test could never be true and the sidebar protection it gates was inert.
+    const resolveOwnerScope = (controls, main) => {
+      const heading = main?.querySelector('h1, .text-heading-xlarge, [class*="heading-xlarge"]');
+      const topCard = main?.querySelector('.pv-top-card, [class*="top-card"]')
+        || heading?.closest?.('section, .ph5, [class*="top-card"]')
+        || main;
+      const ownerAction = controls.find((el) => namesOwner(el) && /^(invite|connect|follow|message|more|pending)\b/i.test(ariaLabel(el)));
+      const scope = ownerAction
+        ? (ownerAction.closest('[class*="profile-actions"], [class*="pvs-profile-actions"], .pv-top-card, .ph5, section')
+          || actionBarOf(ownerAction)
+          || ownerAction.parentElement
+          || topCard)
+        : topCard;
+      const wholeMain = scope === main || controlsIn(scope).some(namesAnotherMember);
+      return { topCard, ownerAction, scope, wholeMain };
+    };
+`;
+
+// Shared by BOTH in-page scripts: binds an invitation link's ?vanityName= to THIS profile (see the
+// probe's connectAnchor). The top card's anchor and the More menu's link are the same route.
+const OWNER_HREF_JS = String.raw`
+    const ownVanity = String((location.pathname.match(/\/in\/([^/]+)/) || [])[1] || '').toLowerCase();
+    const hrefTargetsOwner = (href) => {
+      const raw = String(href || '');
+      const match = raw.match(/[?&]vanityName=([^&]+)/i);
+      if (!match) return true;                       // no recipient encoded: nothing to contradict
+      if (!ownVanity) return false;                  // cannot prove it is ours: refuse
+      return decodeURIComponent(match[1]).toLowerCase() === ownVanity;
+    };
+`;
+
+function buildProfileProbeScript(expectedName = '') {
+    return String.raw`(() => {
+    const clean = (s) => String(s || '').replace(/[\u00a0\u202f]/g, ' ').replace(/\s+/g, ' ').trim();
+    const expectedName = ${JSON.stringify(expectedName)};
+    ${OWNER_NAME_JS}
     const text = document.body ? (document.body.innerText || '') : '';
-    const authRequired = /\b(sign in|log in|join linkedin)\b/i.test(text)
-      || /linkedin\.com\/(login|checkpoint|authwall)/i.test(location.href)
-      || /captcha|verification required/i.test(text);
+    ${LINKEDIN_AUTH_WALL_JS}
+    const authRequired = linkedInAuthWall();
     const main = document.querySelector('main') || document.body;
     // LinkedIn profile pages no longer expose the name in an <h1>; the heading
     // markup churns, but document.title is a stable "Name | LinkedIn" pattern.
@@ -157,13 +245,8 @@ function buildProfileProbeScript(expectedName = '') {
       const label = ariaLabel(el).toLowerCase();
       return expectedTokens.length >= 1 && expectedTokens.every((token) => label.includes(token));
     };
-    const topCard = main?.querySelector('.pv-top-card, [class*="top-card"]')
-      || heading?.closest?.('section, .ph5, [class*="top-card"]')
-      || main;
-    const ownerAction = buttons.find((el) => namesOwner(el) && /^(invite|connect|follow|message|more|pending)\b/i.test(ariaLabel(el)));
-    const ownerScope = ownerAction
-      ? (ownerAction.closest('[class*="profile-actions"], [class*="pvs-profile-actions"], .pv-top-card, .ph5, section') || ownerAction.parentElement || topCard)
-      : topCard;
+    ${OWNER_SCOPE_JS}
+    const { topCard, scope: ownerScope, wholeMain: scopeIsWholeMain } = resolveOwnerScope(buttons, main);
     const scopedButtons = Array.from(ownerScope?.querySelectorAll?.('button, [role="button"], a') || []).filter((el) => el.offsetParent !== null);
     const ownerButtons = Array.from(new Set([...buttons.filter(namesOwner), ...scopedButtons]));
     const lowerOwnerLabels = ownerButtons.map((button) => labelOf(button).toLowerCase()).filter(Boolean);
@@ -171,14 +254,15 @@ function buildProfileProbeScript(expectedName = '') {
     const connectAvailable = ownerButtons.some((el) => {
       const label = labelOf(el).toLowerCase();
       const aria = ariaLabel(el).toLowerCase();
-      return label === 'connect'
-        || label.startsWith('connect ')
+      const generic = label === 'connect' || label.startsWith('connect ');
+      return (generic && (!scopeIsWholeMain || namesOwner(el)))
         || (/invite .* to connect/i.test(aria) && namesOwner(el));
     });
     // When "Follow" is the primary action, Connect is tucked inside the "More" actions
     // menu rather than shown as a top-level button. Note the menu's presence so the safety
     // check can treat the profile as connectable; the send step opens the menu and confirms.
-    const moreAvailable = lowerOwnerLabels.some((label) => label === 'more' || label.startsWith('more '));
+    const moreAvailable = !scopeIsWholeMain
+      && lowerOwnerLabels.some((label) => label === 'more' || label.startsWith('more '));
     // A visible "Message" button is NOT proof of an existing connection: LinkedIn shows
     // Message on many 2nd/3rd-degree profiles (open profiles, Premium, recruiter) right
     // next to a real "Connect" button. The reliable signal for a 1st-degree connection is
@@ -186,13 +270,31 @@ function buildProfileProbeScript(expectedName = '') {
     // the "People also viewed" sidebar (which lists other members' degrees) cannot bleed in,
     // and never call it connected when a Connect affordance is present.
     const topCardRaw = clean(topCard?.textContent || '');
-    const firstDegreeBadge = /\b1st degree connection\b/i.test(topCardRaw);
+    // 2026 profile markup shows the degree as a "· 1st" badge right after the
+    // owner's name instead of "1st degree connection" text. Read only the few
+    // characters that follow the name so sidebar degrees cannot bleed in.
+    const mainRaw = clean(main?.innerText || '');
+    const nameAt = name ? mainRaw.indexOf(name) : -1;
+    const afterName = nameAt >= 0 ? mainRaw.slice(nameAt + name.length, nameAt + name.length + 24) : '';
+    const firstDegreeBadge = /\b1st degree connection\b/i.test(topCardRaw) || /^\s*[·•]\s*1st\b/.test(afterName);
     const alreadyConnected = !connectAvailable && firstDegreeBadge;
     // The Connect control is an <a> linking to LinkedIn's invitation route
     // (/preload/custom-invite/?vanityName=...). Capture it so the sender can
     // navigate straight to the invite dialog.
+    // Owner identity required on BOTH branches. The generic one used to accept any <a> labelled
+    // "Connect" anywhere in the scope, while connectAvailable above already demanded the owner —
+    // and the invite href carries ?vanityName=, which canonicalizeLinkedInInviteUrl preserves and
+    // the send path never re-checks. A stranger's anchor therefore meant a real invitation to the
+    // wrong member, reported under the intended member's name.
+    // The href itself carries the recipient: /preload/custom-invite/?vanityName=<slug>. That is the
+    // only identity a bare <a>Connect</a> has - a sidebar anchor need not carry an aria-label at
+    // all, so the name checks above cannot see it. Bind it to THIS profile's own slug, because the
+    // canonicaliser preserves the query string and the send path never re-checks who it is inviting.
+    ${OWNER_HREF_JS}
     const connectAnchor = ownerButtons.find((el) => el.tagName === 'A'
-      && (/^connect$/i.test(labelOf(el)) || (/invite .* to connect/i.test(ariaLabel(el)) && namesOwner(el))));
+      && hrefTargetsOwner(el.getAttribute('href'))
+      && ((/^connect$/i.test(labelOf(el)) && (!scopeIsWholeMain || namesOwner(el)))
+        || (/invite .* to connect/i.test(ariaLabel(el)) && namesOwner(el))));
     const connectHref = connectAnchor ? (connectAnchor.getAttribute('href') || '') : '';
     return {
       url: location.href,
@@ -250,11 +352,8 @@ function buildSentInvitationsProbeScript(expectedName, expectedProfileUrl) {
         return url.toString();
       } catch { return ''; }
     };
-    const text = document.body ? (document.body.innerText || '') : '';
-    const authRequired = /\b(sign in|log in|join linkedin)\b/i.test(text)
-      || /linkedin\.com\/(login|checkpoint|authwall)/i.test(location.href)
-      || /captcha|verification required/i.test(text);
-    if (authRequired) return { authRequired: true, found: false, matchedName: '', matchedUrl: '', visibleNames: [] };
+    ${LINKEDIN_AUTH_WALL_JS}
+    if (linkedInAuthWall()) return { authRequired: true, found: false, matchedName: '', matchedUrl: '', visibleNames: [] };
     const structuralRows = Array.from(document.querySelectorAll('li, article, [data-view-name], .mn-invitation-card'));
     const linkRows = Array.from(document.querySelectorAll('a[href*="/in/"]'))
       .map((a) => a.closest('li') || a.closest('[data-view-name]') || a.closest('[class*="invitation"]') || a.closest('div'))
@@ -286,7 +385,17 @@ function buildInviteScript(note) {
     const clean = (s) => String(s || '').replace(/[\u00a0\u202f]/g, ' ').replace(/\s+/g, ' ').trim();
     const visible = (el) => el && el.offsetParent !== null;
     const label = (el) => clean(el?.innerText || el?.textContent || el?.getAttribute('aria-label'));
-    const dialog = () => document.querySelector('[role="dialog"]');
+    const inviteDialog = () => {
+      const roots = [document, ...Array.from(document.querySelectorAll('*')).filter((e) => e.shadowRoot).map((e) => e.shadowRoot)];
+      for (const r of roots) {
+        for (const d of r.querySelectorAll('[role="dialog"], [aria-modal="true"]')) {
+          const t = clean(d.innerText || d.textContent || '');
+          if (/invitation|add a note|send without a note|send now|connect with/i.test(t)) return d;
+        }
+      }
+      return null;
+    };
+    const dialog = inviteDialog;
     const dialogButton = (pattern) => {
       const dlg = dialog();
       if (!dlg) return null;
@@ -349,43 +458,78 @@ function buildOpenConnectDialogScript(expectedName) {
     const clean = (s) => String(s || '').replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
     const visible = (el) => el && el.offsetParent !== null;
     const expectedName = ${JSON.stringify(expectedName)};
+    ${OWNER_NAME_JS}
     const ariaLabel = (el) => clean(el?.getAttribute('aria-label') || '');
     const textLabel = (el) => clean(el?.innerText || el?.textContent || '');
-    const tokens = (s) => clean(s).toLowerCase().replace(/[.'-]+/g, ' ').split(/\s+/).filter((t) => t.length >= 2);
+    const labelOf = (el) => clean(textLabel(el) || ariaLabel(el));
     const expTokens = tokens(expectedName);
     // Require every expected-name token to appear in the control's aria-label, so a
     // sidebar card's "Invite <OtherName> to connect" can never satisfy this.
     const namesOwner = (el) => { const al = ariaLabel(el).toLowerCase(); return expTokens.length >= 1 && expTokens.every((t) => al.includes(t)); };
+    ${OWNER_SCOPE_JS}
+    ${OWNER_HREF_JS}
     const isConnectText = (el) => /^connect$/i.test(textLabel(el));
     const isOwnerConnect = (el) => /invite .* to connect/i.test(ariaLabel(el)) && namesOwner(el);
-    if (document.querySelector('[role="dialog"]')) return { ok: true, opened: 'already_open' };
+    const isMore = (el) => { const l = (ariaLabel(el) || textLabel(el)).toLowerCase(); return l === 'more' || l.startsWith('more '); };
+    const inviteDialog = () => {
+      const roots = [document, ...Array.from(document.querySelectorAll('*')).filter((e) => e.shadowRoot).map((e) => e.shadowRoot)];
+      for (const r of roots) {
+        for (const d of r.querySelectorAll('[role="dialog"], [aria-modal="true"]')) {
+          const t = clean(d.innerText || d.textContent || '');
+          if (/invitation|add a note|send without a note|send now|connect with/i.test(t)) return d;
+        }
+      }
+      return null;
+    };
+    if (inviteDialog()) return { ok: true, opened: 'already_open' };
     const all = Array.from(document.querySelectorAll('button, [role="button"], a')).filter(visible);
-    // 1) Primary Connect button whose aria-label names the profile owner.
+    // 1) A Connect control whose aria-label names the profile owner, wherever it renders.
     let btn = all.find(isOwnerConnect);
-    // 2) Connect under the owner's "More" menu: find the owner's action bar via a named
-    //    Follow/Message/More/Pending control, open the menu, then pick Connect from THAT
-    //    opened menu only (the dropdown is portaled to the body).
     if (!btn) {
-      const ownerAction = all.find((el) => namesOwner(el) && /^(follow|message|more|pending|invite)\b/i.test(ariaLabel(el)));
-      const bar = ownerAction
-        ? (ownerAction.closest('[class*="profile-actions"], [class*="pvs-profile-actions"], .pv-top-card, .ph5, section') || ownerAction.parentElement)
-        : null;
-      if (!bar) return { ok: false, reason: 'owner_action_bar_not_found' };
-      const moreBtn = Array.from(bar.querySelectorAll('button, [role="button"]')).filter(visible)
-        .find((el) => { const l = (ariaLabel(el) || textLabel(el)).toLowerCase(); return l === 'more' || l.startsWith('more '); });
+      // 2) The owner's action bar, resolved exactly as the dry-run probe resolved it. The probe never
+      //    passes a profile whose scope is untrusted (wholeMain), so the send refuses the same scope
+      //    rather than guessing inside it.
+      const main = document.querySelector('main') || document.body;
+      const { scope: bar, wholeMain } = resolveOwnerScope(all, main);
+      if (!bar || wholeMain) return { ok: false, reason: 'owner_action_bar_not_found' };
+      // 3) Connect under the owner's "More" menu. Open it, then pick Connect from THAT opened menu
+      //    only (the dropdown is portaled to the body). A bare "Connect" button in the scope is
+      //    never clicked: nothing on it says whose it is, and the one click this path makes is a
+      //    real invitation. A profile whose primary Connect names nobody fails closed below.
+      const moreBtn = controlsIn(bar).find(isMore);
       if (!moreBtn) return { ok: false, reason: 'owner_more_button_not_found' };
       await jitter();
       moreBtn.click();
       await jitter(700, 1300);
       const menu = Array.from(document.querySelectorAll('[role="menu"], .artdeco-dropdown__content')).filter(visible).pop();
-      const scope = menu || bar;
-      btn = Array.from(scope.querySelectorAll('[role="menuitem"], button, a, div')).filter(visible).find((el) => isOwnerConnect(el) || isConnectText(el));
+      // The owner's menu is definitive: "Remove connection" means 1st degree, no matter
+      // what the top card looked like. Never fall through to a sidebar Connect.
+      if (menu && /remove connection/i.test(textLabel(menu))) {
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        return { ok: false, reason: 'already_connected' };
+      }
+      if (!menu) return { ok: false, reason: 'owner_menu_not_open' };
+      // Only real controls, innermost first. The 2026 menu wraps each item in plain <div>s around an
+      // <a role="menuitem">, and the old '..., div' selector took the text-only wrapper first. A click
+      // bubbles up to its ancestors, never down, so it never reached the link: on 2026-09-19 all seven
+      // via-More sends clicked a wrapper, nothing happened, and each came back send_unverified.
+      const connects = Array.from(menu.querySelectorAll('[role="menuitem"], [role="button"], button, a')).filter(visible)
+        .filter((el) => isOwnerConnect(el) || isConnectText(el) || Array.from(el.querySelectorAll('[aria-label]')).some(isOwnerConnect));
+      btn = connects.find((el) => !connects.some((other) => other !== el && el.contains(other)));
+      // That link goes to the invitation route, the same one as the top card's Connect anchor. Hand it
+      // back so the caller navigates there and drives the same dialog; clicking it here would
+      // navigate this page out from under the script.
+      const href = btn?.tagName === 'A' ? (btn.getAttribute('href') || '') : '';
+      if (/\/preload\/custom-invite\//i.test(href)) {
+        if (!hrefTargetsOwner(href)) return { ok: false, reason: 'connect_link_not_owner' };
+        return { ok: true, opened: 'invite_link', inviteHref: href };
+      }
     }
     if (!btn) return { ok: false, reason: 'connect_control_not_found' };
     await jitter();
     btn.click();
     await jitter(1200, 2000);
-    if (document.querySelector('[role="dialog"]')) return { ok: true, opened: 'dialog' };
+    if (inviteDialog()) return { ok: true, opened: 'dialog' };
     // Some flows fire the invite immediately without a confirmation dialog.
     return { ok: true, opened: 'no_dialog' };
   })()`;
@@ -416,7 +560,7 @@ cli({
         const expectedName = requireStringArg(args, 'expected-name', '--expected-name');
         const note = clampNote(args.note || '');
 
-        await page.goto(profileUrl);
+        await gotoResilient(page, profileUrl);
         await page.wait(6);
         let probe = await probeProfile(page, expectedName);
         // The name resolves early (from document.title), but the profile action
@@ -445,7 +589,28 @@ cli({
         if (!args.send) {
             return [{ status: 'connectable_dry_run', recipient: safety.actualValue, reason: safety.blockReason, profile_url: safety.observedUrl, note_chars: note.length, connectable: true }];
         }
-        const inviteHref = probe?.connectHref || '';
+        let inviteHref = probe?.connectHref || '';
+        if (!inviteHref) {
+            // Button-based Connect: no /preload/custom-invite/ anchor in the top card, so open the
+            // invite dialog in-page by clicking the Connect control (directly or via More). When the
+            // More menu's Connect is itself an invitation link, the script returns the link unclicked.
+            const opened = unwrapEvaluateResult(await page.evaluate(buildOpenConnectDialogScript(expectedName)));
+            if (!opened?.ok && opened?.reason === 'already_connected') {
+                return [{ status: 'not_connectable', recipient: safety.actualValue, reason: 'already_connected', profile_url: safety.observedUrl, note_chars: note.length, connectable: false, delivery_verified: false }];
+            }
+            if (!opened?.ok) {
+                throw new CommandExecutionError(`LinkedIn connect blocked: ${opened?.reason || 'connect_control_not_found'}`);
+            }
+            if (opened.opened === 'invite_link') {
+                // The no-dialog fallback below reads an empty inviteHref as "a control was clicked",
+                // so a link result must never leave it empty.
+                inviteHref = String(opened.inviteHref || '');
+                if (!inviteHref) throw new CommandExecutionError('LinkedIn connect blocked: invalid_connect_link');
+            }
+            else {
+                await page.wait(3);
+            }
+        }
         if (inviteHref) {
             // Anchor-based Connect: navigate straight to the invitation route, where the
             // "Add a note?" dialog renders already open.
@@ -453,17 +618,8 @@ cli({
             if (!inviteUrl) {
                 throw new CommandExecutionError('LinkedIn connect blocked: invalid_connect_link');
             }
-            await page.goto(inviteUrl);
+            await gotoResilient(page, inviteUrl);
             await page.wait(6);
-        }
-        else {
-            // Button-based Connect: no /preload/custom-invite/ anchor exists, so open the
-            // invite dialog in-page by clicking the Connect control (directly or via More).
-            const opened = unwrapEvaluateResult(await page.evaluate(buildOpenConnectDialogScript(expectedName)));
-            if (!opened?.ok) {
-                throw new CommandExecutionError(`LinkedIn connect blocked: ${opened?.reason || 'connect_control_not_found'}`);
-            }
-            await page.wait(3);
         }
         let result = unwrapEvaluateResult(await page.evaluate(buildInviteScript(note)));
         if (result?.reason === 'invite_dialog_not_found') {
@@ -482,7 +638,7 @@ cli({
         await page.wait(8);
         let sentProbe = null;
         for (let attempt = 0; attempt < 3; attempt += 1) {
-            await page.goto('https://www.linkedin.com/mynetwork/invitation-manager/sent/');
+            await gotoResilient(page, 'https://www.linkedin.com/mynetwork/invitation-manager/sent/');
             await page.wait(attempt === 0 ? 6 : 4);
             sentProbe = unwrapEvaluateResult(await page.evaluate(buildSentInvitationsProbeScript(expectedName, profileUrl)));
             if (sentProbe?.found || sentProbe?.authRequired) break;
@@ -515,5 +671,6 @@ export const __test__ = {
     clampNote,
     assessProfileSafety,
     buildProfileProbeScript,
+    buildOpenConnectDialogScript,
     buildSentInvitationsProbeScript,
 };

@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import {
   canonicalizeLinkedInThreadUrl,
+  LINKEDIN_AUTH_WALL_JS,
   normalizeWhitespace,
   requireLinkedInCookie,
   unwrapEvaluateResult,
@@ -33,10 +34,8 @@ function parseMaxScrolls(value) {
 function buildThreadApiDiscoveryScript(maxScrolls) {
   return String.raw`(async () => {
     const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-    const pageText = document.body ? (document.body.innerText || '') : '';
-    const authRequired = /\b(sign in|log in|join linkedin)\b/i.test(pageText)
-      || /linkedin\.com\/(login|checkpoint|authwall|uas)/i.test(location.href)
-      || /captcha|verification required/i.test(pageText);
+    ${LINKEDIN_AUTH_WALL_JS}
+    const authRequired = linkedInAuthWall();
 
     const selectors = [
       '.msg-s-message-list',

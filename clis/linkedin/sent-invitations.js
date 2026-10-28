@@ -1,6 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { unwrapEvaluateResult } from './shared.js';
+import { LINKEDIN_AUTH_WALL_JS, unwrapEvaluateResult } from './shared.js';
 
 const LINKEDIN_DOMAIN = 'www.linkedin.com';
 const SENT_URL = 'https://www.linkedin.com/mynetwork/invitation-manager/sent/';
@@ -10,8 +10,8 @@ function buildSentInvitationsScript() {
     const clean = (s) => String(s || '').replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
     const text = document.body ? (document.body.innerText || '') : '';
     const href = location.href;
-    const authRequired = /\b(sign in|log in|join linkedin)\b/i.test(text)
-      || /linkedin\.com\/(login|checkpoint|authwall|uas)/i.test(href);
+    ${LINKEDIN_AUTH_WALL_JS}
+    const authRequired = linkedInAuthWall();
     const warning = /captcha|verification required|unusual activity|account restricted|temporarily restricted|security check|checkpoint/i.test(text);
     const cleanName = (value) => {
       const first = String(value || '').split(/\n+/).map(clean).filter(Boolean)[0] || '';

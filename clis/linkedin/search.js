@@ -1,5 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { assertLinkedInAuthenticated } from './shared.js';
 const LINKEDIN_DOMAIN = 'linkedin.com';
 const MIN_LIMIT = 1;
 const MAX_LIMIT = 100;
@@ -136,31 +137,6 @@ function buildVoyagerUrl(input, offset, count) {
         .replace(/%28/gi, '(')
         .replace(/%29/gi, ')');
     return '/voyager/api/voyagerJobsDashJobCards?' + params.toString() + '&query=' + query + '&start=' + offset;
-}
-function looksLinkedInAuthWallText(value) {
-    const text = String(value ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
-    if (!text)
-        return false;
-    return /\b(sign in|log in|join linkedin)\b/.test(text) ||
-        /linkedin\.com\/(login|checkpoint|authwall)/i.test(text) ||
-        /\b(captcha|verification required)\b/.test(text) ||
-        /(请登录|登录领英|安全验证)/.test(text);
-}
-function buildLinkedInAuthProbeScript() {
-    return `(() => {
-      const text = [
-        window.location.href || '',
-        document.title || '',
-        document.body ? (document.body.innerText || '').slice(0, 4000) : '',
-      ].join('\\n');
-      return ${looksLinkedInAuthWallText.toString()}(text);
-    })()`;
-}
-async function assertLinkedInAuthenticated(page, context) {
-    const authRequired = await page.evaluate(buildLinkedInAuthProbeScript());
-    if (authRequired) {
-        throw new AuthRequiredError(LINKEDIN_DOMAIN, `${context} requires an active signed-in LinkedIn browser session`);
-    }
 }
 // ── Company ID resolution (requires DOM interaction) ──────────────────
 async function resolveCompanyIds(page, input) {
@@ -451,7 +427,6 @@ export const __test__ = {
     parseIntegerArg,
     mapFilterValues,
     decodeLinkedinRedirect,
-    looksLinkedInAuthWallText,
     assertLinkedInAuthenticated,
     enrichJobDetails,
     EXPERIENCE_LEVELS,

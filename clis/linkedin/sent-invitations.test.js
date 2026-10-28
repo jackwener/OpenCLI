@@ -7,6 +7,25 @@ const { buildSentInvitationsScript } = await import('./sent-invitations.js').the
 
 describe('linkedin sent-invitations command', () => {
 
+  it('does not read an invitee headline that says "log in" as an auth wall', () => {
+    const dom = new JSDOM(`<!doctype html><body>
+      <header><a href="https://www.linkedin.com/messaging/?">Messaging</a></header>
+      <ul>
+        <li role="listitem">
+          <a href="/in/olga-magere/">Olga Magere</a>
+          <p>Log in to book online | Dental hygienist</p>
+          <button aria-label="Withdraw invitation sent to Olga Magere">Withdraw</button>
+          <span>Sent 2 weeks ago</span>
+        </li>
+      </ul>
+    </body>`, { url: 'https://www.linkedin.com/mynetwork/invitation-manager/sent/', runScripts: 'outside-only' });
+    Object.defineProperty(dom.window.HTMLElement.prototype, 'innerText', { get() { return this.textContent; }, configurable: true });
+    Object.defineProperty(dom.window.HTMLElement.prototype, 'offsetParent', { get() { return dom.window.document.body; }, configurable: true });
+    const result = dom.window.eval(buildSentInvitationsScript());
+    expect(result.authRequired).toBe(false);
+    expect(result.rows.map((row) => row.profile_url)).toEqual(['https://www.linkedin.com/in/olga-magere/']);
+  });
+
   it('scopes extraction to semantic invitation rows and ignores navigation labels', () => {
     const dom = new JSDOM(`<!doctype html><body>
       <header>
