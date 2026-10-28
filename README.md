@@ -200,12 +200,14 @@ Available browser commands include `open`, `state`, `click`, `type`, `fill`, `se
 
 When the site you need is not yet covered, use the `opencli-adapter-author` skill end-to-end:
 
-1. **Recon** the site and pick a pattern (SPA / SSR / JSONP / Token / Streaming).
-2. **Discover** the right endpoint — network inspection, initial state, bundle search, token trace, or interceptor fallback.
+1. **Recon** the site with `opencli browser open <url> --session research` and `opencli browser state --diagnostics --session research`, then pick a pattern (SPA / SSR / JSONP / Token / Streaming).
+2. **Discover** the right endpoint — use `opencli browser network --session research` for captured requests or add `--static` for candidates from loaded scripts; inspect initial state, bundles, or token flow as needed.
 3. **Pick auth** — `PUBLIC` / `COOKIE` / `INTERCEPT` / `UI` / `LOCAL`.
 4. **Decode** response fields and design output columns.
-5. `opencli browser recon analyze <url>` → `opencli browser recon init <site>/<name>` → write adapter → `opencli browser recon verify <site>/<name>`.
-6. Site knowledge persists to `~/.opencli/sites/<site>/` so the next adapter for the same site starts from context.
+5. `opencli adapter init <site>/<name>` → write adapter → `opencli adapter check <site>/<name>` → `opencli adapter test <site>/<name>` (pass required command arguments with `--args`).
+6. Keep reusable site notes and verification fixtures when useful; these are optional.
+
+`adapter check` validates definitions without executing the adapter. `adapter test` runs the command and optionally compares an existing fixture; write adapters can have real effects.
 
 ## Configuration
 

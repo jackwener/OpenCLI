@@ -162,12 +162,14 @@ Agent 在内部自动处理所有 `opencli browser` 命令——你只需用自�
 
 当你需要的网站还没覆盖时，用 `opencli-adapter-author` skill，全流程：
 
-1. **侦察**站点，分类 pattern（SPA / SSR / JSONP / Token / Streaming）
-2. **发现** endpoint——network 精读、initial state、bundle 搜索、token 溯源，或 interceptor 兜底
+1. **侦察**站点：运行 `opencli browser open <url> --session research` 和 `opencli browser state --diagnostics --session research`，分类 pattern（SPA / SSR / JSONP / Token / Streaming）
+2. **发现** endpoint——用 `opencli browser network --session research` 查看捕获的请求，加 `--static` 分析已加载脚本中的候选请求；按需检查 initial state、bundle 或 token 流程
 3. **定认证**——`PUBLIC` / `COOKIE` / `INTERCEPT` / `UI` / `LOCAL`
 4. **字段解码** + 设计输出列
-5. `opencli browser recon analyze <url>` → `opencli browser recon init <site>/<name>` → 写适配器 → `opencli browser recon verify <site>/<name>`
-6. 站点知识沉到 `~/.opencli/sites/<site>/`，下次同站点直接吃缓存
+5. `opencli adapter init <site>/<name>` → 写适配器 → `opencli adapter check <site>/<name>` → `opencli adapter test <site>/<name>`（用 `--args` 传入命令所需参数）
+6. 按需保存可复用的站点笔记和验证 fixture；这些并非必需
+
+`adapter check` 只校验定义，不执行适配器。`adapter test` 会运行命令，并可与已有 fixture 比较；写入型适配器可能产生真实操作。
 
 ## 配置
 

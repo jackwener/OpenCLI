@@ -107,13 +107,13 @@ cli({
 });
 ```
 
-Install the [`opencli-adapter-author` skill](./skills/opencli-adapter-author/SKILL.md) if you need the full adapter workflow — recon → API discovery → field decoding → `opencli browser verify`.
+Install the [`opencli-adapter-author` skill](./skills/opencli-adapter-author/SKILL.md) if you need the full adapter workflow — browser inspection → API discovery → field decoding → `opencli adapter check` and `opencli adapter test`.
 
 ### Validate Your Adapter
 
 ```bash
 # Validate adapter
-opencli validate
+opencli adapter check
 
 # Test your command
 opencli <site> <command> --limit 3 -f json
@@ -192,7 +192,7 @@ Common scopes: site name (`twitter`, `reddit`) or module name (`browser`, `pipel
    npx tsc --noEmit           # Type check
    npm test                   # Default local gate: unit + extension + adapter
    npm run test:adapter       # Adapter-only project (optional while iterating on adapters)
-   opencli validate           # Adapter validation
+   opencli adapter check      # Adapter definition validation
    ```
 4. Commit using conventional commit format
 5. Push and open a PR
