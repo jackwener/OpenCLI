@@ -107,6 +107,11 @@ function parseConversations(normalized, mailboxUrn) {
 
     const msgUrns = (conv.messages && conv.messages['*elements']) || [];
     const lastMsg = byUrn.get(msgUrns[0]);
+    // Who wrote the last message: the inbox owner ("us") or the other side ("them"). Empty when
+    // the payload does not resolve the sender, so a caller never mistakes our own message for a
+    // reply.
+    const sender = lastMsg ? byUrn.get(lastMsg['*sender'] || lastMsg['*actor']) : null;
+    const lastFrom = !sender || !mailboxUrn ? '' : (sender.hostIdentityUrn === mailboxUrn ? 'us' : 'them');
     let preview = lastMsg && lastMsg.body ? norm(lastMsg.body.text) : '';
     if (!preview) preview = norm(conv.descriptionText || '');
 
@@ -121,6 +126,7 @@ function parseConversations(normalized, mailboxUrn) {
         counterparty_type: counterpartyKind,
         category: Array.isArray(conv.categories) ? conv.categories.join(',') : '',
         timestamp: activityMs ? new Date(activityMs).toISOString() : '',
+        last_message_from: lastFrom,
       },
     });
   }
@@ -151,6 +157,7 @@ cli({
     'counterparty_type',
     'category',
     'timestamp',
+    'last_message_from',
   ],
   func: async (page, kwargs) => {
     // Validate --limit explicitly rather than silently clamping an out-of-range value.
@@ -220,6 +227,7 @@ cli({
       counterparty_type: c.counterparty_type,
       category: c.category,
       timestamp: c.timestamp,
+      last_message_from: c.last_message_from,
     }));
   },
 });

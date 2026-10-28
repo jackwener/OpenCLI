@@ -20939,7 +20939,8 @@
       "unread",
       "counterparty_type",
       "category",
-      "timestamp"
+      "timestamp",
+      "last_message_from"
     ],
     "type": "js",
     "modulePath": "linkedin/inbox.js",
@@ -21035,6 +21036,55 @@
     "navigateBefore": false,
     "siteSession": "persistent",
     "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "linkedin",
+    "name": "message",
+    "description": "Fail-closed first LinkedIn message to a 1st-degree connection, from their profile URL. Dry-run unless --send.",
+    "access": "write",
+    "domain": "www.linkedin.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "profile-url",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Exact LinkedIn profile URL of the recipient"
+      },
+      {
+        "name": "expected-name",
+        "type": "string",
+        "required": true,
+        "help": "Expected visible profile name (fail-closed check)"
+      },
+      {
+        "name": "text",
+        "type": "string",
+        "required": true,
+        "help": "Message text, at most 1900 characters"
+      },
+      {
+        "name": "send",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Actually click Send. Default is dry-run: verify the profile and open the message box, type nothing."
+      }
+    ],
+    "columns": [
+      "status",
+      "recipient",
+      "reason",
+      "profile_url",
+      "text_chars",
+      "thread_url"
+    ],
+    "type": "js",
+    "modulePath": "linkedin/message.js",
+    "sourceFile": "linkedin/message.js",
+    "navigateBefore": true
   },
   {
     "site": "linkedin",

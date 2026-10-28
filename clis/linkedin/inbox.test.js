@@ -31,7 +31,7 @@ function fixture() {
         hostIdentityUrn: 'urn:li:fsd_company:99',
         participantType: { organization: { name: { text: 'American Express' } } },
       },
-      { $type: 'com.linkedin.messenger.Message', entityUrn: 'urn:li:msg_message:M1', body: { text: 'hey, are you around   this week?' } },
+      { $type: 'com.linkedin.messenger.Message', entityUrn: 'urn:li:msg_message:M1', body: { text: 'hey, are you around   this week?' }, '*sender': 'urn:li:msg_messagingParticipant:P1' },
       { $type: 'com.linkedin.messenger.Message', entityUrn: 'urn:li:msg_message:M2', body: { text: 'Sponsored offer' } },
       {
         $type: 'com.linkedin.messenger.Conversation',
@@ -101,6 +101,16 @@ describe('linkedin inbox adapter', () => {
     expect(c2.counterparty_type).toBe('organization');
     expect(c2.unread).toBe(false);
     expect(c2.category).toBe('INBOX,PRIMARY_INBOX,INMAIL');
+  });
+
+  it('says who wrote the last message, and nothing when the payload does not say', () => {
+    const rows = parseConversations(fixture(), SELF);
+    expect(rows.find((r) => r.thread_id === '2-aaa==').last_message_from).toBe('them');
+    expect(rows.find((r) => r.thread_id === '2-bbb==').last_message_from).toBe('');
+    const ours = fixture();
+    ours.included.find((o) => o.entityUrn === 'urn:li:msg_message:M1')['*sender'] = 'urn:li:msg_messagingParticipant:SELF';
+    expect(parseConversations(ours, SELF).find((r) => r.thread_id === '2-aaa==').last_message_from).toBe('us');
+    expect(parseConversations(fixture(), '').find((r) => r.thread_id === '2-aaa==').last_message_from).toBe('');
   });
 
   it('uses the group title as the conversation name', () => {

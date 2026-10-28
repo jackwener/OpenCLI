@@ -1,7 +1,7 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { createHash } from 'node:crypto';
-import { canonicalizeLinkedInThreadUrl, normalizeWhitespace, unwrapEvaluateResult } from './shared.js';
+import { canonicalizeLinkedInThreadUrl, LINKEDIN_AUTH_WALL_JS, normalizeWhitespace, unwrapEvaluateResult } from './shared.js';
 
 const LINKEDIN_DOMAIN = 'www.linkedin.com';
 
@@ -89,9 +89,8 @@ function buildThreadProbeScript() {
     const clean = (s) => String(s || '').replace(/[\u00a0\u202f]/g, ' ').replace(/\s+/g, ' ').trim();
     const text = document.body ? (document.body.innerText || '') : '';
     const lower = text.toLowerCase();
-    const authRequired = /\b(sign in|log in|join linkedin)\b/i.test(text)
-      || /linkedin\.com\/(login|checkpoint|authwall)/i.test(location.href)
-      || /captcha|verification required/i.test(text);
+    ${LINKEDIN_AUTH_WALL_JS}
+    const authRequired = linkedInAuthWall();
     const searchFailure = /we didn't find anything|no results found|no results for/i.test(text);
 
     const headerCandidates = [];

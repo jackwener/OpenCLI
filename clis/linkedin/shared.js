@@ -134,16 +134,35 @@ export async function requireLinkedInCookie(page, context) {
   return jsession.replace(/^"|"$/g, '');
 }
 
+// In-page auth-wall check. Every LinkedIn probe script embeds it and calls linkedInAuthWall().
+// DESIGN: page structure outranks page text. Signed-in pages carry other members' words (posts,
+// headlines, messages, invitation cards), and those say "log in" or "sign in" for their own
+// reasons: on 2026-09-26 a post reading "Log in to https://exoc.ad/..." made a signed-in profile
+// look like an auth wall, and the connect probe hard-stopped the day's invitations. So a wall is
+// LinkedIn's own login route, its login form or a captcha frame; the signed-in global nav (its
+// messaging and notifications links) proves a session; the text patterns decide only a page that
+// shows neither.
+export const LINKEDIN_AUTH_WALL_JS = String.raw`
+    const linkedInAuthWall = () => {
+      if (/^\/(?:login|checkpoint|authwall|uas)(?:\/|$)/i.test(location.pathname || '')) return true;
+      if (document.querySelector('input[name="session_key"], input[name="session_password"], iframe[src*="captcha" i], iframe[title*="captcha" i], iframe[src*="arkoselabs" i]')) return true;
+      const signedInNav = Array.from(document.querySelectorAll('a[href]')).some((a) => {
+        try {
+          const url = new URL(a.getAttribute('href'), location.href);
+          return /(?:^|\.)linkedin\.com$/i.test(url.hostname) && /^\/(?:messaging|notifications)(?:\/|$)/i.test(url.pathname);
+        } catch { return false; }
+      });
+      if (signedInNav) return false;
+      const text = (document.title || '') + '\n' + (document.body ? (document.body.innerText || '').slice(0, 4000) : '');
+      return /\b(?:sign in|log in|join linkedin|captcha|verification required)\b/i.test(text)
+        || /(?:请登录|登录领英|安全验证)/.test(text);
+    };
+`;
+
 export function buildAuthProbeScript() {
   return String.raw`(() => {
-    const text = [
-      window.location.href || '',
-      document.title || '',
-      document.body ? (document.body.innerText || '').slice(0, 4000) : '',
-    ].join('\n');
-    return /linkedin\.com\/(?:login|checkpoint|authwall|uas)/i.test(text)
-      || /\b(sign in|log in|join linkedin|captcha|verification required)\b/i.test(text)
-      || /(请登录|登录领英|安全验证)/.test(text);
+    ${LINKEDIN_AUTH_WALL_JS}
+    return linkedInAuthWall();
   })()`;
 }
 
