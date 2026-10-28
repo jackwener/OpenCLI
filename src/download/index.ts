@@ -3,6 +3,7 @@
  */
 
 import { execFileSync, spawn } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
@@ -131,7 +132,8 @@ export async function httpDownload(
     requestHeaders['Cookie'] = cookies;
   }
 
-  const tempPath = `${destPath}.tmp`;
+  // Keep each in-flight download isolated, including its failure cleanup.
+  const tempPath = path.join(path.dirname(destPath), `.opencli-download-${randomUUID()}.tmp`);
 
   const cleanupTempFile = async () => {
     try {
