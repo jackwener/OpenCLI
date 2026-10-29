@@ -636,6 +636,75 @@ describe('background tab isolation', () => {
     expect(create).toHaveBeenCalledWith({ windowId: 1, url: 'https://new.example', active: true });
   });
 
+  it('rejects a new background lease when the owned window becomes focused', async () => {
+    const { chrome, create, tabs, setLastFocusedWindowId } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    const first = await mod.__test__.handleCommand({
+      id: 'first', action: 'tabs', op: 'new', session: 'first', surface: 'adapter',
+      windowMode: 'background', url: 'https://first.example',
+    });
+    expect(first.ok).toBe(true);
+    create.mockClear();
+    setLastFocusedWindowId(1);
+    const activeTabId = tabs.find(tab => tab.windowId === 1 && tab.active)?.id;
+
+    const result = await mod.__test__.handleCommand({
+      id: 'second', action: 'tabs', op: 'new', session: 'second', surface: 'adapter',
+      windowMode: 'background', url: 'https://second.example',
+    });
+
+    expect(result).toMatchObject({ id: 'second', ok: false, errorCode: 'background_window_focused' });
+    expect(create).not.toHaveBeenCalled();
+    expect(tabs.find(tab => tab.windowId === 1 && tab.active)?.id).toBe(activeTabId);
+    expect(mod.__test__.getSession(adapterKey('second'))).toBeNull();
+  });
+
+  it('rejects new and selected tabs in a focused background container without changing the lease', async () => {
+    const { chrome, create, update, tabs, setLastFocusedWindowId } = createChromeMock();
+    tabs.push({ id: 10, windowId: 1, url: 'https://other.example', title: 'other', active: false, status: 'complete', groupId: -1 });
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    mod.__test__.setSession(adapterKey('twitter'), { windowId: 1, owned: true, preferredTabId: 10 });
+    setLastFocusedWindowId(1);
+
+    for (const cmd of [
+      { id: 'new', op: 'new', url: 'https://new.example' },
+      { id: 'select-page', op: 'select', page: 'target-10' },
+      { id: 'select-index', op: 'select', index: 0 },
+    ] as const) {
+      const result = await mod.__test__.handleCommand({
+        ...cmd, action: 'tabs', session: 'twitter', surface: 'adapter', windowMode: 'background',
+      });
+      expect(result).toMatchObject({ id: cmd.id, ok: false, errorCode: 'background_window_focused' });
+    }
+
+    expect(create).not.toHaveBeenCalled();
+    expect(update).not.toHaveBeenCalledWith(10, { active: true });
+    expect(tabs.find(tab => tab.id === 1)?.active).toBe(true);
+    expect(tabs.find(tab => tab.id === 10)?.active).toBe(false);
+    expect(mod.__test__.getSession(adapterKey('twitter'))?.preferredTabId).toBe(10);
+  });
+
+  it('permits explicit foreground tab creation in the focused container', async () => {
+    const { chrome, create, setLastFocusedWindowId } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    mod.__test__.setSession(adapterKey('twitter'), { windowId: 1, owned: true, preferredTabId: 1 });
+    setLastFocusedWindowId(1);
+
+    const result = await mod.__test__.handleCommand({
+      id: 'foreground-new', action: 'tabs', op: 'new', session: 'twitter', surface: 'adapter',
+      windowMode: 'foreground', url: 'https://new.example',
+    });
+
+    expect(result.ok).toBe(true);
+    expect(create).toHaveBeenCalledWith({ windowId: 1, url: 'https://new.example', active: true });
+  });
+
   it('reuses the initial container tab for first tab-new lease instead of leaving a blank tab', async () => {
     const { chrome, create, update } = createChromeMock();
     vi.stubGlobal('chrome', chrome);

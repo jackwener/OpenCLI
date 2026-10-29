@@ -1682,10 +1682,22 @@ function initialTabIsAvailable(tabId) {
 async function createOwnedTabLease(leaseKey, initialUrl) {
   return withLeaseMutation(() => createOwnedTabLeaseUnlocked(leaseKey, initialUrl));
 }
+async function assertBackgroundTabActivationAllowed(leaseKey, windowId) {
+  if (getWindowMode(leaseKey) !== "background") return;
+  const window = await chrome.windows.get(windowId);
+  if (window.focused) {
+    throw new CommandFailure(
+      "background_window_focused",
+      "Cannot activate an OpenCLI tab while its Chrome window is focused in background mode.",
+      "Switch away from this Chrome window and retry, or explicitly use foreground mode."
+    );
+  }
+}
 async function createOwnedTabLeaseUnlocked(leaseKey, initialUrl) {
   const targetUrl = initialUrl && isSafeNavigationUrl(initialUrl) ? initialUrl : BLANK_PAGE;
   const role = getOwnedWindowRole(leaseKey);
   const { windowId, initialTabId } = await ensureOwnedContainerWindow(role, BLANK_PAGE, getWindowMode(leaseKey));
+  await assertBackgroundTabActivationAllowed(leaseKey, windowId);
   let tab;
   if (initialTabIsAvailable(initialTabId)) {
     tab = await chrome.tabs.get(initialTabId);
@@ -2293,6 +2305,7 @@ async function handleTabs(cmd, leaseKey) {
         return pageScopedResult(cmd.id, created.tabId, { url: created.tab?.url });
       }
       const windowId = await getAutomationWindow(leaseKey);
+      await assertBackgroundTabActivationAllowed(leaseKey, windowId);
       let tab = await chrome.tabs.create({ windowId, url: cmd.url ?? BLANK_PAGE, active: true });
       const tabId = tab.id;
       if (!tabId) return { id: cmd.id, ok: false, error: "Failed to create tab" };
@@ -2380,6 +2393,7 @@ async function handleTabs(cmd, leaseKey) {
         if (!session2 || tab.windowId !== session2.windowId) {
           return { id: cmd.id, ok: false, error: `Page is not in the automation container` };
         }
+        await assertBackgroundTabActivationAllowed(leaseKey, tab.windowId);
         await chrome.tabs.update(cmdTabId, { active: true });
         preferOwnedTab(leaseKey, cmdTabId);
         return pageScopedResult(cmd.id, cmdTabId, { selected: true });
@@ -2387,6 +2401,7 @@ async function handleTabs(cmd, leaseKey) {
       const tabs = await listAutomationWebTabs(leaseKey);
       const target = tabs[cmd.index];
       if (!target?.id) return { id: cmd.id, ok: false, error: `Tab index ${cmd.index} not found` };
+      await assertBackgroundTabActivationAllowed(leaseKey, target.windowId);
       await chrome.tabs.update(target.id, { active: true });
       preferOwnedTab(leaseKey, target.id);
       return pageScopedResult(cmd.id, target.id, { selected: true });

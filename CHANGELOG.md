@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixes
+
+- In background mode, reject owned tab creation and selection when its Chrome window is focused, preserving the current visible tab and input focus.
+
 ## [2.0.2](https://github.com/jackwener/opencli/compare/v2.0.1...v2.0.2) (2026-10-20)
 
 ### Fixes
