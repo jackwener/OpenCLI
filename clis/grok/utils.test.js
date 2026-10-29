@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ArgumentError } from '@jackwener/opencli/errors';
 import { JSDOM } from 'jsdom';
-import { __test__, isLoggedIn, isOnGrok, normalizeBooleanFlag, parseGrokSessionId, sendMessage, waitForAnswer } from './utils.js';
+import { __test__, getMessageBubbles, isLoggedIn, isOnGrok, normalizeBooleanFlag, parseGrokSessionId, sendMessage, waitForAnswer } from './utils.js';
 
 describe('grok parseGrokSessionId', () => {
     const id = '7c4197f2-10a1-4ebb-a84a-fea89f4f1d06';
@@ -278,5 +278,34 @@ describe('grok waitForAnswer', () => {
         now.mockRestore();
         expect(result.status).toBe('ok');
         expect(result.assistant.text).toBe('Fallos reales: 1. recibos=[]');
+    });
+});
+
+describe('grok getMessageBubbles text', () => {
+    it('drops the screen-reader speaker label and the reasoning timer', async () => {
+        const dom = new JSDOM(
+            '<!doctype html><body>'
+            + '<div id="response-1"><div data-testid="user-message">'
+            + '<h2 class="sr-only">You</h2><div class="relative">hello there</div>'
+            + '<section class="inline-media-container flex flex-col gap-1 clear-both"></section>'
+            + '</div></div>'
+            + '<div id="response-1"><div data-testid="assistant-message">'
+            + '<h2 class="sr-only">Grok</h2><div class="thinking-container mb-1">Worked for 3s</div>'
+            + '<div class="relative">hi back</div>'
+            + '<div class="flex gap-2 mt-2 -ms-2 print:hidden"></div>'
+            + '</div></div>'
+            + '</body>',
+            { runScripts: 'outside-only' },
+        );
+        const { window } = dom;
+        Object.defineProperty(window.HTMLElement.prototype, 'getBoundingClientRect', {
+            configurable: true,
+            value: () => ({ width: 100, height: 20, top: 0, left: 0, right: 100, bottom: 20 }),
+        });
+        const page = { evaluate: async (script) => window.eval(script) };
+
+        const bubbles = await getMessageBubbles(page);
+
+        expect(bubbles.map((bubble) => bubble.text)).toEqual(['hello there', 'hi back']);
     });
 });

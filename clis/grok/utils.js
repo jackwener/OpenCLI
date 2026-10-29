@@ -14,6 +14,24 @@ export const IS_VISIBLE_JS = `
   };
 `;
 
+// Grok wraps every turn in screen-reader and chrome nodes that innerText
+// picks up: `h2.sr-only` carries the speaker label ("你" / "Grok") and
+// `.thinking-container` carries the reasoning timer ("工作了 3s"). Strip them
+// from a clone so a bubble's text is just the message.
+export const MESSAGE_TEXT_JS = `
+  const messageText = (node) => {
+    const clone = node.cloneNode(true);
+    clone.querySelectorAll('h2.sr-only, .thinking-container').forEach((child) => child.remove());
+    const holder = document.createElement('div');
+    holder.style.cssText = 'position:fixed;left:-99999px;top:0;width:800px;';
+    holder.appendChild(clone);
+    document.body.appendChild(holder);
+    const text = (clone.innerText || clone.textContent || '').replace(/\\s+/g, ' ').trim();
+    holder.remove();
+    return text;
+  };
+`;
+
 export function authRequired(detail) {
     return new AuthRequiredError(
         GROK_DOMAIN,
@@ -151,6 +169,7 @@ export async function getMessageBubbles(page) {
     // not distinguish role on its own.
     const result = await page.evaluate(`(() => {
     ${IS_VISIBLE_JS}
+    ${MESSAGE_TEXT_JS}
     const findResponseId = (node) => {
       let parent = node.parentElement;
       while (parent && parent !== document.body) {
@@ -171,7 +190,7 @@ export async function getMessageBubbles(page) {
       const id = baseId + (isAssistant ? '-assistant' : '-user');
       positional += 1;
       const html = node.innerHTML || '';
-      const text = (node.innerText || node.textContent || '').replace(/\\s+/g, ' ').trim();
+      const text = messageText(node);
       out.push({ id, role: isAssistant ? 'Assistant' : 'User', text, html });
     }
     return out;
@@ -476,6 +495,7 @@ export async function sendMessage(page, prompt) {
     return await page.evaluate(`(async () => {
     const waitFor = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     const normalize = (value) => String(value || '').replace(/\\s+/g, ' ').trim();
+    ${MESSAGE_TEXT_JS}
     const composerSelector = '.ProseMirror[contenteditable="true"]';
     const isVisible = (node) => {
       if (!(node instanceof Element)) return false;
@@ -497,7 +517,7 @@ export async function sendMessage(page, prompt) {
       .filter((node) => node instanceof HTMLElement && isVisible(node))
       .map((node, index) => ({
         id: responseIdFor(node) || ('pos-' + index),
-        text: normalize(node.innerText || node.textContent || ''),
+        text: normalize(messageText(node)),
       }))
       .filter((turn) => turn.text);
     const promptText = normalize(${promptJson});
