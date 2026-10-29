@@ -431,6 +431,35 @@ function getTurnsScript() {
         .replace(/\\n{3,}/g, '\\n\\n')
         .trim();
 
+      const textOf = (node) => clean(node && (node.textContent || ''));
+
+      // Current Gemini web DOM groups each exchange in a conversation-container,
+      // with the prompt under user-query-container (query-text-line per line) and
+      // the answer under response-container (model-response-text). Reading those
+      // directly avoids the duplicate matches a broad message-class sweep produced.
+      //
+      // textContent is used on purpose: Gemini lays out off-screen responses
+      // with zero height, so innerText is empty there even though the text is
+      // present in the DOM.
+      const turns = [];
+      const containers = Array.from(document.querySelectorAll('.conversation-container'));
+      for (const container of containers) {
+        const userLines = Array.from(container.querySelectorAll('.query-text-line'))
+          .map(textOf)
+          .filter(Boolean);
+        const userText = userLines.length
+          ? userLines.join('\\n')
+          : textOf(container.querySelector('.query-text'));
+        if (userText) turns.push({ Role: 'User', Text: userText });
+
+        const responses = Array.from(container.querySelectorAll('.model-response-text'))
+          .map(textOf)
+          .filter(Boolean);
+        if (responses.length) turns.push({ Role: 'Assistant', Text: responses[responses.length - 1] });
+      }
+      if (turns.length > 0) return turns;
+
+      // Fallback for older layouts: broad selector sweep with role sniffing.
       const isVisible = (el) => {
         if (!(el instanceof HTMLElement)) return false;
         const style = window.getComputedStyle(el);
@@ -460,7 +489,7 @@ function getTurnsScript() {
           return 0;
         });
 
-      const turns = unique.map((el) => {
+      const legacy = unique.map((el) => {
         const text = clean(el.innerText || el.textContent || '');
         if (!text) return null;
 
@@ -478,7 +507,7 @@ function getTurnsScript() {
         return role ? { Role: role, Text: text } : null;
       }).filter(Boolean);
 
-      return turns;
+      return legacy;
     })()
   `;
 }
