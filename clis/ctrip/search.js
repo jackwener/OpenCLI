@@ -7,6 +7,7 @@ import { fetchSuggest, mapSuggestRow, parseLimit } from './utils.js';
 
 cli({
     site: 'ctrip',
+    domain: 'ctrip.com',
     name: 'search',
     access: 'read',
     description: '搜索携程目的地、景区、火车站和地标联想结果',

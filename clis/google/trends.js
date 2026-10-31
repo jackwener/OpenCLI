@@ -7,6 +7,7 @@ import { CliError } from '@jackwener/opencli/errors';
 import { parseRssItems } from './utils.js';
 cli({
     site: 'google',
+    domain: 'google.com',
     name: 'trends',
     access: 'read',
     description: 'Get Google Trends daily trending searches',

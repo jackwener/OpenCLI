@@ -3,6 +3,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 import { DESC_MAX_LEN, wikiFetch } from './utils.js';
 cli({
     site: 'wikipedia',
+    domain: 'wikipedia.org',
     name: 'trending',
     access: 'read',
     description: 'Most-read Wikipedia articles (yesterday)',

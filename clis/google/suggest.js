@@ -6,6 +6,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CliError } from '@jackwener/opencli/errors';
 cli({
     site: 'google',
+    domain: 'google.com',
     name: 'suggest',
     access: 'read',
     description: 'Get Google search suggestions',

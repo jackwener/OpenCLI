@@ -82,6 +82,7 @@ function hasData(rows) {
 
 cli({
     site: 'guazi',
+    domain: 'guazi.com',
     name: 'car',
     access: 'read',
     aliases: ['detail'],

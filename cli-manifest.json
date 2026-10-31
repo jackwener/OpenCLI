@@ -1656,6 +1656,7 @@
     "name": "episodes",
     "description": "List recent episodes of an Apple Podcast (use ID from search)",
     "access": "read",
+    "domain": "podcasts.apple.com",
     "strategy": "public",
     "browser": false,
     "args": [
@@ -1688,6 +1689,7 @@
     "name": "search",
     "description": "Search Apple Podcasts",
     "access": "read",
+    "domain": "podcasts.apple.com",
     "strategy": "public",
     "browser": false,
     "args": [
@@ -1723,6 +1725,7 @@
     "name": "top",
     "description": "Top podcasts chart on Apple Podcasts",
     "access": "read",
+    "domain": "podcasts.apple.com",
     "strategy": "public",
     "browser": false,
     "args": [
@@ -1920,6 +1923,7 @@
     "name": "author",
     "description": "List arXiv papers by a given author (newest first)",
     "access": "read",
+    "domain": "arxiv.org",
     "strategy": "public",
     "browser": false,
     "args": [
@@ -1955,6 +1959,7 @@
     "name": "paper",
     "description": "Get arXiv paper details by ID",
     "access": "read",
+    "domain": "arxiv.org",
     "strategy": "public",
     "browser": false,
     "args": [
@@ -1988,6 +1993,7 @@
     "name": "recent",
     "description": "List recent arXiv submissions in a category",
     "access": "read",
+    "domain": "arxiv.org",
     "strategy": "public",
     "browser": false,
     "args": [
@@ -2023,6 +2029,7 @@
     "name": "search",
     "description": "Search arXiv papers",
     "access": "read",
+    "domain": "arxiv.org",
     "strategy": "public",
     "browser": false,
     "args": [
@@ -2061,6 +2068,7 @@
     ],
     "description": "汽车之家按品牌列出全部车系 + 厂商指导价（免登录）",
     "access": "read",
+    "domain": "autohome.com.cn",
     "strategy": "public",
     "browser": false,
     "args": [
@@ -2098,6 +2106,7 @@
     ],
     "description": "汽车之家车系口碑评分（总分 + 各维度 + 故障率PPH + 竞品对比，免登录）",
     "access": "read",
+    "domain": "autohome.com.cn",
     "strategy": "public",
     "browser": false,
     "args": [
@@ -3387,6 +3396,7 @@
     "name": "video",
     "description": "Get Bilibili video metadata (title, author, duration, stats, etc.)",
     "access": "read",
+    "domain": "bilibili.com",
     "strategy": "cookie",
     "browser": true,
     "args": [
@@ -3411,7 +3421,7 @@
     "type": "js",
     "modulePath": "bilibili/video.js",
     "sourceFile": "bilibili/video.js",
-    "navigateBefore": true
+    "navigateBefore": "https://bilibili.com"
   },
   {
     "site": "bilibili",
@@ -7586,6 +7596,7 @@
     "name": "hotel-suggest",
     "description": "搜索携程酒店上下文联想：城市、商圈、单酒店匹配",
     "access": "read",
+    "domain": "ctrip.com",
     "strategy": "public",
     "browser": false,
     "args": [
@@ -7701,6 +7712,7 @@
     "name": "search",
     "description": "搜索携程目的地、景区、火车站和地标联想结果",
     "access": "read",
+    "domain": "ctrip.com",
     "strategy": "public",
     "browser": false,
     "args": [
@@ -8861,6 +8873,7 @@
     ],
     "description": "懂车帝车系口碑/车主评价（评分 / 购车款型 / 点赞 / 评论 / 正文摘要）",
     "access": "read",
+    "domain": "dongchedi.com",
     "strategy": "public",
     "browser": false,
     "args": [
@@ -8901,6 +8914,7 @@
     ],
     "description": "懂车帝车系款型列表（car_id / 名称 / 年款 / 指导价 / 经销商价 / 车主成交价）",
     "access": "read",
+    "domain": "dongchedi.com",
     "strategy": "public",
     "browser": false,
     "args": [
@@ -8939,6 +8953,7 @@
     ],
     "description": "懂车帝车系评分（懂车分 8 维度 + 同级车均值对比）",
     "access": "read",
+    "domain": "dongchedi.com",
     "strategy": "public",
     "browser": false,
     "args": [
@@ -8964,6 +8979,7 @@
     "name": "search",
     "description": "懂车帝车系搜索（按关键词，返回车系 + 指导价/经销商价）",
     "access": "read",
+    "domain": "dongchedi.com",
     "strategy": "public",
     "browser": false,
     "args": [
@@ -9004,6 +9020,7 @@
     ],
     "description": "懂车帝车系概览（品牌 / 指导价 / 二手价 / 懂车分 / 销量排名 / 在售款型数）",
     "access": "read",
+    "domain": "dongchedi.com",
     "strategy": "public",
     "browser": false,
     "args": [
@@ -9031,6 +9048,7 @@
     ],
     "description": "懂车帝车系配置概览（尺寸 / 动力 / 发动机 / 变速箱 / 四驱 / 悬挂 / 气囊）",
     "access": "read",
+    "domain": "dongchedi.com",
     "strategy": "public",
     "browser": false,
     "args": [
@@ -13693,6 +13711,7 @@
     "name": "news",
     "description": "Get Google News headlines",
     "access": "read",
+    "domain": "google.com",
     "strategy": "public",
     "browser": false,
     "args": [
@@ -13781,6 +13800,7 @@
     "name": "suggest",
     "description": "Get Google search suggestions",
     "access": "read",
+    "domain": "google.com",
     "strategy": "public",
     "browser": false,
     "args": [
@@ -13811,6 +13831,7 @@
     "name": "trends",
     "description": "Get Google Trends daily trending searches",
     "access": "read",
+    "domain": "google.com",
     "strategy": "public",
     "browser": false,
     "args": [
@@ -14687,6 +14708,7 @@
     ],
     "description": "瓜子二手车在售车源列表（按城市，含售价/首付/里程/年份）",
     "access": "read",
+    "domain": "guazi.com",
     "strategy": "public",
     "browser": false,
     "args": [
@@ -14728,6 +14750,7 @@
     ],
     "description": "瓜子二手车车源详情（售价 / 上牌 / 里程 / 过户 / 配置 / 车况）",
     "access": "read",
+    "domain": "guazi.com",
     "strategy": "public",
     "browser": false,
     "args": [
@@ -23355,6 +23378,7 @@
     "description": "Validate Mercury reimbursement inputs and print the draft plan without opening a browser",
     "access": "read",
     "example": "opencli mercury reimbursement-plan --receipt /tmp/receipt.png --amount 140.00 --currency CNY --date 2026-06-26 --merchant \"Example Merchant\" --category \"Marketing & Advertising\" --notes \"Example business purpose.\" -f json",
+    "domain": "mercury.com",
     "strategy": "local",
     "browser": false,
     "args": [
@@ -33450,6 +33474,7 @@
     "name": "auth",
     "description": "Authenticate with Spotify (OAuth — run once)",
     "access": "write",
+    "domain": "spotify.com",
     "strategy": "public",
     "browser": false,
     "args": [],
@@ -33465,6 +33490,7 @@
     "name": "next",
     "description": "Skip to next track",
     "access": "write",
+    "domain": "spotify.com",
     "strategy": "public",
     "browser": false,
     "args": [],
@@ -33480,6 +33506,7 @@
     "name": "pause",
     "description": "Pause playback",
     "access": "write",
+    "domain": "spotify.com",
     "strategy": "public",
     "browser": false,
     "args": [],
@@ -33495,6 +33522,7 @@
     "name": "play",
     "description": "Resume playback or search and play a track/artist",
     "access": "write",
+    "domain": "spotify.com",
     "strategy": "public",
     "browser": false,
     "args": [
@@ -33521,6 +33549,7 @@
     "name": "prev",
     "description": "Skip to previous track",
     "access": "write",
+    "domain": "spotify.com",
     "strategy": "public",
     "browser": false,
     "args": [],
@@ -33536,6 +33565,7 @@
     "name": "queue",
     "description": "Add a track to the playback queue",
     "access": "write",
+    "domain": "spotify.com",
     "strategy": "public",
     "browser": false,
     "args": [
@@ -33561,6 +33591,7 @@
     "name": "repeat",
     "description": "Set repeat mode (off / track / context)",
     "access": "write",
+    "domain": "spotify.com",
     "strategy": "public",
     "browser": false,
     "args": [
@@ -33590,6 +33621,7 @@
     "name": "search",
     "description": "Search for tracks",
     "access": "read",
+    "domain": "spotify.com",
     "strategy": "public",
     "browser": false,
     "args": [
@@ -33623,6 +33655,7 @@
     "name": "shuffle",
     "description": "Toggle shuffle on/off",
     "access": "write",
+    "domain": "spotify.com",
     "strategy": "public",
     "browser": false,
     "args": [
@@ -33651,6 +33684,7 @@
     "name": "status",
     "description": "Show current playback status",
     "access": "read",
+    "domain": "spotify.com",
     "strategy": "public",
     "browser": false,
     "args": [],
@@ -33670,6 +33704,7 @@
     "name": "volume",
     "description": "Set playback volume (0-100)",
     "access": "write",
+    "domain": "spotify.com",
     "strategy": "public",
     "browser": false,
     "args": [
@@ -40606,6 +40641,7 @@
     "name": "random",
     "description": "Get a random Wikipedia article",
     "access": "read",
+    "domain": "wikipedia.org",
     "strategy": "public",
     "browser": false,
     "args": [
@@ -40632,6 +40668,7 @@
     "name": "search",
     "description": "Search Wikipedia articles",
     "access": "read",
+    "domain": "wikipedia.org",
     "strategy": "public",
     "browser": false,
     "args": [
@@ -40671,6 +40708,7 @@
     "name": "summary",
     "description": "Get Wikipedia article summary",
     "access": "read",
+    "domain": "wikipedia.org",
     "strategy": "public",
     "browser": false,
     "args": [
@@ -40704,6 +40742,7 @@
     "name": "trending",
     "description": "Most-read Wikipedia articles (yesterday)",
     "access": "read",
+    "domain": "wikipedia.org",
     "strategy": "public",
     "browser": false,
     "args": [
@@ -43430,6 +43469,7 @@
     "name": "models",
     "description": "List available Yollomi AI models (image, video, tools)",
     "access": "read",
+    "domain": "yollomi.com",
     "strategy": "public",
     "browser": false,
     "args": [

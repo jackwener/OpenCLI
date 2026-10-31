@@ -3,6 +3,7 @@ import { EmptyResultError } from '@jackwener/opencli/errors';
 import { arxivFetch, normalizeArxivCategory, normalizeArxivLimit, parseEntries } from './utils.js';
 cli({
     site: 'arxiv',
+    domain: 'arxiv.org',
     name: 'recent',
     access: 'read',
     description: 'List recent arXiv submissions in a category',
