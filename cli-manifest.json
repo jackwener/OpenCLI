@@ -42312,6 +42312,75 @@
   },
   {
     "site": "xiaohongshu",
+    "name": "publish-video",
+    "description": "小红书发布视频笔记 (creator center UI automation)",
+    "access": "write",
+    "domain": "creator.xiaohongshu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "content",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "笔记正文"
+      },
+      {
+        "name": "title",
+        "type": "str",
+        "required": true,
+        "help": "笔记标题 (最多20字)"
+      },
+      {
+        "name": "video",
+        "type": "str",
+        "required": true,
+        "help": "视频绝对路径 (.mp4/.mov)"
+      },
+      {
+        "name": "cover",
+        "type": "str",
+        "required": false,
+        "help": "可选：自定义封面图片路径 (.png/.jpg)"
+      },
+      {
+        "name": "topics",
+        "type": "str",
+        "required": false,
+        "help": "话题标签，逗号分隔，不含 # 号"
+      },
+      {
+        "name": "declaration",
+        "type": "str",
+        "required": false,
+        "help": "内容类型声明：ai = 笔记含AI合成内容"
+      },
+      {
+        "name": "schedule",
+        "type": "str",
+        "required": false,
+        "help": "定时发布，格式 \"YYYY-MM-DD HH:mm\"（本地时间）"
+      },
+      {
+        "name": "draft",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "保存为草稿，不直接发布"
+      }
+    ],
+    "columns": [
+      "status",
+      "detail"
+    ],
+    "type": "js",
+    "modulePath": "xiaohongshu/publish-video.js",
+    "sourceFile": "xiaohongshu/publish-video.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "xiaohongshu",
     "name": "saved",
     "description": "小红书收藏笔记列表",
     "access": "read",
