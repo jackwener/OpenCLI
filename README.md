@@ -114,6 +114,10 @@ Use OpenCLI directly when you want a reliable command instead of a live browser 
 
 If you want to add your own commands, start with the [Extending OpenCLI guide](./docs/guide/extending-opencli.md). README keeps this short; the guide covers the directory layout, source-control model, and install commands.
 
+Adapters can use [pipeline pagination](./docs/developer/pipeline-pagination.md)
+to collect cursor, page-number, or offset APIs with request limits, deduplication,
+resume checkpoints, and explicit completion metadata.
+
 | Need | Recommended path |
 |------|------------------|
 | Keep personal website commands in your own Git repo | `opencli plugin create` + `opencli plugin install file://...` |

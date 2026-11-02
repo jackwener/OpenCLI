@@ -62,6 +62,11 @@ cli({
 
 See [`hackernews/top.js`](clis/hackernews/top.js) for a real example.
 
+For paginated APIs, use the `paginate` step to collect cursor, page-number, or
+offset results with bounded requests, deduplication, and resume checkpoints.
+See [pipeline pagination](./docs/developer/pipeline-pagination.md) for examples
+and how to preserve completeness information in an adapter's output.
+
 The `fetch` step also supports JSON request bodies and explicit per-item batches.
 Use `method: 'POST'` with `body` for GraphQL or JSON APIs; nested body fields can
 reference `${{ args.query }}`, `${{ data }}`, or `${{ item.id }}` in a batch.

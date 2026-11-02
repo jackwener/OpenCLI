@@ -10,6 +10,8 @@ export interface RenderContext {
   root?: unknown;
   item?: unknown;
   index?: number;
+  /** Available inside paginate requests and response selectors. Page is one-based. */
+  pagination?: { value: string | number | null; page: number };
 }
 
 import { isRecord } from '../utils.js';
@@ -38,6 +40,7 @@ export function evalExpr(expr: string, ctx: RenderContext): unknown {
   const data = ctx.data;
   const root = ctx.root;
   const index = ctx.index ?? 0;
+  const pagination = ctx.pagination;
 
   // ── Pipe filters: expr | filter1(arg) | filter2 ──
   // Split on single | (not ||) so "item.a || item.b | upper" works correctly.
@@ -60,12 +63,12 @@ export function evalExpr(expr: string, ctx: RenderContext): unknown {
   if (/^\d+(\.\d+)?$/.test(expr)) return Number(expr);
 
   // Try resolving as a simple dotted path (item.foo.bar, args.limit, index)
-  const resolved = resolvePath(expr, { args, item, data, root, index });
+  const resolved = resolvePath(expr, { args, item, data, root, index, pagination });
   if (resolved !== null && resolved !== undefined) return resolved;
 
   // Fallback: evaluate as JS in a sandboxed VM.
   // Handles ||, ??, arithmetic, ternary, method calls, etc. natively.
-  return evalJsExpr(expr, { args, item, data, root, index });
+  return evalJsExpr(expr, { args, item, data, root, index, pagination });
 }
 
 /**
@@ -166,6 +169,7 @@ export function resolvePath(pathStr: string, ctx: RenderContext): unknown {
   else if (rootName === 'item') { obj = item; rest = parts.slice(1); }
   else if (rootName === 'data') { obj = data; rest = parts.slice(1); }
   else if (rootName === 'root') { obj = root; rest = parts.slice(1); }
+  else if (rootName === 'pagination' && ctx.pagination !== undefined) { obj = ctx.pagination; rest = parts.slice(1); }
   else if (rootName === 'index') return index;
   else { obj = item; rest = parts; }
   for (const part of rest) {
@@ -273,6 +277,7 @@ function getReusableContext(): { sandbox: Record<string, unknown>; context: vm.C
     item: {},
     data: null,
     root: null,
+    pagination: undefined,
     index: 0,
     encodeURIComponent,
     decodeURIComponent,
@@ -292,7 +297,7 @@ function getReusableContext(): { sandbox: Record<string, unknown>; context: vm.C
 
 /** Properties that are part of the sandbox's initial shape and safe to keep. */
 const SANDBOX_WHITELIST = new Set([
-  'args', 'item', 'data', 'root', 'index',
+  'args', 'item', 'data', 'root', 'index', 'pagination',
   'encodeURIComponent', 'decodeURIComponent',
   'JSON', 'Math', 'Number', 'String', 'Boolean', 'Array', 'Date',
 ]);
@@ -321,6 +326,7 @@ function evalJsExpr(expr: string, ctx: RenderContext): unknown {
     sandbox.item = sanitizeContext(ctx.item ?? {});
     sandbox.data = sanitizeContext(ctx.data);
     sandbox.root = sanitizeContext(ctx.root);
+    sandbox.pagination = sanitizeContext(ctx.pagination);
     sandbox.index = ctx.index ?? 0;
     return script.runInContext(context, { timeout: 50 });
   } catch {

@@ -101,6 +101,8 @@ opencli bilibili hot --limit 5
 
 如果你想新增自己的命令，先看 [扩展 OpenCLI](./docs/zh/guide/extending-opencli.md)。README 只保留入口；目录结构、源码管理方式和安装命令放在文档里。
 
+适配器可使用 [`paginate` 管道步骤](./docs/developer/pipeline-pagination.md)读取游标、页码或偏移量分页接口，支持请求上限、去重、断点续读和明确的完整性信息。
+
 | 需求 | 推荐路径 |
 |------|----------|
 | 把个人网站命令放在自己的 Git repo | `opencli plugin create` + `opencli plugin install file://...` |

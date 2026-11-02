@@ -8,6 +8,7 @@ import type { IPage } from '../types.js';
 // Import core steps
 import { stepNavigate, stepClick, stepType, stepFill, stepWait, stepPress, stepSnapshot, stepEvaluate } from './steps/browser.js';
 import { stepFetch } from './steps/fetch.js';
+import { stepPaginate } from './steps/paginate.js';
 import { stepSelect, stepMap, stepFilter, stepSort, stepLimit } from './steps/transform.js';
 import { stepIntercept } from './steps/intercept.js';
 import { stepTap } from './steps/tap.js';
@@ -58,6 +59,7 @@ export function registerStep(name: string, handler: StepHandler): void {
 // -------------------------------------------------------------
 registerStep('navigate', stepNavigate);
 registerStep('fetch', stepFetch);
+registerStep('paginate', stepPaginate);
 registerStep('select', stepSelect);
 registerStep('evaluate', stepEvaluate);
 registerStep('snapshot', stepSnapshot);

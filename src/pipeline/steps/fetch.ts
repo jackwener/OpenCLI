@@ -78,6 +78,19 @@ async function fetchSingle(page: IPage | null, request: FetchRequest): Promise<u
   return page.fetchJson(url, { method, headers, ...(body !== undefined ? { body: JSON.parse(body) } : {}) });
 }
 
+function requestMethod(params: Record<string, unknown>): string {
+  const method = typeof params.method === 'string' ? params.method.toUpperCase() : 'GET';
+  if ('body' in params && (method === 'GET' || method === 'HEAD')) {
+    throw new ArgumentError(`Fetch body is not supported for ${method}. Set method to POST, PUT, PATCH, or DELETE.`);
+  }
+  return method;
+}
+
+/** One request with an explicit context; no item batching or second template pass. */
+export async function fetchWithContext(page: IPage | null, params: Record<string, unknown>, ctx: RenderContext): Promise<unknown> {
+  return fetchSingle(page, prepareRequest(String(params.url ?? ''), requestMethod(params), params, ctx));
+}
+
 /**
  * Batch fetch: send prepared requests into the browser as a single evaluate() call.
  * This eliminates N-1 cross-process IPC round trips, performing all fetches
@@ -124,11 +137,8 @@ async function fetchBatchInBrowser(
 export async function stepFetch(page: IPage | null, params: unknown, data: unknown, args: Record<string, unknown>): Promise<unknown> {
   const paramObject = isRecord(params) ? params : {};
   const urlOrObj = typeof params === 'string' ? params : (paramObject.url ?? '');
-  const method = typeof paramObject.method === 'string' ? paramObject.method.toUpperCase() : 'GET';
+  const method = requestMethod(paramObject);
   const urlTemplate = String(urlOrObj);
-  if ('body' in paramObject && (method === 'GET' || method === 'HEAD')) {
-    throw new ArgumentError(`Fetch body is not supported for ${method}. Set method to POST, PUT, PATCH, or DELETE.`);
-  }
   if (paramObject.forEach !== undefined && typeof paramObject.forEach !== 'boolean') {
     throw new ArgumentError('Fetch forEach must be a boolean.');
   }

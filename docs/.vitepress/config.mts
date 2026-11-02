@@ -169,6 +169,7 @@ export default defineConfig({
                 { text: 'Architecture', link: '/developer/architecture' },
                 { text: 'YAML Adapter Guide (Deprecated)', link: '/developer/yaml-adapter' },
                 { text: 'TypeScript Adapter Guide', link: '/developer/ts-adapter' },
+                { text: 'Pipeline Pagination', link: '/developer/pipeline-pagination' },
                 { text: 'AI Workflow', link: '/developer/ai-workflow' },
               ],
             },

@@ -42,6 +42,7 @@ export default defineConfig({
           include: [
             'tests/e2e/auth-contract.test.ts',
             'tests/e2e/local-commands.test.ts',
+            'tests/e2e/pipeline-pagination.test.ts',
             'tests/e2e/management.test.ts',
             ...(includeAxChromeE2e ? ['tests/e2e/browser-ax-chrome.test.ts', 'tests/e2e/site-slots-chrome.test.ts'] : []),
             ...(process.env.OPENCLI_P0_E2E === '1' ? ['tests/e2e/browser-p0-chrome.test.ts'] : []),

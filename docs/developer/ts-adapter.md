@@ -47,6 +47,14 @@ cli({
 });
 ```
 
+## Paginated Requests
+
+Use the `paginate` pipeline step for cursor, page-number, or offset APIs. It
+collects pages sequentially with request/item bounds, optional deduplication,
+resume checkpoints, and explicit completion metadata. See
+[Paginated pipeline requests](./pipeline-pagination) for examples and the
+`requireComplete` option before selecting only the returned rows.
+
 ## Pipeline JSON Requests
 
 The `fetch` pipeline step can send JSON request bodies from Node or the browser

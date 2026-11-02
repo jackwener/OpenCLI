@@ -5,6 +5,28 @@
 import { describe, it, expect } from 'vitest';
 import { render, evalExpr, resolvePath, normalizeEvaluateSource } from './template.js';
 
+describe('pagination template context', () => {
+  it('supports dotted paths, filters, and sandboxed expressions', () => {
+    const pagination = { value: 0, page: 1 };
+    expect(resolvePath('pagination.value', { pagination })).toBe(0);
+    expect(render('${{ pagination.page }}', { pagination })).toBe(1);
+    expect(render('${{ pagination.value + args.size }}', { pagination, args: { size: 10 } })).toBe(10);
+    expect(render('${{ pagination.value | urlencode }}', { pagination: { value: 'a/b', page: 2 } })).toBe('a%2Fb');
+  });
+
+  it('does not leak or mutate pagination state between sandbox evaluations', () => {
+    const pagination = { value: 1, page: 2 };
+    expect(evalExpr('(pagination.value = 99)', { pagination })).toBe(99);
+    expect(pagination.value).toBe(1);
+    expect(evalExpr('pagination.value + 1', { pagination })).toBe(2);
+    expect(evalExpr('typeof pagination', {})).toBe('undefined');
+  });
+
+  it('keeps the implicit item.pagination path working outside a pagination step', () => {
+    expect(render('${{ pagination.value }}', { item: { pagination: { value: 'legacy' } } })).toBe('legacy');
+  });
+});
+
 describe('resolvePath', () => {
   it('resolves args path', () => {
     expect(resolvePath('args.limit', { args: { limit: 20 } })).toBe(20);
