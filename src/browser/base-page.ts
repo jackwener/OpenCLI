@@ -38,6 +38,7 @@ import { TargetError, type TargetErrorCode } from './target-errors.js';
 import { CliError, CommandExecutionError } from '../errors.js';
 import { formatSnapshot } from '../snapshotFormatter.js';
 import { installVisualRefOverlayJs, removeVisualRefOverlayJs } from './visual-refs.js';
+import { cdpKeyPressEvents } from './key-definitions.js';
 
 export const NATIVE_INPUT_VISIBILITY_JS = 'document.visibilityState';
 
@@ -1303,16 +1304,11 @@ export abstract class CDPBasePage extends BasePage {
       if (mod === 'Meta') modifierFlags |= 4;
       if (mod === 'Shift') modifierFlags |= 8;
     }
-    await this.cdp('Input.dispatchKeyEvent', {
-      type: 'keyDown',
-      key,
-      modifiers: modifierFlags,
-    });
-    await this.cdp('Input.dispatchKeyEvent', {
-      type: 'keyUp',
-      key,
-      modifiers: modifierFlags,
-    });
+    // Include code / keyCode / text so pages see the same key fields and
+    // keypress phase as a real key press (#2751).
+    const { keyDown, keyUp } = cdpKeyPressEvents(key, modifierFlags);
+    await this.cdp('Input.dispatchKeyEvent', keyDown);
+    await this.cdp('Input.dispatchKeyEvent', keyUp);
   }
 }
 
