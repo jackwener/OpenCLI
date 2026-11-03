@@ -14,7 +14,7 @@ export function registerListCommand(program: Command): void {
   program.command('list').argument('[query]', 'Filter command names and descriptions')
     .description('Find available capabilities; inspect a command with --help -f json')
     .option('--site <site>', 'Only adapters for this site')
-    .option('--limit <n>', 'Maximum results (1–100)', integer, 25)
+    .option('--limit <n>', 'Maximum results (1–100)', integer, 100)
     .option('--offset <n>', 'Start offset from the previous result', integer, 0)
     .option('-f, --format <fmt>', 'json, table, yaml, md, csv', normalizeOutputFormat, 'json')
     .action((query, opts) => {
