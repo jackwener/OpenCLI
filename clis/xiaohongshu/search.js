@@ -391,13 +391,33 @@ function buildInSiteSearchJs(query) {
           return null;
         };
         let input = null;
-        for (let attempt = 0; attempt < 50 && !input; attempt++) {
+        for (let attempt = 0; attempt < 150 && !input; attempt++) {
           const wall = blocked();
           if (wall) return wall;
           const inputs = matches('#search-input');
           if (inputs.length > 1) return { status: 'layout', detail: 'ambiguous_search_input' };
           input = inputs[0];
-          if (!input) await sleep(100);
+          if (!input) {
+            // The site may hide #search-input inside a display:none header
+            // container (header-dual-narrow). Un-hide ancestors before polling.
+            for (const raw of document.querySelectorAll('#search-input')) {
+              for (let n = raw; n && n !== document.body; n = n.parentElement) {
+                const s = getComputedStyle(n);
+                if (s.display === 'none') n.style.display = 'inline-block';
+                if (s.visibility === 'hidden') n.style.visibility = 'visible';
+              }
+            }
+            await sleep(100);
+          }
+        }
+        if (input && !visible(input)) {
+          for (let node = input; node && node !== document.body; node = node.parentElement) {
+            const style = getComputedStyle(node);
+            if (style.display === 'none') node.style.display = 'inline-block';
+            if (style.visibility === 'hidden') node.style.visibility = 'visible';
+            if (style.opacity !== '' && Number(style.opacity) < 0.01) node.style.opacity = '1';
+          }
+          await sleep(150);
         }
         if (!(input instanceof HTMLInputElement) || input.disabled || input.readOnly)
           return { status: 'layout', detail: 'search_input_not_available' };
@@ -421,9 +441,16 @@ function buildInSiteSearchJs(query) {
           const wall = blocked();
           if (wall) return wall;
           const searchRendered = document.querySelector('.search-layout__top > .filter, .filter.ai-chat-filter, section.note-item, section:has(a[href*="/search_result/"])');
-          const keyword = new URLSearchParams(location.search).get('keyword');
-          if (location.pathname === '/search_result' && keyword === query &&
-              (searchRendered || document.querySelector('.search-empty-wrapper'))) {
+          const rawKeyword = new URLSearchParams(location.search).get('keyword');
+          let keyword = rawKeyword;
+          try {
+            if (rawKeyword && /%[0-9A-Fa-f]{2}/.test(rawKeyword)) keyword = decodeURIComponent(rawKeyword);
+          } catch (e) {}
+          const onSearchPage = location.pathname === '/search_result' ||
+              location.pathname.indexOf('/search_result') === 0;
+          if (onSearchPage && keyword === query &&
+              (searchRendered || document.querySelector('.search-empty-wrapper') ||
+               document.querySelector('section.note-item'))) {
             return { status: 'ok', detail: location.pathname };
           }
           await sleep(100);
