@@ -156,6 +156,10 @@ Agent 在内部自动处理所有 `opencli browser` 命令——你只需用自�
 
 `browser` 可用命令包括：`open`、`state`、`click`、`type`、`fill`、`select`、`keys`、`wait`、`get`、`find`、`extract`、`frames`、`screenshot`、`scroll`、`back`、`eval`、`network`、`tab list`、`tab new`、`tab select`、`tab close`、`chrome describe`、`chrome call`、`close`。
 
+用 `opencli browser network --session research --summary --sort failures` 按接口汇总捕获的请求，
+或加 `--group-by origin --sort size` 按站点比较记录的响应字符总量。汇总支持筛选、分页和详情 key，
+不输出请求或响应正文。计量与缓存语义见[网络汇总指南](./docs/guide/network-summary.md)。
+
 `opencli browser` 命令通过 `--session <name>` 指定页面 session。`opencli browser --session work open <url>` 和 `opencli browser --session work tab new [url]` 都会返回 target ID。`opencli browser --session work tab list` 用来查看当前已存在 tab 的 target ID，再通过 `--tab <targetId>` 把命令明确路由到某个 tab。`tab new` 只会新建 tab，不会改变默认浏览器目标；只有显式执行 `tab select <targetId>`，才会把该 tab 设为同一 session 后续未指定 target 的默认目标。
 
 ## 为新站点写适配器
