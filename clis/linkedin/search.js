@@ -95,6 +95,12 @@ function decodeLinkedinRedirect(url) {
     catch { }
     return url;
 }
+// Rest.li treats ( ) , : ' as syntax and % as its escape character, so they
+// have to be escaped inside values. buildVoyagerUrl turns %2C/%3A/%28/%29 back
+// into structural characters, so the escaped values must come out as %252C etc.
+function restliEscape(value) {
+    return String(value).replace(/[%(),:']/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase());
+}
 function buildVoyagerSearchQuery(input) {
     const hasFilters = input.companyIds.length ||
         input.experienceLevels.length ||
@@ -103,10 +109,10 @@ function buildVoyagerSearchQuery(input) {
         input.remoteTypes.length;
     const parts = [
         'origin:' + (hasFilters ? 'JOB_SEARCH_PAGE_JOB_FILTER' : 'JOB_SEARCH_PAGE_OTHER_ENTRY'),
-        'keywords:' + input.keywords,
+        'keywords:' + restliEscape(input.keywords),
     ];
     if (input.location) {
-        parts.push('locationUnion:(seoLocation:(location:' + input.location + '))');
+        parts.push('locationUnion:(seoLocation:(location:' + restliEscape(input.location) + '))');
     }
     const filters = [];
     if (input.companyIds.length)
@@ -454,6 +460,7 @@ export const __test__ = {
     looksLinkedInAuthWallText,
     assertLinkedInAuthenticated,
     enrichJobDetails,
+    buildVoyagerUrl,
     EXPERIENCE_LEVELS,
     JOB_TYPES,
     DATE_POSTED,

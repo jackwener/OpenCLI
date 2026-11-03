@@ -10,6 +10,7 @@ const {
     decodeLinkedinRedirect,
     looksLinkedInAuthWallText,
     enrichJobDetails,
+    buildVoyagerUrl,
     EXPERIENCE_LEVELS,
     JOB_TYPES,
     DATE_POSTED,
@@ -198,5 +199,58 @@ describe('linkedin enrichJobDetails (silent failure fix)', () => {
         await expect(enrichJobDetails(page, [
             { rank: 1, title: 'Needs Auth', company: 'X', url: 'https://www.linkedin.com/jobs/view/4' },
         ])).rejects.toBeInstanceOf(AuthRequiredError);
+    });
+});
+
+function voyagerSearchInput(overrides = {}) {
+    return {
+        keywords: 'accountant',
+        location: '',
+        companyIds: [],
+        experienceLevels: [],
+        jobTypes: [],
+        datePostedValues: [],
+        remoteTypes: [],
+        ...overrides,
+    };
+}
+
+// The query value LinkedIn sees after one round of URL decoding.
+function decodedQuery(apiPath) {
+    return new URL('https://www.linkedin.com' + apiPath).searchParams.get('query');
+}
+
+describe('linkedin voyager search Rest.li escaping (#2714)', () => {
+    it('keeps the comma in a "City, Country" location inside the value', () => {
+        const url = buildVoyagerUrl(voyagerSearchInput({ location: 'São Paulo, Brazil' }), 0, 10);
+        expect(url).toContain('location:S%C3%A3o%20Paulo%252C%20Brazil');
+        const query = decodedQuery(url);
+        expect(query).toBe('(origin:JOB_SEARCH_PAGE_OTHER_ENTRY,keywords:accountant,'
+            + 'locationUnion:(seoLocation:(location:São Paulo%2C Brazil)),spellCorrectionEnabled:true)');
+    });
+
+    it('escapes a literal %2C so it is not read back as a comma', () => {
+        const query = decodedQuery(buildVoyagerUrl(voyagerSearchInput({
+            keywords: 'growth 100%2C',
+            location: 'Austin %2C TX',
+        }), 0, 10));
+        expect(query).toContain('keywords:growth 100%252C,');
+        expect(query).toContain('location:Austin %252C TX)');
+    });
+
+    it('escapes parentheses, colons and apostrophes in keywords', () => {
+        const query = decodedQuery(buildVoyagerUrl(voyagerSearchInput({
+            keywords: "O'Reilly (C++): staff",
+        }), 0, 10));
+        expect(query).toContain('keywords:O%27Reilly %28C++%29%3A staff,');
+    });
+
+    it('leaves the Rest.li structure and filters unescaped', () => {
+        const url = buildVoyagerUrl(voyagerSearchInput({
+            location: 'Seattle, WA',
+            jobTypes: ['F', 'C'],
+        }), 25, 10);
+        expect(url).toContain('query=(origin:JOB_SEARCH_PAGE_JOB_FILTER,keywords:accountant,locationUnion:(seoLocation:(location:');
+        expect(url).toContain(',selectedFilters:(jobType:List(F,C)),spellCorrectionEnabled:true)&start=25');
     });
 });
