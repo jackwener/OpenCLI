@@ -165,6 +165,12 @@ npx skills add jackwener/opencli --skill opencli-browser
 npx skills add jackwener/opencli --skill opencli-usage
 ```
 
+OpenCLI no longer ships the sitemap skills. An older `opencli-sitemap-author` copy may remain in an
+agent's separate skills directory after an upgrade. If it remains, use the agent's removal flow if
+available; otherwise remove only the `opencli-sitemap-author` directory (for example,
+`~/.agents/skills/opencli-sitemap-author`). The location varies by agent; keep the rest of the
+skills directory.
+
 ### Which skill to use
 
 | Skill | When to use | Example prompt to your AI agent |
