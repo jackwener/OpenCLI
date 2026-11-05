@@ -995,12 +995,12 @@ async function openSearchResults(page, query) {
     if (result.status !== 'layout') {
         throw new CommandExecutionError(`Xiaohongshu in-site search failed: ${result.detail || 'unknown'}`);
     }
-    const layoutDetail = result.detail || 'unknown';
+    const layoutDetail = result.detail;
     await page.goto(buildDirectSearchUrl(query));
     const landing = requireSearchEntry(await page.evaluate(buildAwaitDirectSearchJs(query)), 'direct result page');
     if (landing.status === 'ok') return;
     throw new CommandExecutionError(
-        `Xiaohongshu search failed: homepage search unavailable (${layoutDetail}) and the direct result page did not load (${landing.detail || 'unknown'}).`,
+        `Xiaohongshu search failed: homepage search unavailable (${layoutDetail}) and the direct result page did not load (${landing.detail}).`,
     );
 }
 
