@@ -1,6 +1,6 @@
 import { ArgumentError, AuthRequiredError, EmptyResultError, CommandExecutionError, TimeoutError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { looksLikePrivateTwitterTimeline, normalizeTwitterGraphqlPayload, normalizeTwitterScreenName, unwrapBrowserResult } from './shared.js';
+import { looksLikePrivateTwitterTimeline, normalizeTwitterGraphqlPayload, normalizeTwitterScreenName, resolveLoggedInTwitterUser, unwrapBrowserResult } from './shared.js';
 
 const MAX_PAGINATION_PAGES = 100;
 const CAPTURE_TIMEOUT_SECONDS = 10;
@@ -111,19 +111,7 @@ cli({
         }
 
         if (!targetUser) {
-            // Bridge wraps primitive page.evaluate returns as { session, data:<value> };
-            // unwrap so the href string is usable downstream.
-            const href = unwrapBrowserResult(await page.evaluate(`() => {
-                const link = document.querySelector('a[data-testid="AppTabBar_Profile_Link"]');
-                return link ? link.getAttribute('href') : null;
-            }`));
-            if (!href || typeof href !== 'string') {
-                throw new AuthRequiredError('x.com', 'Could not find logged-in user profile link. Are you logged in?');
-            }
-            targetUser = normalizeScreenName(href);
-            if (!targetUser) {
-                throw new AuthRequiredError('x.com', 'Could not find logged-in user profile link. Are you logged in?');
-            }
+            targetUser = (await resolveLoggedInTwitterUser(page)).screenName;
         }
         if (!targetUser) {
             throw new ArgumentError('twitter followers user cannot be empty', 'Example: opencli twitter followers @elonmusk --limit 100');

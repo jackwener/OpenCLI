@@ -1,6 +1,6 @@
 import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { describeTwitterApiError, normalizeTwitterScreenName, resolveTwitterOperationMetadata, unwrapBrowserResult } from './shared.js';
+import { describeTwitterApiError, normalizeTwitterScreenName, resolveLoggedInTwitterUser, resolveTwitterOperationMetadata, unwrapBrowserResult } from './shared.js';
 import { TWITTER_BEARER_TOKEN } from './utils.js';
 const USER_BY_SCREEN_NAME_QUERY_ID = 'IGgvgiOx4QZndDHuD3x9TQ';
 const USER_BY_SCREEN_NAME_FEATURES = {
@@ -88,20 +88,8 @@ cli({
             throw new ArgumentError('twitter profile username must be a valid Twitter/X handle', 'Example: opencli twitter profile @jack');
         }
         // If no username, detect the logged-in user.
-        // Bridge wraps primitive page.evaluate returns as { session, data:<value> };
-        // unwrap so the href string is usable downstream.
         if (!username) {
-            await page.goto('https://x.com/home');
-            await page.wait({ selector: '[data-testid="primaryColumn"]' });
-            const href = unwrapBrowserResult(await page.evaluate(`() => {
-        const link = document.querySelector('a[data-testid="AppTabBar_Profile_Link"]');
-        return link ? link.getAttribute('href') : null;
-      }`));
-            if (!href || typeof href !== 'string')
-                throw new AuthRequiredError('x.com', 'Could not detect logged-in user. Are you logged in?');
-            username = normalizeTwitterScreenName(href);
-            if (!username)
-                throw new AuthRequiredError('x.com', 'Could not detect logged-in user. Are you logged in?');
+            username = (await resolveLoggedInTwitterUser(page)).screenName;
         }
         // Navigate directly to the user's profile page (gives us cookie context)
         await page.goto(`https://x.com/${username}`);

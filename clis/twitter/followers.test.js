@@ -54,20 +54,21 @@ function followersPayload(users, cursor, { terminateBottom = false } = {}) {
 
 function createFollowersPage(captureBatches, {
     ct0 = 'token',
-    profileHref = '/viewer',
+    profileHandle = 'viewer',
     currentPath = '/elonmusk/followers',
 } = {}) {
     return {
         goto: vi.fn().mockResolvedValue(undefined),
         wait: vi.fn().mockResolvedValue(undefined),
-        getCookies: vi.fn(async () => (ct0 ? [{ name: 'ct0', value: ct0 }] : [])),
+        getCookies: vi.fn(async () => (ct0 ? [{ name: 'ct0', value: ct0 }, { name: 'twid', value: 'u%3D42' }] : [])),
         installInterceptor: vi.fn().mockResolvedValue(undefined),
         waitForCapture: vi.fn().mockResolvedValue(undefined),
         autoScroll: vi.fn().mockResolvedValue(undefined),
         getInterceptedRequests: vi.fn(async () => captureBatches.shift() || []),
         evaluate: vi.fn(async (script) => {
             const text = String(script);
-            if (text.includes('AppTabBar_Profile_Link')) return profileHref;
+            if (text.includes('placeholder.json')) return null;
+            if (text.includes('/UserByRestId')) return { data: { user: { result: { __typename: 'User', core: { screen_name: profileHandle } } } } };
             if (text.includes('window.location.pathname')) return currentPath;
             if (text.includes('history.pushState')) return undefined;
             throw new Error(`Unexpected evaluate: ${text.slice(0, 100)}`);

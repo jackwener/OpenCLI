@@ -266,11 +266,11 @@ describe('twitter likes command', () => {
         const page = {
             goto: vi.fn().mockResolvedValue(undefined),
             wait: vi.fn().mockResolvedValue(undefined),
-            getCookies: vi.fn(async () => [{ name: 'ct0', value: 'token' }]),
+            getCookies: vi.fn(async () => [{ name: 'ct0', value: 'token' }, { name: 'twid', value: 'u%3D42' }]),
             evaluate: vi.fn(async (script) => {
                 const text = String(script);
-                if (text.includes('AppTabBar_Profile_Link')) {
-                    return { session: 'site:twitter', data: '/viewer' };
+                if (text.includes('/UserByRestId')) {
+                    return { session: 'site:twitter', data: { data: { user: { result: { __typename: 'User', core: { screen_name: 'viewer' } } } } } };
                 }
                 if (text.includes('operationName')) return null;
                 if (text.includes('/UserByScreenName')) {
@@ -336,11 +336,11 @@ describe('twitter likes command', () => {
         const page = {
             goto: vi.fn().mockResolvedValue(undefined),
             wait: vi.fn().mockResolvedValue(undefined),
-            getCookies: vi.fn(async () => [{ name: 'ct0', value: 'token' }]),
+            getCookies: vi.fn(async () => [{ name: 'ct0', value: 'token' }, { name: 'twid', value: 'u%3D42' }]),
             evaluate: vi.fn(async (script) => {
                 const text = String(script);
-                if (text.includes('AppTabBar_Profile_Link')) {
-                    return { session: 'site:twitter', data: '/viewer' };
+                if (text.includes('/UserByRestId')) {
+                    return { session: 'site:twitter', data: { data: { user: { result: { __typename: 'User', core: { screen_name: 'viewer' } } } } } };
                 }
                 if (text.includes('operationName')) return null;
                 if (text.includes('/UserByScreenName')) {
