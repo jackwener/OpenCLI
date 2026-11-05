@@ -5,25 +5,40 @@
  * to eliminate code duplication for click, type, press, wait, scroll, etc.
  */
 
-/** Generate JS to press a keyboard key */
+import { describeKey, keyModifierFlags } from './key-definitions.js';
+
+/**
+ * Generate JS to press a keyboard key. Fallback for pages without native CDP
+ * input; uses the same key table as `nativeKeyPress` so listeners that read
+ * `code` / `keyCode` / `which` or wait for `keypress` see real values (#2751).
+ */
 export function pressKeyJs(key: string, modifiers: string[] = []): string {
   const hasCtrl = modifiers.includes('Ctrl') || modifiers.includes('Control');
   const hasAlt = modifiers.includes('Alt');
   const hasMeta = modifiers.includes('Meta');
   const hasShift = modifiers.includes('Shift');
+  const desc = describeKey(key, keyModifierFlags(modifiers));
+  const keyCode = desc.keyCode ?? 0;
+  const charCode = desc.text ? desc.text.codePointAt(0) ?? 0 : 0;
   return `
     (() => {
       const el = document.activeElement || document.body;
       const init = {
-        key: ${JSON.stringify(key)},
+        key: ${JSON.stringify(desc.key)},
+        code: ${JSON.stringify(desc.code ?? '')},
+        location: ${desc.location ?? 0},
         bubbles: true,
+        cancelable: true,
         ctrlKey: ${hasCtrl},
         altKey: ${hasAlt},
         metaKey: ${hasMeta},
         shiftKey: ${hasShift},
       };
-      el.dispatchEvent(new KeyboardEvent('keydown', init));
-      el.dispatchEvent(new KeyboardEvent('keyup', init));
+      const fire = (type, code) => el.dispatchEvent(new KeyboardEvent(type, { ...init, keyCode: code, which: code }));
+      if (fire('keydown', ${keyCode}) && ${charCode}) {
+        el.dispatchEvent(new KeyboardEvent('keypress', { ...init, keyCode: ${charCode}, which: ${charCode}, charCode: ${charCode} }));
+      }
+      fire('keyup', ${keyCode});
       return 'pressed';
     })()
   `;

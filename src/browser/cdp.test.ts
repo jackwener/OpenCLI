@@ -128,14 +128,33 @@ describe('CDPBridge cookies', () => {
 
     expect(send.mock.calls.filter(([method]) => method !== 'Runtime.evaluate')).toEqual([
       ['Input.insertText', { text: 'hello' }],
-      ['Input.dispatchKeyEvent', { type: 'keyDown', key: 'a', modifiers: 2 }],
-      ['Input.dispatchKeyEvent', { type: 'keyUp', key: 'a', modifiers: 2 }],
+      ['Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'a', code: 'KeyA', windowsVirtualKeyCode: 65, nativeVirtualKeyCode: 65, modifiers: 2 }],
+      ['Input.dispatchKeyEvent', { type: 'keyUp', key: 'a', code: 'KeyA', windowsVirtualKeyCode: 65, nativeVirtualKeyCode: 65, modifiers: 2 }],
       ['Input.dispatchMouseEvent', { type: 'mouseMoved', x: 10, y: 20 }],
       ['Input.dispatchMouseEvent', { type: 'mousePressed', x: 10, y: 20, button: 'left', clickCount: 1 }],
       ['Input.dispatchMouseEvent', { type: 'mouseReleased', x: 10, y: 20, button: 'left', clickCount: 1 }],
       ['Page.handleJavaScriptDialog', { accept: true, promptText: 'ok' }],
       ['Page.getLayoutMetrics', {}],
     ]);
+  });
+
+  it('dispatches native Enter with keyCode 13, code and keypress text (#2751)', async () => {
+    vi.stubEnv('OPENCLI_CDP_ENDPOINT', 'ws://127.0.0.1:9222/devtools/page/1');
+
+    const bridge = new CDPBridge();
+    const send = vi.spyOn(bridge, 'send').mockResolvedValue({ result: { value: 'visible' } });
+
+    const page = await bridge.connect();
+    send.mockClear();
+
+    await page.pressKey('Enter');
+
+    const enter = { key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13, modifiers: 0 };
+    expect(send.mock.calls.filter(([method]) => method === 'Input.dispatchKeyEvent')).toEqual([
+      ['Input.dispatchKeyEvent', { type: 'keyDown', ...enter, text: '\r', unmodifiedText: '\r' }],
+      ['Input.dispatchKeyEvent', { type: 'keyUp', ...enter }],
+    ]);
+    await bridge.close();
   });
 
   it.each(['hidden', 'prerender', undefined])('blocks native input when visibility is %s', async visibility => {
