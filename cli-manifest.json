@@ -37889,6 +37889,8 @@
       "text",
       "created_at",
       "likes",
+      "retweets",
+      "replies",
       "views",
       "url",
       "has_media",

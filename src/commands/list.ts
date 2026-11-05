@@ -37,10 +37,15 @@ export function registerListCommand(program: Command): void {
       const matches = rows.filter(row => terms.every(term => `${row.command} ${row.description}`.toLowerCase().includes(term)))
         .sort((a, b) => a.command.localeCompare(b.command));
       const commands = matches.slice(opts.offset, opts.offset + opts.limit);
+      const nextOffset = opts.offset + commands.length < matches.length ? opts.offset + commands.length : undefined;
       render(opts.format === 'json' ? {
         commands, total: matches.length,
-        ...(opts.offset + commands.length < matches.length ? { nextOffset: opts.offset + commands.length } : {})
+        ...(nextOffset !== undefined ? { nextOffset } : {})
       } : commands,
         { fmt: opts.format, fmtExplicit: true });
+      // Only the JSON envelope carries total/nextOffset; tell other formats the page is partial.
+      if (opts.format !== 'json' && nextOffset !== undefined) {
+        process.stderr.write(`Showing ${opts.offset + 1}-${nextOffset} of ${matches.length} commands; rerun with --offset ${nextOffset} for more.\n`);
+      }
     });
 }

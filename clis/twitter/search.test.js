@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
 import { __test__ } from './search.js';
+import { applyTopByEngagement } from './utils.js';
 
 const { buildSearchQuery, resolveSearchFParam, resolveSearchProduct, buildSearchTimelineRequest, parseSearchTimeline, EXCLUDE_CHOICES, PRODUCT_CHOICES, EXCLUDE_TO_OPERATOR, PRODUCT_TO_F_PARAM, FROM_USER_PATTERN } = __test__;
 describe('twitter search command', () => {
@@ -93,6 +94,27 @@ describe('twitter search command', () => {
         expect(rows).toHaveLength(1);
         expect(rows[0].author).toBe('');
         expect(rows[0].id).toBe('2');
+    });
+
+    it('emits retweets and replies so --top-by-engagement weighs them', () => {
+        const tweet = (id, legacy) => ({
+            entryId: `tweet-${id}`,
+            content: { itemContent: { tweet_results: { result: {
+                rest_id: id,
+                legacy: { full_text: `t${id}`, created_at: '', ...legacy },
+                core: { user_results: { result: { core: { screen_name: 'alice' } } } },
+            } } } },
+        });
+        const payload = { data: { search_by_raw_query: { search_timeline: { timeline: { instructions: [{
+            type: 'TimelineAddEntries',
+            entries: [tweet('1', { favorite_count: 5 }), tweet('2', { favorite_count: 1, retweet_count: 4, reply_count: 3 })],
+        }] } } } } };
+        const { rows } = parseSearchTimeline(payload, new Set());
+        expect(rows.map(({ id, retweets, replies }) => ({ id, retweets, replies }))).toEqual([
+            { id: '1', retweets: 0, replies: 0 },
+            { id: '2', retweets: 4, replies: 3 },
+        ]);
+        expect(applyTopByEngagement(rows, 1).map((row) => row.id)).toEqual(['2']);
     });
 });
 
