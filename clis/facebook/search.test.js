@@ -21,9 +21,6 @@ function createPage(payload) {
     goto: vi.fn().mockResolvedValue(undefined),
     evaluate: vi.fn().mockResolvedValue(payload),
     sleep: vi.fn().mockResolvedValue(undefined),
-    closeWindow: vi.fn().mockResolvedValue(undefined),
-    newTab: vi.fn().mockResolvedValue('page-1'),
-    setActivePage: vi.fn(),
   };
 }
 
@@ -32,8 +29,8 @@ describe('facebook search', () => {
   it('navigates home then to search results before extracting (#625)', async () => {
     const page = createPage({ status: 'ok', rows: [{ index: 1, title: 'X', text: 'x', url: 'https://www.facebook.com/x' }] });
     await __test__.searchFacebook(page, { query: 'AI agent', limit: 3 });
-    expect(page.goto).toHaveBeenNthCalledWith(1, 'https://www.facebook.com', undefined);
-    expect(page.goto).toHaveBeenNthCalledWith(2, 'https://www.facebook.com/search/top?q=AI%20agent', { settleMs: 8000 });
+    expect(page.goto).toHaveBeenNthCalledWith(1, 'https://www.facebook.com');
+    expect(page.goto).toHaveBeenNthCalledWith(2, 'https://www.facebook.com/search/top?q=AI%20agent', { settleMs: 4000 });
     // extraction script must not depend on live URL reads
     expect(String(page.evaluate.mock.calls[0]?.[0] ?? '')).not.toContain('window.location.href');
   });
@@ -162,56 +159,75 @@ describe('facebook search', () => {
     expect(page.goto).not.toHaveBeenCalled();
   });
 
-  it('polls while the /search/top SPA is still rendering (#2650)', async () => {
-    const row = { index: 1, title: 'Carol', text: 'public figure', url: 'https://www.facebook.com/carol' };
-    const page = createPage({ status: 'no_rows', rows: [], diagnostics: { anchorCount: 0 } });
+  const resultRows = (n) => Array.from({ length: n }, (_, i) => ({
+    index: i + 1,
+    title: `Result ${i}`,
+    text: 'text',
+    url: `https://www.facebook.com/result-${i}`,
+  }));
+  const okPayload = (n) => ({ status: 'ok', rows: resultRows(n) });
+  const noRows = { status: 'no_rows', rows: [], diagnostics: { anchorCount: 0 } };
+
+  it('keeps polling while the /search/top SPA is still rendering (#2650)', async () => {
+    const page = createPage(okPayload(3));
     page.evaluate
-      .mockResolvedValueOnce({ status: 'no_rows', rows: [], diagnostics: { anchorCount: 0 } })
-      .mockResolvedValueOnce({ status: 'no_rows', rows: [], diagnostics: { anchorCount: 0 } })
-      .mockResolvedValueOnce({ status: 'ok', rows: [row] });
-    const rows = await __test__.searchFacebook(page, { query: 'q', limit: 1 });
-    expect(rows).toEqual([row]);
+      .mockResolvedValueOnce(noRows)
+      .mockResolvedValueOnce(okPayload(1))
+      .mockResolvedValueOnce(okPayload(3));
+    const rows = await __test__.searchFacebook(page, { query: 'q', limit: 3 });
+    expect(rows).toEqual(resultRows(3));
     expect(page.evaluate).toHaveBeenCalledTimes(3);
     expect(page.sleep).toHaveBeenCalledTimes(2);
     expect(page.sleep).toHaveBeenCalledWith(2);
   });
 
-  it('stops polling as soon as enough rows render (#2650)', async () => {
-    const rows = Array.from({ length: 5 }, (_, i) => ({
-      index: i + 1,
-      title: `Result ${i}`,
-      text: 'text',
-      url: `https://www.facebook.com/result-${i}`,
-    }));
-    const page = createPage({ status: 'ok', rows });
+  it('returns on the first poll once the requested limit is visible (#2650)', async () => {
+    const page = createPage(okPayload(10));
     const result = await __test__.searchFacebook(page, { query: 'q', limit: 10 });
-    expect(result).toHaveLength(5);
+    expect(result).toHaveLength(10);
     expect(page.evaluate).toHaveBeenCalledTimes(1);
     expect(page.sleep).not.toHaveBeenCalled();
   });
 
-  it('recycles the automation window and retries a rejected navigation (#2650)', async () => {
-    const page = createPage({ status: 'ok', rows: [{ index: 1, title: 'X', text: 'x', url: 'https://www.facebook.com/x' }] });
-    page.goto
-      .mockRejectedValueOnce(new Error('Navigation rejected.'))
-      .mockResolvedValue(undefined);
-    const rows = await __test__.searchFacebook(page, { query: 'q', limit: 3 });
-    expect(rows).toHaveLength(1);
-    expect(page.closeWindow).toHaveBeenCalledTimes(1);
-    // rejected home attempt, home retry, then the search navigation
-    expect(page.goto).toHaveBeenCalledTimes(3);
+  it('does not return a partial first render; waits until the row count stops changing (#2650)', async () => {
+    const page = createPage(okPayload(7));
+    page.evaluate
+      .mockResolvedValueOnce(okPayload(1))
+      .mockResolvedValueOnce(okPayload(1))
+      .mockResolvedValueOnce(okPayload(4))
+      .mockResolvedValueOnce(okPayload(7));
+    const rows = await __test__.searchFacebook(page, { query: 'q', limit: 10 });
+    expect(rows).toHaveLength(7);
+    // 1,1 (one stable poll) -> 4 -> 7 -> 7 -> 7 (two stable polls) => stop
+    expect(page.evaluate).toHaveBeenCalledTimes(6);
   });
 
-  it('falls back to a dedicated tab when navigation keeps being rejected (#2650)', async () => {
-    const page = createPage({ status: 'ok', rows: [{ index: 1, title: 'X', text: 'x', url: 'https://www.facebook.com/x' }] });
-    page.goto
-      .mockRejectedValueOnce(new Error('Navigation rejected.'))
-      .mockRejectedValueOnce(new Error('Navigation rejected.'))
-      .mockResolvedValue(undefined);
-    const rows = await __test__.searchFacebook(page, { query: 'q', limit: 3 });
-    expect(rows).toHaveLength(1);
-    expect(page.newTab).toHaveBeenCalledWith('https://www.facebook.com');
-    expect(page.setActivePage).toHaveBeenCalledWith('page-1');
+  it('stops at the bounded deadline and maps the last payload to typed errors (#2650)', async () => {
+    const empty = createPage({ status: 'no_rows', rows: [], diagnostics: {} });
+    await expect(__test__.searchFacebook(empty, { query: 'q', limit: 5 })).rejects.toBeInstanceOf(EmptyResultError);
+    expect(empty.evaluate).toHaveBeenCalledTimes(15);
+    expect(empty.sleep).toHaveBeenCalledTimes(14);
+    const drift = createPage({ status: 'no_rows', rows: [], diagnostics: { anchorCount: 40, mainTextLength: 800 } });
+    await expect(__test__.searchFacebook(drift, { query: 'q', limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
+    expect(drift.evaluate).toHaveBeenCalledTimes(15);
+  });
+
+  it('short-circuits polling on auth walls and malformed payloads (#2650)', async () => {
+    const auth = createPage({ status: 'auth', rows: [] });
+    await expect(__test__.searchFacebook(auth, { query: 'q', limit: 5 })).rejects.toBeInstanceOf(AuthRequiredError);
+    expect(auth.evaluate).toHaveBeenCalledTimes(1);
+    const malformed = createPage({ rows: null });
+    await expect(__test__.searchFacebook(malformed, { query: 'q', limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
+    expect(malformed.evaluate).toHaveBeenCalledTimes(1);
+    expect(auth.sleep).not.toHaveBeenCalled();
+  });
+
+  it('does not retry navigation at the adapter level; rejected navigation is a typed failure', async () => {
+    const page = createPage(okPayload(1));
+    page.goto.mockRejectedValueOnce(new Error('Navigation rejected.'));
+    await expect(__test__.searchFacebook(page, { query: 'q', limit: 1 })).rejects.toBeInstanceOf(CommandExecutionError);
+    expect(page.goto).toHaveBeenCalledTimes(1);
+    expect(page.evaluate).not.toHaveBeenCalled();
   });
 
   it('maps auth, empty, drift, and malformed payloads to typed errors', async () => {

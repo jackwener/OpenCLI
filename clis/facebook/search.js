@@ -23,68 +23,30 @@ function unwrapBrowserResult(value) {
   return value;
 }
 
-// The /search/top SPA can take tens of seconds to render its result cards and
-// navigation intermittently fails with Chromium's "Navigation rejected." —
-// both observed live in #2650. Poll the extraction instead of trusting one
-// fixed settle window, and recycle rejected navigation targets the same way
-// clis/google/images.js does.
-const SEARCH_SETTLE_MS = 8000;
-const SEARCH_RENDER_POLL_ATTEMPTS = 15;
-const SEARCH_RENDER_POLL_INTERVAL_S = 2;
-const SEARCH_EARLY_EXIT_ROW_CAP = 5;
+// The /search/top SPA can take tens of seconds to render its result cards
+// (observed live in #2650), so one snapshot after a fixed settle window
+// returns 0-1 rows from a page that later holds a full result list. Re-run the
+// cheap in-page extraction until the list is complete (enough rows), has
+// stopped growing for SEARCH_STABLE_POLLS consecutive polls, or the bounded
+// deadline (~30s) expires. A partial list is never returned just because a
+// first row appeared: cards stream in, so a count must hold before it counts.
+const SEARCH_POLL_INTERVAL_S = 2;
+const SEARCH_POLL_ATTEMPTS = 15;
+const SEARCH_STABLE_POLLS = 2;
 
-function isNavigationRejected(error) {
-  return /Navigation rejected/i.test(String(error?.message || error));
-}
-
-/**
- * Navigate, retrying only the recoverable "Navigation rejected." failure:
- * recycle the automation window first, then fall back to a dedicated tab.
- * Any other error propagates unchanged.
- */
-async function navigateWithRetry(page, url, options) {
-  try {
-    await page.goto(url, options);
-    return;
-  } catch (error) {
-    if (!isNavigationRejected(error)) throw error;
-  }
-
-  if (typeof page.closeWindow === 'function') {
-    await page.closeWindow().catch(() => {});
-  }
-  try {
-    await page.goto(url, options);
-    return;
-  } catch (error) {
-    if (!isNavigationRejected(error)) throw error;
-  }
-
-  if (typeof page.newTab === 'function' && typeof page.setActivePage === 'function') {
-    const pageId = await page.newTab(url);
-    if (pageId) {
-      await page.setActivePage(pageId);
-      return;
-    }
-  }
-  throw new CommandExecutionError(`facebook search navigation was rejected repeatedly: ${url}`);
-}
-
-/**
- * Extract results, re-running the (cheap) in-page extraction until enough
- * rows render or the bounded poll window expires. Early exit at
- * min(limit, SEARCH_EARLY_EXIT_ROW_CAP) keeps the common case at one roundtrip.
- */
 async function extractSearchRows(page, limit) {
-  const earlyExitAt = limit < SEARCH_EARLY_EXIT_ROW_CAP ? limit : SEARCH_EARLY_EXIT_ROW_CAP;
   let payload;
-  for (let attempt = 0; attempt < SEARCH_RENDER_POLL_ATTEMPTS; attempt += 1) {
+  let previousCount = -1;
+  let stablePolls = 0;
+  for (let attempt = 0; attempt < SEARCH_POLL_ATTEMPTS; attempt += 1) {
+    if (attempt > 0) await page.sleep(SEARCH_POLL_INTERVAL_S);
     payload = unwrapBrowserResult(await page.evaluate(buildSearchExtractScript(limit)));
     if (!payload || typeof payload !== 'object' || !Array.isArray(payload.rows)) return payload;
-    if (payload.status === 'auth' || payload.rows.length >= earlyExitAt) return payload;
-    if (attempt < SEARCH_RENDER_POLL_ATTEMPTS - 1) {
-      await page.sleep(SEARCH_RENDER_POLL_INTERVAL_S);
-    }
+    const count = payload.rows.length;
+    if (payload.status === 'auth' || count >= limit) return payload;
+    stablePolls = count === previousCount ? stablePolls + 1 : 0;
+    if (count > 0 && stablePolls >= SEARCH_STABLE_POLLS) return payload;
+    previousCount = count;
   }
   return payload;
 }
@@ -210,8 +172,8 @@ async function searchFacebook(page, kwargs) {
   // Navigate home first so the SPA is warm, then to the search results.
   // Regression guard for #625: extraction must run *after* this navigation.
   try {
-    await navigateWithRetry(page, FACEBOOK_HOME);
-    await navigateWithRetry(page, `https://www.facebook.com/search/top?q=${encodeURIComponent(query)}`, { settleMs: SEARCH_SETTLE_MS });
+    await page.goto(FACEBOOK_HOME);
+    await page.goto(`https://www.facebook.com/search/top?q=${encodeURIComponent(query)}`, { settleMs: 4000 });
   } catch (err) {
     throw new CommandExecutionError(
       `Failed to open facebook search: ${err instanceof Error ? err.message : err}`,
