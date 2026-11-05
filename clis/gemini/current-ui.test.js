@@ -93,4 +93,34 @@ describe('Gemini off-screen turns', () => {
             { Role: 'Assistant', Text: 'second answer' },
         ]);
     });
+
+    it('keeps block structure of off-screen replies identical to their rendered text', async () => {
+        const dom = new JSDOM(
+            '<main><div class="conversation-container">'
+            + '<div class="user-query-container"><div class="query-text">'
+            + '<span class="cdk-visually-hidden">You said</span>  question  '
+            + '</div></div>'
+            + '<response-container><div class="model-response-text">\n'
+            + '  <p>Intro <b>bold</b> text.</p>\n'
+            + '  <ul><li>one</li><li>two</li></ul>\n'
+            + '  <div class="code-block"><button>Copy code</button>'
+            + '<pre><code>def f():\n    return 1</code></pre></div>\n'
+            + '  <p>Line one<br>line two</p>\n'
+            + '</div></response-container>'
+            + '</div></main>',
+            { url: 'https://gemini.google.com/app/test', runScripts: 'outside-only' },
+        );
+        const { window } = dom;
+        for (const node of window.document.querySelectorAll('*')) {
+            node.getBoundingClientRect = () => ({ left: 0, right: 0, top: 0, bottom: 0, width: 0, height: 0 });
+        }
+        const page = { evaluate: vi.fn(async script => window.eval(script)), wait: vi.fn(async () => {}) };
+
+        const state = await readGeminiSnapshot(page);
+
+        expect(state.turns).toEqual([
+            { Role: 'User', Text: 'question' },
+            { Role: 'Assistant', Text: 'Intro bold text.\n\none\ntwo\n\ndef f():\n    return 1\n\nLine one\nline two' },
+        ]);
+    });
 });
