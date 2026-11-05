@@ -1,6 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { unwrapEvaluateResult } from './shared.js';
+import { escapeRestliValue, unwrapEvaluateResult } from './shared.js';
 
 const LINKEDIN_DOMAIN = 'www.linkedin.com';
 const SALES_HOME = 'https://www.linkedin.com/sales/';
@@ -30,11 +30,12 @@ function parseLimit(value) {
   return limit;
 }
 
-// Sales Navigator keeps the structural ( ) , : of the query literal and only
-// percent-encodes the keyword value.
+// Sales Navigator keeps the structural ( ) , : of the query literal; the keyword
+// value is Rest.li-escaped and then URL-encoded so its own reserved characters
+// stay inside the value (#2714).
 function leadSearchUrl(keywords, start) {
   const query = '(spellCorrectionEnabled:true,recentSearchParam:(doLogHistory:true),keywords:'
-    + encodeURIComponent(keywords) + ')';
+    + encodeURIComponent(escapeRestliValue(keywords)) + ')';
   return LEAD_SEARCH_BASE
     + '?q=searchQuery&query=' + query
     + '&start=' + start + '&count=' + PAGE_SIZE
