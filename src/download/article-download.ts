@@ -237,7 +237,7 @@ function convertToMarkdown(
   codeBlocks.forEach((block, i) => {
     const placeholder = `CODEBLOCK-PLACEHOLDER-${i}`;
     const fenced = `\n\`\`\`${block.lang}\n${block.code}\n\`\`\`\n`;
-    md = md.replace(placeholder, fenced);
+    md = md.replace(placeholder, () => fenced);
   });
 
   // Clean up
