@@ -33,6 +33,10 @@ describe('daemon structured output', () => {
     mocks.status.mockResolvedValue({ ...status, daemonVersion: '0.0.1' }); await daemonStatus();
     expect(result().data.stale).toBe(true);
   });
+  it('does not report a daemon from a newer CLI as stale', async () => {
+    mocks.status.mockResolvedValue({ ...status, daemonVersion: '999.0.0' }); await daemonStatus();
+    expect(result().data.stale).toBe(false);
+  });
   it('stops idempotently when absent', async () => {
     mocks.status.mockResolvedValue(null); await daemonStop();
     expect(result().data).toEqual({ running: false, stopped: false }); expect(mocks.stop).not.toHaveBeenCalled();
