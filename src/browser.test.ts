@@ -258,6 +258,31 @@ describe('BrowserBridge state', () => {
     await expect(bridge.connect({ timeout: 0.1 })).rejects.toThrow('Stale daemon could not be replaced');
   });
 
+  it('keeps a daemon owned by a newer CLI instead of replacing it (#2761)', async () => {
+    vi.spyOn(daemonTransport, 'getDaemonHealth').mockResolvedValue({
+      state: 'ready',
+      status: {
+        ok: true,
+        pid: 999999,
+        uptime: 0,
+        daemonVersion: '999.0.0',
+        extensionConnected: true,
+        pending: 0,
+        memoryMB: 0,
+        port: 0,
+      },
+    });
+    const shutdown = vi.spyOn(daemonLifecycle.daemonLifecycleHooks, 'requestDaemonShutdown').mockResolvedValue(true);
+    const spawn = vi.spyOn(daemonLifecycle.daemonLifecycleHooks, 'spawnDaemonProcess');
+    const killSpy = vi.spyOn(process, 'kill').mockImplementation(() => true);
+
+    await expect(daemonLifecycle.ensureBrowserBridgeReady({ timeoutSeconds: 0.1, verbose: false }))
+      .resolves.toMatchObject({ state: 'ready' });
+    expect(shutdown).not.toHaveBeenCalled();
+    expect(spawn).not.toHaveBeenCalled();
+    expect(killSpy).not.toHaveBeenCalled();
+  });
+
   it('falls back to SIGKILL when stale daemon refuses graceful shutdown', async () => {
     vi.spyOn(daemonTransport, 'getDaemonHealth').mockResolvedValue({
       state: 'no-extension',
