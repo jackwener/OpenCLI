@@ -14,7 +14,7 @@ export function registerListCommand(program: Command): void {
   program.command('list').argument('[query]', 'Filter command names and descriptions')
     .description('Find available capabilities; inspect a command with --help -f json')
     .option('--site <site>', 'Only adapters for this site')
-    .option('--limit <n>', 'Maximum results (1–100)', integer, 100)
+    .option('--limit <n>', 'Maximum results (1–100)', integer, 25)
     .option('--offset <n>', 'Start offset from the previous result', integer, 0)
     .option('-f, --format <fmt>', 'json, table, yaml, md, csv', normalizeOutputFormat, 'json')
     .action((query, opts) => {
@@ -37,10 +37,15 @@ export function registerListCommand(program: Command): void {
       const matches = rows.filter(row => terms.every(term => `${row.command} ${row.description}`.toLowerCase().includes(term)))
         .sort((a, b) => a.command.localeCompare(b.command));
       const commands = matches.slice(opts.offset, opts.offset + opts.limit);
+      const nextOffset = opts.offset + commands.length < matches.length ? opts.offset + commands.length : undefined;
       render(opts.format === 'json' ? {
         commands, total: matches.length,
-        ...(opts.offset + commands.length < matches.length ? { nextOffset: opts.offset + commands.length } : {})
+        ...(nextOffset !== undefined ? { nextOffset } : {})
       } : commands,
         { fmt: opts.format, fmtExplicit: true });
+      // Only the JSON envelope carries total/nextOffset; tell other formats the page is partial.
+      if (opts.format !== 'json' && nextOffset !== undefined) {
+        process.stderr.write(`Showing ${opts.offset + 1}-${nextOffset} of ${matches.length} commands; rerun with --offset ${nextOffset} for more.\n`);
+      }
     });
 }
