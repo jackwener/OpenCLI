@@ -352,7 +352,9 @@ export async function ytdlpDownload(
     });
 
     proc.on('close', (code) => {
-      if (code === 0 && fs.existsSync(destPath)) {
+      if (code !== 0) {
+        resolve({ success: false, size: 0, error: errorOutput.slice(0, 200) || `Exit code ${code}` });
+      } else if (fs.existsSync(destPath)) {
         const stats = fs.statSync(destPath);
         resolve({ success: true, size: stats.size });
       } else {
