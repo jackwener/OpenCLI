@@ -307,5 +307,7 @@ describe('grok getMessageBubbles text', () => {
         const bubbles = await getMessageBubbles(page);
 
         expect(bubbles.map((bubble) => bubble.text)).toEqual(['hello there', 'hi back']);
+        expect(bubbles[1].html).not.toMatch(/Grok|Worked for/);
+        expect(bubbles[1].html).toContain('hi back');
     });
 });

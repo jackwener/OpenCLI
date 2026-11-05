@@ -17,18 +17,21 @@ export const IS_VISIBLE_JS = `
 // Grok wraps every turn in screen-reader and chrome nodes that innerText
 // picks up: `h2.sr-only` carries the speaker label ("你" / "Grok") and
 // `.thinking-container` carries the reasoning timer ("工作了 3s"). Strip them
-// from a clone so a bubble's text is just the message.
-export const MESSAGE_TEXT_JS = `
-  const messageText = (node) => {
+// from a clone so a bubble's text and HTML are just the message. The clone is
+// attached off-screen for the read because a detached node's innerText falls
+// back to textContent, which glues rendered list items and paragraphs together.
+export const MESSAGE_CONTENT_JS = `
+  const messageContent = (node) => {
     const clone = node.cloneNode(true);
-    clone.querySelectorAll('h2.sr-only, .thinking-container').forEach((child) => child.remove());
+    clone.querySelectorAll('.sr-only, .thinking-container').forEach((child) => child.remove());
     const holder = document.createElement('div');
+    holder.setAttribute('aria-hidden', 'true');
     holder.style.cssText = 'position:fixed;left:-99999px;top:0;width:800px;';
     holder.appendChild(clone);
     document.body.appendChild(holder);
     const text = (clone.innerText || clone.textContent || '').replace(/\\s+/g, ' ').trim();
     holder.remove();
-    return text;
+    return { text, html: clone.innerHTML || '' };
   };
 `;
 
@@ -169,7 +172,7 @@ export async function getMessageBubbles(page) {
     // not distinguish role on its own.
     const result = await page.evaluate(`(() => {
     ${IS_VISIBLE_JS}
-    ${MESSAGE_TEXT_JS}
+    ${MESSAGE_CONTENT_JS}
     const findResponseId = (node) => {
       let parent = node.parentElement;
       while (parent && parent !== document.body) {
@@ -189,8 +192,7 @@ export async function getMessageBubbles(page) {
       const baseId = responseId || ('pos-' + positional);
       const id = baseId + (isAssistant ? '-assistant' : '-user');
       positional += 1;
-      const html = node.innerHTML || '';
-      const text = messageText(node);
+      const { text, html } = messageContent(node);
       out.push({ id, role: isAssistant ? 'Assistant' : 'User', text, html });
     }
     return out;
@@ -495,7 +497,7 @@ export async function sendMessage(page, prompt) {
     return await page.evaluate(`(async () => {
     const waitFor = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     const normalize = (value) => String(value || '').replace(/\\s+/g, ' ').trim();
-    ${MESSAGE_TEXT_JS}
+    ${MESSAGE_CONTENT_JS}
     const composerSelector = '.ProseMirror[contenteditable="true"]';
     const isVisible = (node) => {
       if (!(node instanceof Element)) return false;
@@ -517,7 +519,7 @@ export async function sendMessage(page, prompt) {
       .filter((node) => node instanceof HTMLElement && isVisible(node))
       .map((node, index) => ({
         id: responseIdFor(node) || ('pos-' + index),
-        text: normalize(messageText(node)),
+        text: normalize(messageContent(node).text),
       }))
       .filter((turn) => turn.text);
     const promptText = normalize(${promptJson});

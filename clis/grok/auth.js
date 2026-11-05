@@ -2,14 +2,17 @@ import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/err
 import { registerSiteAuthCommands } from '../_shared/site-auth.js';
 
 // Grok has rotated its session cookie names more than once
-// (`__Secure-next-auth.session-token`, then `x-userid` / `sa-user-id`).
-// The cookie list is only a hint for the cheap refresh quick-check; the
-// authoritative answer is /api/auth/session below.
+// (`__Secure-next-auth.session-token`, then the xAI `sso` / `sso-rw` pair and
+// `x-userid`). The cookie list is only a hint for the cheap auth-status check
+// and for login polling; the authoritative answer is /api/auth/session below.
+// Tracking cookies whose meaning is unconfirmed (`__cuid`, `sa-user-id`) are
+// left out so the hint cannot report an anonymous visitor as signed in.
 const GROK_SESSION_COOKIE_HINTS = [
   '__Secure-next-auth.session-token',
   '__Secure-authjs.session-token',
+  'sso',
+  'sso-rw',
   'x-userid',
-  'sa-user-id',
 ];
 
 async function hasGrokSessionCookie(page) {
@@ -62,5 +65,12 @@ registerSiteAuthCommands({
   columns: ['user_id', 'name'],
   quickCheck: hasGrokSessionCookie,
   verify: verifyGrokIdentity,
-  poll: async (page) => verifyGrokIdentity(page),
+  // Polling runs while the user is on the sign-in page; verify navigates to
+  // grok.com, so only call it once a session cookie hint has appeared.
+  poll: async (page) => {
+    if (!await hasGrokSessionCookie(page)) {
+      throw new AuthRequiredError('grok.com', 'Waiting for Grok session cookie');
+    }
+    return verifyGrokIdentity(page);
+  },
 });
