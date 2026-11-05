@@ -137,6 +137,53 @@ describe('stepSort', () => {
     const result = await stepSort(null, { by: 'value', order: 'asc' }, data, {});
     expect((result as typeof data).map((r) => r.name)).toEqual(['B', 'C', 'A']);
   });
+
+  it('orders negative numbers (real numbers) numerically, not lexically', async () => {
+    const data = [{ v: 3 }, { v: -5 }, { v: -10 }];
+    const result = await stepSort(null, 'v', data, {});
+    expect((result as typeof data).map((r) => r.v)).toEqual([-10, -5, 3]);
+  });
+
+  it('orders decimal numbers (real numbers) numerically', async () => {
+    const data = [{ v: 1.9 }, { v: 1.25 }, { v: 1.5 }];
+    const result = await stepSort(null, 'v', data, {});
+    expect((result as typeof data).map((r) => r.v)).toEqual([1.25, 1.5, 1.9]);
+  });
+
+  it('orders negative numbers (real numbers) numerically when descending', async () => {
+    const data = [{ v: -10 }, { v: 3 }, { v: -5 }];
+    const result = await stepSort(null, { by: 'v', order: 'desc' }, data, {});
+    expect((result as typeof data).map((r) => r.v)).toEqual([3, -5, -10]);
+  });
+
+  it('produces a permutation-independent order for mixed number/string values (transitivity)', async () => {
+    // Group precedence: real numbers (ascending) sort before non-number values,
+    // which then natural-sort among themselves. The output must be identical
+    // regardless of input order, which it cannot be if the comparator is
+    // non-transitive (e.g. coercing strings to numbers).
+    const expected = [-10, -1, 2, 50, 'apple', 'banana'];
+    const permutations = [
+      [{ v: 'banana' }, { v: 2 }, { v: -10 }, { v: 'apple' }, { v: 50 }, { v: -1 }],
+      [{ v: 50 }, { v: 'apple' }, { v: -1 }, { v: -10 }, { v: 'banana' }, { v: 2 }],
+      [{ v: -1 }, { v: -10 }, { v: 'banana' }, { v: 50 }, { v: 2 }, { v: 'apple' }],
+    ];
+    for (const data of permutations) {
+      const result = await stepSort(null, 'v', data, {});
+      expect((result as typeof data).map((r) => r.v)).toEqual(expected);
+    }
+  });
+
+  it('reverses the mixed number/string order under desc (numbers still grouped together)', async () => {
+    const data = [{ v: 'banana' }, { v: 2 }, { v: -10 }, { v: 'apple' }, { v: 50 }];
+    const result = await stepSort(null, { by: 'v', order: 'desc' }, data, {});
+    expect((result as typeof data).map((r) => r.v)).toEqual(['banana', 'apple', 50, 2, -10]);
+  });
+
+  it('falls back to string comparison for non-numeric values', async () => {
+    const data = [{ v: 'banana' }, { v: 'apple' }, { v: 'cherry' }];
+    const result = await stepSort(null, 'v', data, {});
+    expect((result as typeof data).map((r) => r.v)).toEqual(['apple', 'banana', 'cherry']);
+  });
 });
 
 describe('stepLimit', () => {

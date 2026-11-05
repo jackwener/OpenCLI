@@ -53,6 +53,19 @@ export async function stepFilter(_page: IPage | null, params: unknown, data: unk
   return data.filter((item, i) => evalExpr(String(params), { args, item, index: i }));
 }
 
+/**
+ * Returns `value` when it is a real, finite number-typed value, else null.
+ * Strings are intentionally NOT coerced: parsing them would (a) make the sort
+ * comparator non-transitive (violating Array.sort's strict-weak-ordering) and
+ * (b) revert the maintainer's intentional natural-sort default for strings
+ * (PR #306). Adapters that want numeric ordering coerce the field with
+ * `Number(...)` upstream (e.g. clis/binance/{gainers,losers}.js), producing a
+ * genuine number for this branch.
+ */
+function toFiniteNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
 export async function stepSort(_page: IPage | null, params: unknown, data: unknown, _args: Record<string, unknown>): Promise<unknown> {
   if (!Array.isArray(data)) return data;
   const key = isRecord(params) ? String(params.by ?? '') : String(params);
@@ -60,7 +73,18 @@ export async function stepSort(_page: IPage | null, params: unknown, data: unkno
   return [...data].sort((a, b) => {
     const left = isRecord(a) ? a[key] : undefined;
     const right = isRecord(b) ? b[key] : undefined;
-    const cmp = String(left ?? '').localeCompare(String(right ?? ''), undefined, { numeric: true });
+    const leftNum = toFiniteNumber(left);
+    const rightNum = toFiniteNumber(right);
+    // Total, transitive order with explicit group precedence so the comparator
+    // honors Array.sort's strict-weak-ordering contract:
+    //   1. both real numbers     -> numeric compare (fixes negatives/decimals)
+    //   2. exactly one number    -> numbers sort before non-numbers
+    //   3. neither a number      -> natural-sort strings (PR #306 default)
+    let cmp: number;
+    if (leftNum !== null && rightNum !== null) cmp = leftNum - rightNum;
+    else if (leftNum !== null) cmp = -1;
+    else if (rightNum !== null) cmp = 1;
+    else cmp = String(left ?? '').localeCompare(String(right ?? ''), undefined, { numeric: true });
     return reverse ? -cmp : cmp;
   });
 }
