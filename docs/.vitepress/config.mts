@@ -110,6 +110,7 @@ export default defineConfig({
                 { text: 'Instagram', link: '/adapters/browser/instagram' },
                 { text: 'Pinterest', link: '/adapters/browser/pinterest' },
                 { text: 'JD.com', link: '/adapters/browser/jd' },
+                { text: 'Pinduoduo', link: '/adapters/browser/pinduoduo' },
                 { text: 'Medium', link: '/adapters/browser/medium' },
                 { text: 'Mercury', link: '/adapters/browser/mercury' },
                 { text: 'Mubu', link: '/adapters/browser/mubu' },

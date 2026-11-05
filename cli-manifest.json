@@ -26896,17 +26896,17 @@
       "rank",
       "title",
       "price",
-      "priceLabel",
-      "groupPrice",
+      "price_label",
+      "group_price",
       "sales",
       "tags",
-      "goodsId",
+      "goods_id",
       "url"
     ],
     "type": "js",
     "modulePath": "pinduoduo/search.js",
     "sourceFile": "pinduoduo/search.js",
-    "navigateBefore": "https://mobile.yangkeduo.com"
+    "navigateBefore": false
   },
   {
     "site": "pinterest",

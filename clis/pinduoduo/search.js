@@ -53,7 +53,8 @@ cli({
     { name: 'query', positional: true, required: true, help: '搜索关键词' },
     { name: 'limit', type: 'int', default: 10, help: `返回条数 (1-${SSR_PAGE_SIZE}，首屏上限)` },
   ],
-  columns: ['rank', 'title', 'price', 'priceLabel', 'groupPrice', 'sales', 'tags', 'goodsId', 'url'],
+  columns: ['rank', 'title', 'price', 'price_label', 'group_price', 'sales', 'tags', 'goods_id', 'url'],
+  navigateBefore: false,
   func: async (page, kwargs) => {
     const query = requireQuery(kwargs.query);
     const limit = clampInt(kwargs.limit, 10, 1, SSR_PAGE_SIZE);
@@ -99,11 +100,11 @@ cli({
       rank: i + 1,
       title: clean(item.goodsName),
       price: clean(item.priceInfo),
-      priceLabel: clean(item.pricePrefixInfo),
-      groupPrice: toYuan(item.price),
+      price_label: clean(item.pricePrefixInfo),
+      group_price: toYuan(item.price),
       sales: clean(item.salesTip),
       tags: (item.tagList || []).map(t => clean(t.text)).filter(Boolean).join(' / '),
-      goodsId: String(item.goodsID ?? ''),
+      goods_id: String(item.goodsID ?? ''),
       url: item.goodsID ? `https://mobile.yangkeduo.com/goods.html?goods_id=${item.goodsID}` : '',
     }));
   },

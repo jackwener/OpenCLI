@@ -105,22 +105,22 @@ describe('pinduoduo search page extraction', () => {
         rank: 1,
         title: '【全新18】图拉斯手机壳D1',
         price: '44.08',
-        priceLabel: '券后',
-        groupPrice: '58.00',
+        price_label: '券后',
+        group_price: '58.00',
         sales: '全店总售496万+件',
         tags: '正品险 / 顺丰包邮',
-        goodsId: '597606231941',
+        goods_id: '597606231941',
         url: 'https://mobile.yangkeduo.com/goods.html?goods_id=597606231941',
       },
       {
         rank: 2,
         title: '【品胜】液态硅胶手机壳',
         price: '49',
-        priceLabel: '',
-        groupPrice: '49.00',
+        price_label: '',
+        group_price: '49.00',
         sales: '本店已拼117万+件',
         tags: '',
-        goodsId: '968918296375',
+        goods_id: '968918296375',
         url: 'https://mobile.yangkeduo.com/goods.html?goods_id=968918296375',
       },
     ]);
@@ -139,7 +139,7 @@ describe('pinduoduo search page extraction', () => {
     const [row] = await command.func(page, { query: '无价', limit: 1 });
 
     expect(row.price).toBe('');
-    expect(row.groupPrice).toBe('');
+    expect(row.group_price).toBe('');
     expect(row.sales).toBe('');
   });
 
@@ -153,8 +153,8 @@ describe('pinduoduo search page extraction', () => {
 
     const [row] = await command.func(page, { query: '回退', limit: 1 });
 
-    expect(row.goodsId).toBe('42');
-    expect(row.groupPrice).toBe('1.00');
+    expect(row.goods_id).toBe('42');
+    expect(row.group_price).toBe('1.00');
   });
 
   it('returns the login error without waiting for the list', async () => {
