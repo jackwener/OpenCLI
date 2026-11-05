@@ -539,6 +539,93 @@ describe('xiaohongshu search', () => {
         }
     });
 
+    function runDirectLanding(url, body, query = '测试') {
+        const dom = new JSDOM(`<body>${body}</body>`, { url });
+        for (const card of dom.window.document.querySelectorAll('section')) markVisible(card);
+        const pending = Function('document', 'location', 'setTimeout',
+            `return (${__test__.buildAwaitDirectSearchJs(query)})`)(
+            dom.window.document, dom.window.location, setTimeout,
+        );
+        return { dom, pending };
+    }
+
+    it.each([
+        ['the classic result page for the query', 'https://www.xiaohongshu.com/search_result?keyword=%E6%B5%8B%E8%AF%95&source=web_search_result_notes', 'ok'],
+        ['a redirect back to the explore feed', 'https://www.xiaohongshu.com/explore', 'timeout'],
+        ['a result page for another keyword', 'https://www.xiaohongshu.com/search_result?keyword=%E5%88%AB%E7%9A%84', 'timeout'],
+        ['a captcha redirect', 'https://www.xiaohongshu.com/website-login/captcha?redirectPath=x', 'security_block'],
+    ])('direct landing check accepts only the result page for the query: %s', async (_name, url, expected) => {
+        vi.useFakeTimers();
+        // Explore feed cards also match the generic note-card selectors, so the
+        // route and keyword checks are what keep them out of search results.
+        const { dom, pending } = runDirectLanding(url, '<section class="note-item"><a href="/explore/68e90be80000000004022e66">feed</a></section>');
+        try {
+            await vi.runAllTimersAsync();
+            await expect(pending).resolves.toMatchObject({ status: expected });
+        }
+        finally {
+            dom.window.close();
+            vi.useRealTimers();
+        }
+    });
+
+    function createEntryPageMock({ inSite, direct, rows = [] }) {
+        const page = createPageMock(['content', harvestPayload(rows)]);
+        const queued = page.evaluate.getMockImplementation();
+        page.evaluate.mockImplementation(async (script) => {
+            const source = String(script);
+            if (source.includes('search-icon')) return inSite;
+            if (source.includes('decodedKeyword')) return direct;
+            return queued(script);
+        });
+        return page;
+    }
+
+    it.each([
+        'search_input_not_available',
+        'ambiguous_search_input',
+        'ambiguous_or_missing_search_button',
+    ])('falls back to the direct result URL when the homepage reports %s before submitting', async (detail) => {
+        const cmd = getRegistry().get('xiaohongshu/search');
+        const url = 'https://www.xiaohongshu.com/search_result/68e90be80000000004022e66?xsec_token=test-token&xsec_source=';
+        const page = createEntryPageMock({
+            inSite: { status: 'layout', detail },
+            direct: { status: 'ok', detail: '/search_result' },
+            rows: [{ title: '机器学习实习', author: '作者', likes: '9', url, author_url: '' }],
+        });
+
+        const result = await cmd.func(page, { query: '机器学习 实习', limit: 1 });
+        expect(page.goto.mock.calls.map(([target]) => target)).toEqual([
+            'https://www.xiaohongshu.com/explore',
+            'https://www.xiaohongshu.com/search_result?keyword=%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%20%E5%AE%9E%E4%B9%A0&source=web_search_result_notes',
+        ]);
+        expect(result).toMatchObject([{ rank: 1, title: '机器学习实习', url }]);
+    });
+
+    it.each([
+        [{ status: 'timeout', detail: '/explore' }, 'TIMEOUT'],
+        [{ status: 'security_block', detail: '/website-login/captcha' }, 'SECURITY_BLOCK'],
+        [{ status: 'auth', detail: 'login_wall' }, 'AUTH_REQUIRED'],
+    ])('does not load the result URL after the homepage path ends in %o', async (inSite, code) => {
+        const cmd = getRegistry().get('xiaohongshu/search');
+        const page = createEntryPageMock({ inSite, direct: { status: 'ok', detail: '/search_result' } });
+
+        await expect(cmd.func(page, { query: '特斯拉', limit: 1 })).rejects.toMatchObject({ code });
+        expect(page.goto.mock.calls.map(([target]) => target)).toEqual(['https://www.xiaohongshu.com/explore']);
+    });
+
+    it.each([
+        [{ status: 'timeout', detail: '/explore' }, 'TIMEOUT', /direct result page/],
+        [{ status: 'security_block', detail: '/website-login/captcha' }, 'SECURITY_BLOCK', /security controls/],
+        [{ status: 'unexpected', detail: 'x' }, 'COMMAND_EXEC', /search_input_not_available.*direct result page did not load/],
+    ])('fails typed when the direct fallback lands on %o', async (direct, code, message) => {
+        const cmd = getRegistry().get('xiaohongshu/search');
+        const page = createEntryPageMock({ inSite: { status: 'layout', detail: 'search_input_not_available' }, direct });
+
+        await expect(cmd.func(page, { query: '特斯拉', limit: 1 })).rejects.toMatchObject({ code, message: expect.stringMatching(message) });
+        expect(page.goto).toHaveBeenCalledTimes(2);
+    });
+
     it('rejects invalid limit before browser navigation', async () => {
         const cmd = getRegistry().get('xiaohongshu/search');
         const page = createPageMock([]);
