@@ -9,6 +9,7 @@ import { ArgumentError, AuthRequiredError, CliError, CommandExecutionError, Empt
 import { unwrapEvaluateResult } from './shared.js';
 const CONTENT_WAIT_SECONDS = 20;
 const EXPLORE_URL = 'https://www.xiaohongshu.com/explore';
+const SEARCH_RESULT_URL = 'https://www.xiaohongshu.com/search_result';
 const SEARCH_NAVIGATION_SECONDS = 10;
 /**
  * Wait for search results or login wall using MutationObserver (max 20s).
@@ -364,10 +365,9 @@ function resolveSearchFilters(kwargs) {
     });
 }
 
-function buildInSiteSearchJs(query) {
-    return `
-      (async () => {
-        const query = ${JSON.stringify(query)};
+// In-page helpers shared by the in-site search script and the direct-URL
+// landing check: visibility filter, and login / risk-control wall detection.
+const SEARCH_ENTRY_HELPERS_JS = `
         const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
         const visible = (element) => {
           if (!element || element.closest('[aria-hidden="true"], [hidden], [inert]')) return false;
@@ -390,18 +390,56 @@ function buildInSiteSearchJs(query) {
             return { status: 'auth', detail: 'login_wall' };
           return null;
         };
+`;
+
+// Waits until the tab shows the result page for exactly this query. Both the
+// classic /search_result and the AI /search_result_ai routes are accepted; any
+// other landing (explore feed, stale keyword) ends as a typed timeout.
+const AWAIT_SEARCH_RESULTS_JS = `
+        const deadline = Date.now() + ${SEARCH_NAVIGATION_SECONDS * 1000};
+        while (Date.now() < deadline) {
+          const wall = blocked();
+          if (wall) return wall;
+          const searchRendered = document.querySelector('.search-layout__top > .filter, .filter.ai-chat-filter, section.note-item, section:has(a[href*="/search_result/"])');
+          const keyword = new URLSearchParams(location.search).get('keyword');
+          // The AI route percent-encodes the keyword twice, so one decode is still encoded.
+          let decodedKeyword = keyword;
+          try { decodedKeyword = keyword === null ? null : decodeURIComponent(keyword); } catch { decodedKeyword = keyword; }
+          const resultPath = location.pathname === '/search_result' || location.pathname === '/search_result_ai';
+          if (resultPath && (keyword === query || decodedKeyword === query) &&
+              (searchRendered || document.querySelector('.search-empty-wrapper'))) {
+            return { status: 'ok', detail: location.pathname };
+          }
+          await sleep(100);
+        }
+        return { status: 'timeout', detail: location.pathname };
+`;
+
+/**
+ * Drive the homepage search control the way a user does. Every `layout`
+ * status is returned before anything is submitted, so the caller may safely
+ * try another entry path for it.
+ */
+function buildInSiteSearchJs(query) {
+    return `
+      (async () => {
+        const query = ${JSON.stringify(query)};
+        ${SEARCH_ENTRY_HELPERS_JS}
         let input = null;
         for (let attempt = 0; attempt < 50 && !input; attempt++) {
           const wall = blocked();
           if (wall) return wall;
-          const inputs = matches('#search-input');
+          // Classic layout: #search-input + .search-icon. AI-search homepage: the classic pair
+          // renders at 0x0 and the live control is a textarea (submit = Enter); its honeypot
+          // clone is aria-hidden / near-transparent, so visible() keeps exactly one match.
+          const inputs = matches('#search-input, textarea[name="aiSearchTextarea"]');
           if (inputs.length > 1) return { status: 'layout', detail: 'ambiguous_search_input' };
           input = inputs[0];
           if (!input) await sleep(100);
         }
-        if (!(input instanceof HTMLInputElement) || input.disabled || input.readOnly)
+        if (!input || !/^(INPUT|TEXTAREA)$/.test(input.tagName) || input.disabled || input.readOnly)
           return { status: 'layout', detail: 'search_input_not_available' };
-        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+        const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(input), 'value').set;
         input.focus();
         setter.call(input, query);
         input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -410,27 +448,37 @@ function buildInSiteSearchJs(query) {
         if (input.value !== query) return { status: 'layout', detail: 'search_input_not_filled' };
         const wall = blocked();
         if (wall) return wall;
-        const buttons = matches('.search-icon');
-        if (buttons.length !== 1) return { status: 'layout', detail: 'ambiguous_or_missing_search_button' };
-        const button = buttons[0];
-        if (button.disabled || button.getAttribute('aria-disabled') === 'true')
-          return { status: 'layout', detail: 'search_button_disabled' };
-        button.click();
-        const deadline = Date.now() + ${SEARCH_NAVIGATION_SECONDS * 1000};
-        while (Date.now() < deadline) {
-          const wall = blocked();
-          if (wall) return wall;
-          const searchRendered = document.querySelector('.search-layout__top > .filter, .filter.ai-chat-filter, section.note-item, section:has(a[href*="/search_result/"])');
-          const keyword = new URLSearchParams(location.search).get('keyword');
-          if (location.pathname === '/search_result' && keyword === query &&
-              (searchRendered || document.querySelector('.search-empty-wrapper'))) {
-            return { status: 'ok', detail: location.pathname };
+        if (input.tagName === 'TEXTAREA') {
+          const KeyboardEventCtor = input.ownerDocument.defaultView.KeyboardEvent;
+          for (const type of ['keydown', 'keypress', 'keyup']) {
+            input.dispatchEvent(new KeyboardEventCtor(type, { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true }));
           }
-          await sleep(100);
         }
-        return { status: 'timeout', detail: location.pathname };
+        else {
+          const buttons = matches('.search-icon');
+          if (buttons.length !== 1) return { status: 'layout', detail: 'ambiguous_or_missing_search_button' };
+          const button = buttons[0];
+          if (button.disabled || button.getAttribute('aria-disabled') === 'true')
+            return { status: 'layout', detail: 'search_button_disabled' };
+          button.click();
+        }
+        ${AWAIT_SEARCH_RESULTS_JS}
       })()
     `;
+}
+
+function buildAwaitDirectSearchJs(query) {
+    return `
+      (async () => {
+        const query = ${JSON.stringify(query)};
+        ${SEARCH_ENTRY_HELPERS_JS}
+        ${AWAIT_SEARCH_RESULTS_JS}
+      })()
+    `;
+}
+
+function buildDirectSearchUrl(query) {
+    return `${SEARCH_RESULT_URL}?keyword=${encodeURIComponent(query)}&source=web_search_result_notes`;
 }
 
 function buildApplySearchFiltersJs(requestedFilters) {
@@ -915,13 +963,11 @@ async function collectSearchHarvest(page, limit, requestedFilters) {
     return harvest;
 }
 
-async function openSearchResults(page, query) {
-    await page.goto(EXPLORE_URL);
-    const result = unwrapEvaluateResult(await page.evaluate(buildInSiteSearchJs(query)));
-    if (!result || typeof result !== 'object' || Array.isArray(result)) {
-        throw new CommandExecutionError('Unexpected Xiaohongshu in-site search payload shape.');
+function requireSearchEntry(payload, stage) {
+    const result = unwrapEvaluateResult(payload);
+    if (!result || typeof result !== 'object' || Array.isArray(result) || typeof result.status !== 'string') {
+        throw new CommandExecutionError(`Unexpected Xiaohongshu ${stage} payload shape.`);
     }
-    if (result.status === 'ok') return;
     if (result.status === 'auth') {
         throw new AuthRequiredError('www.xiaohongshu.com', 'Xiaohongshu search results are blocked behind a login wall');
     }
@@ -929,9 +975,33 @@ async function openSearchResults(page, query) {
         throw new CliError('SECURITY_BLOCK', 'Xiaohongshu search was blocked by request-frequency or security controls.', 'Wait before retrying or use a different logged-in browser session.');
     }
     if (result.status === 'timeout') {
-        throw new TimeoutError('xiaohongshu in-site search navigation', SEARCH_NAVIGATION_SECONDS);
+        throw new TimeoutError(`xiaohongshu ${stage} navigation`, SEARCH_NAVIGATION_SECONDS);
     }
-    throw new CommandExecutionError(`Xiaohongshu in-site search failed: ${result.detail || 'unknown'}`);
+    return result;
+}
+
+/**
+ * Open the result page for `query`. The homepage search control is primary:
+ * full-page loads of the result URL were redirected to captcha after repeated
+ * use (#2562, #1224), while SPA searches from the homepage kept working.
+ * Only when no homepage control could be driven (a `layout` status, returned
+ * before anything is submitted) does this load the result URL directly, and
+ * that landing is held to the same route, keyword, and wall checks.
+ */
+async function openSearchResults(page, query) {
+    await page.goto(EXPLORE_URL);
+    const result = requireSearchEntry(await page.evaluate(buildInSiteSearchJs(query)), 'in-site search');
+    if (result.status === 'ok') return;
+    if (result.status !== 'layout') {
+        throw new CommandExecutionError(`Xiaohongshu in-site search failed: ${result.detail || 'unknown'}`);
+    }
+    const layoutDetail = result.detail;
+    await page.goto(buildDirectSearchUrl(query));
+    const landing = requireSearchEntry(await page.evaluate(buildAwaitDirectSearchJs(query)), 'direct result page');
+    if (landing.status === 'ok') return;
+    throw new CommandExecutionError(
+        `Xiaohongshu search failed: homepage search unavailable (${layoutDetail}) and the direct result page did not load (${landing.detail}).`,
+    );
 }
 
 async function replaceCollapsedTab(page, url) {
@@ -1048,6 +1118,8 @@ export const command = cli({
 export const __test__ = {
     WAIT_FOR_CONTENT_JS,
     buildInSiteSearchJs,
+    buildAwaitDirectSearchJs,
+    buildDirectSearchUrl,
     harvestOptionsForLimit,
     stripXhsAuthorDateSuffix,
 };
