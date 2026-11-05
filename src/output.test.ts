@@ -96,4 +96,37 @@ describe('output TTY detection', () => {
 
     expect(out).toContain('| a\\|b | 10 |');
   });
+
+  it('escapes CSV headers with the same field rules as data cells', () => {
+    const columns = ['name,alias', 'quoted"name', 'line\nbreak', 'carriage\rreturn', 'plain'];
+    const values = ['a,b', 'a"b', 'a\nb', 'a\rb', 'unchanged'];
+    render([Object.fromEntries(columns.map((key, index) => [key, values[index]]))], { fmt: 'csv', columns });
+
+    expect(logSpy.mock.calls.map((call: unknown[]) => call[0])).toEqual([
+      '"name,alias","quoted""name","line\nbreak","carriage\rreturn",plain',
+      '"a,b","a""b","a\nb","a\rb",unchanged',
+    ]);
+  });
+
+  it('escapes inferred CSV headers while preserving column order and nullish cells', () => {
+    render([{ 'first,name': 'Ada', 'other"name': null, plain: undefined, count: 0, enabled: false }], { fmt: 'csv' });
+
+    expect(logSpy.mock.calls.map((call: unknown[]) => call[0])).toEqual([
+      '"first,name","other""name",plain,count,enabled',
+      'Ada,,,0,false',
+    ]);
+  });
+
+  it('keeps Markdown headers on one physical row and escapes their pipe separators', () => {
+    const columns = ['name|alias', 'line\r\nbreak\n\nlast\rtail', 'plain'];
+    render([Object.fromEntries(columns.map((key) => [key, 'value']))], { fmt: 'md', columns });
+
+    const lines = logSpy.mock.calls.map((call: unknown[]) => String(call[0]));
+    expect(lines).toEqual([
+      '| name\\|alias | line<br>break<br><br>last<br>tail | plain |',
+      '| --- | --- | --- |',
+      '| value | value | value |',
+    ]);
+    expect(lines.every((line: string) => !/[\r\n]/.test(line))).toBe(true);
+  });
 });
