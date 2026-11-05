@@ -67,7 +67,7 @@ describe('reddit search adapter', () => {
       gallery_urls: ['https://example.test/g&1'],
     }]);
     expect(page.goto).toHaveBeenCalledWith('https://www.reddit.com');
-    expect(page.evaluate.mock.calls[0][0]).toContain('fetchJsonOrLoginWall');
+    expect(page.evaluate.mock.calls[0][0]).toContain('redditFetchJson');
   });
 
   it('preserves the requested output limit when the API returns extra rows', async () => {

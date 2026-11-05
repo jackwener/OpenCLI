@@ -1,4 +1,4 @@
-// Runs in the page context; fetchJsonOrLoginWall is injected by the caller.
+// Runs in the page context; redditFetchJson (./api.js) is injected by the caller.
 export async function fetchRankedRedditSearch(query, subreddit, sort, time, limit, legacyPath) {
     const origin = 'https://www.reddit.com';
     const params = new URLSearchParams({ q: query, type: 'posts', sort, t: time });
@@ -11,11 +11,12 @@ export async function fetchRankedRedditSearch(query, subreddit, sort, time, limi
         __loginWall: true, status: response.status, url: response.url || url,
         contentType: response.headers.get('content-type') || '', bodyPreview: text.slice(0, 100),
     } });
-    async function listing(url) {
-        const payload = await fetchJsonOrLoginWall(url, { credentials: 'include' });
-        if (payload?.__loginWall && payload.status === 429) return { kind: 'http', status: 429 };
-        if (payload?.__loginWall) return { kind: 'login-wall', sentinel: payload };
-        if (payload?.error) return { kind: 'http', status: payload.error };
+    const blocked = (response, url) => ({ kind: 'fetch-failed', where: '/search/',
+        failure: { reason: 'blocked', status: response.status, url: response.url || url } });
+    async function listing(url, where) {
+        const result = await redditFetchJson(url);
+        if (!result.ok) return { kind: 'fetch-failed', failure: result.failure, where };
+        const payload = result.data;
         if (!Array.isArray(payload?.data?.children)) return { kind: 'malformed', detail: 'payload is missing data.children' };
         return { kind: 'ok', rows: payload.data.children };
     }
@@ -24,17 +25,20 @@ export async function fetchRankedRedditSearch(query, subreddit, sort, time, limi
         seenPages.add(next);
         const response = await fetch(next, { credentials: 'include' });
         const text = await response.text();
-        if (response.status === 429) return { kind: 'http', status: 429 };
+        if (response.status === 429) return { kind: 'fetch-failed', where: '/search/', failure: { reason: 'rate-limited', status: 429, url: response.url || next } };
+        const html = /text\/html/i.test(response.headers.get('content-type') || '');
+        if (html && !response.ok && /blocked by network security/i.test(text)) return blocked(response, next);
         if (!response.ok) {
-            if ([401, 403].includes(response.status) && /text\/html/i.test(response.headers.get('content-type') || '')) return wall(response, text, next);
+            if ([401, 403].includes(response.status) && html) return wall(response, text, next);
             return { kind: 'http', status: response.status };
         }
         const landed = new URL(response.url || next, origin);
         if (landed.origin !== origin || /\/login\/?$|\/account\/login|\/challenge\/?$/.test(landed.pathname)) return wall(response, text, next);
         const doc = new DOMParser().parseFromString(text, 'text/html');
         const units = Array.from(doc.querySelectorAll('[data-testid="search-post-unit"]'));
+        if (!units.length && /blocked by network security/i.test(doc.body?.textContent || '')) return blocked(response, next);
         if ((!units.length && /^(?:log in|login|access denied|blocked|security verification|just a moment)/i.test(doc.title))
-            || (!units.length && /blocked by network security|whoa there, pardner|you.ve been blocked/i.test(doc.body?.textContent || ''))
+            || (!units.length && /whoa there, pardner|you.ve been blocked/i.test(doc.body?.textContent || ''))
             || (!units.length && doc.querySelector('form[action*="/login"], #loginForm, #challenge-form, iframe[src*="recaptcha"], iframe[src*="hcaptcha"]'))) return wall(response, text, next);
         for (const unit of units) {
             const unitIds = new Set();
@@ -54,7 +58,7 @@ export async function fetchRankedRedditSearch(query, subreddit, sort, time, limi
         // Auth, rate limits, transport failures and partial-page failures are terminal.
         if (!units.length && page === 0) {
             if (/no (?:results|posts) found|couldn.t find any results/i.test(doc.body?.textContent || '')) return { kind: 'ok', rows: [] };
-            const legacy = await listing(legacyPath);
+            const legacy = await listing(legacyPath, legacyPath.split('?')[0]);
             return legacy.kind === 'ok' ? { ...legacy, fallback: true } : legacy;
         }
         const cursors = new Set();
@@ -73,7 +77,7 @@ export async function fetchRankedRedditSearch(query, subreddit, sort, time, limi
     }
     const byName = new Map();
     for (let offset = 0; offset < ids.length; offset += 100) {
-        const result = await listing('/by_id/' + ids.slice(offset, offset + 100).join(',') + '.json?raw_json=1');
+        const result = await listing('/by_id/' + ids.slice(offset, offset + 100).join(',') + '.json?raw_json=1', '/by_id post hydration');
         if (result.kind !== 'ok') return result;
         for (const row of result.rows) {
             const name = row?.data?.name || (row?.data?.id ? 't3_' + row.data.id : '');

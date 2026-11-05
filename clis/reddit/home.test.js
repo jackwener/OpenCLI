@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import { ArgumentError } from '@jackwener/opencli/errors';
-import { extractRedditMedia, parseRedditHomeLimit } from './home.js';
+import { extractRedditMedia } from './api.js';
+import { parseRedditHomeLimit } from './home.js';
 
 describe('reddit home command', () => {
     it('parseRedditHomeLimit accepts [1,100] and rejects out-of-range / non-integer without silent clamp', () => {

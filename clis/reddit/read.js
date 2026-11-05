@@ -10,6 +10,7 @@
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { redditFetchJson, throwRedditFetchFailure } from './api.js';
 
 const REDDIT_EXPAND_ROUNDS_MIN = 1;
 const REDDIT_EXPAND_ROUNDS_MAX = 5;
@@ -128,7 +129,7 @@ cli({
             name: 'allow-partial',
             type: 'bool',
             default: false,
-            help: 'With --expand-more: if /api/morechildren is denied (HTTP 401/403), keep the comments already loaded and append a NOTICE row instead of failing',
+            help: 'With --expand-more: if Reddit denies /api/morechildren (HTTP 401/403, network-security block, or rate limit), keep the comments already loaded and append a NOTICE row instead of failing',
         },
     ],
     columns: ['type', 'author', 'score', 'text', 'post_hint', 'url_overridden_by_dest', 'preview_image_url', 'gallery_urls'],
@@ -153,13 +154,16 @@ cli({
         // The in-browser script returns a discriminated union so we can map
         // each failure mode to its proper typed error on the Node side
         // (page.evaluate boundary can't carry typed error instances). Kinds:
-        //   - inaccessible: 401/403/404 on /comments/<id>.json (post-specific,
+        //   - inaccessible: JSON 401/403/404 on /comments/<id>.json (post-specific,
         //     not session auth — same session works for other posts)
         //   - auth:         /api/morechildren.json 401/403 (session-level on
         //     the write-like expand endpoint — see two-pronged auth detection
-        //     sediment from PR #1428). With --allow-partial the denial instead
-        //     stops expansion, keeps the already-loaded tree, and appends a
-        //     NOTICE row (expandMeta.denied carries the HTTP status).
+        //     sediment from PR #1428). With --allow-partial a denial (401/403,
+        //     network-security block, rate limit) instead stops expansion,
+        //     keeps the already-loaded tree, and appends a NOTICE row
+        //     (expandMeta.denied describes the refusal).
+        //   - fetch-failed: network-security block, rate limit or login wall
+        //     classified by redditFetchJson (./api.js)
         //   - http:         5xx or other non-ok
         //   - malformed:    200 but Reddit shape is unexpected (schema drift)
         //   - parser-drift: tree non-empty but walk produced 0 rows
@@ -223,20 +227,21 @@ cli({
         // Request more from API than top-level limit to get inline replies.
         // depth param tells Reddit how deep to inline replies vs "more" stubs.
         var apiLimit = Math.max(limit * 3, 100);
-        var res = await fetch(
-          '/comments/' + postId + '.json?sort=' + sort + '&limit=' + apiLimit + '&depth=' + (maxDepth + 1) + '&raw_json=1',
-          { credentials: 'include' }
+        var redditFetchJson = ${redditFetchJson.toString()};
+        var res = await redditFetchJson(
+          '/comments/' + postId + '.json?sort=' + sort + '&limit=' + apiLimit + '&depth=' + (maxDepth + 1) + '&raw_json=1'
         );
-        if (res.status === 401 || res.status === 403 || res.status === 404) {
-          return { kind: 'inaccessible', detail: 'Reddit post ' + postId + ' is not accessible (HTTP ' + res.status + ').' };
-        }
         if (!res.ok) {
-          return { kind: 'http', httpStatus: res.status, where: '/comments/' + postId + '.json' };
+          var initialFailure = res.failure;
+          if (initialFailure.reason === 'http' && [401, 403, 404].indexOf(initialFailure.status) !== -1) {
+            return { kind: 'inaccessible', detail: 'Reddit post ' + postId + ' is not accessible (HTTP ' + initialFailure.status + ').' };
+          }
+          if (initialFailure.reason === 'http') {
+            return { kind: 'http', httpStatus: initialFailure.status, where: '/comments/' + postId + '.json' };
+          }
+          return { kind: 'fetch-failed', failure: initialFailure, where: '/comments/' + postId + '.json' };
         }
-        var data;
-        try { data = await res.json(); } catch (e) {
-          return { kind: 'malformed', detail: 'Failed to parse Reddit /comments/' + postId + '.json response: ' + (e && e.message || e) };
-        }
+        var data = res.data;
         if (!Array.isArray(data) || data.length < 2) {
           return { kind: 'malformed', detail: 'Reddit /comments/' + postId + '.json had unexpected envelope shape (length ' + (Array.isArray(data) ? data.length : typeof data) + ').' };
         }
@@ -259,7 +264,7 @@ cli({
         // for nested). Each round may surface new "more" stubs (because
         // expansion is bounded by Reddit's depth param), so we iterate up
         // to expandRounds times.
-        var expandMeta = { rounds: 0, fetched: 0, capped: false, errors: [], denied: 0, notExpanded: 0 };
+        var expandMeta = { rounds: 0, fetched: 0, capped: false, errors: [], denied: '', notExpanded: 0 };
 
         if (expandMore) {
           // Index every existing t1 node so we can splice replies onto it.
@@ -329,32 +334,41 @@ cli({
                 + '&raw_json=1';
               var mcRes;
               try {
-                mcRes = await fetch('/api/morechildren', {
+                mcRes = await redditFetchJson('/api/morechildren', {
                   method: 'POST',
-                  credentials: 'include',
                   headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                   body: body,
                 });
               } catch (e) {
                 return { kind: 'expand-failed', detail: 'morechildren request threw: ' + (e && e.message || e), expandMeta: expandMeta };
               }
-              if (mcRes.status === 401 || mcRes.status === 403) {
-                if (!allowPartial) {
-                  return { kind: 'auth', detail: '/api/morechildren returned HTTP ' + mcRes.status + ' (write/expand likely requires login)' };
-                }
-                // Optional expansion was denied. Keep what the initial read
-                // (and any earlier rounds) already loaded; leave this round's
-                // stubs untouched so the walker still counts them as hidden.
-                expandMeta.denied = mcRes.status;
-                break;
-              }
               if (!mcRes.ok) {
-                return { kind: 'http', httpStatus: mcRes.status, where: '/api/morechildren (round ' + (r + 1) + ', batch ' + ((b / batchSize) + 1) + ')' };
+                var mcFailure = mcRes.failure;
+                var mcWhere = '/api/morechildren (round ' + (r + 1) + ', batch ' + ((b / batchSize) + 1) + ')';
+                var mcAuth = mcFailure.status === 401 || mcFailure.status === 403;
+                if (allowPartial && (mcAuth || mcFailure.reason === 'blocked' || mcFailure.reason === 'rate-limited')) {
+                  // Optional expansion was denied. Keep what the initial read
+                  // (and any earlier rounds) already loaded; leave this round's
+                  // stubs untouched so the walker still counts them as hidden.
+                  expandMeta.denied = mcFailure.reason === 'blocked'
+                    ? 'was blocked by Reddit network security (HTTP ' + mcFailure.status + ')'
+                    : mcFailure.reason === 'rate-limited'
+                      ? 'was rate limited (HTTP 429)'
+                      : 'returned HTTP ' + mcFailure.status;
+                  break;
+                }
+                if (mcFailure.reason === 'blocked' || mcFailure.reason === 'rate-limited') {
+                  return { kind: 'fetch-failed', failure: mcFailure, where: mcWhere };
+                }
+                if (mcAuth) {
+                  return { kind: 'auth', detail: '/api/morechildren returned HTTP ' + mcFailure.status + ' (write/expand likely requires login)' };
+                }
+                if (mcFailure.reason === 'http') {
+                  return { kind: 'http', httpStatus: mcFailure.status, where: mcWhere };
+                }
+                return { kind: 'fetch-failed', failure: mcFailure, where: mcWhere };
               }
-              var mcData;
-              try { mcData = await mcRes.json(); } catch (e) {
-                return { kind: 'malformed', detail: 'Failed to parse /api/morechildren response: ' + (e && e.message || e) };
-              }
+              var mcData = mcRes.data;
               var errs = mcData && mcData.json && mcData.json.errors;
               if (Array.isArray(errs) && errs.length > 0) {
                 return { kind: 'expand-failed', detail: 'Reddit /api/morechildren rejected: ' + errs.map(function(e) { return e.join(': '); }).join('; '), expandMeta: expandMeta };
@@ -585,7 +599,7 @@ cli({
             type: 'NOTICE',
             author: '',
             score: '',
-            text: '[partial: /api/morechildren returned HTTP ' + expandMeta.denied + '; '
+            text: '[partial: /api/morechildren ' + expandMeta.denied + '; '
               + expandMeta.notExpanded + ' comments behind "more" stubs were not retrieved]',
             post_hint: '',
             url_overridden_by_dest: '',
@@ -600,6 +614,9 @@ cli({
 
         if (!result || typeof result !== 'object') {
             throw new CommandExecutionError('Reddit /comments fetch returned no result envelope.');
+        }
+        if (result.kind === 'fetch-failed') {
+            throwRedditFetchFailure(result.failure, result.where);
         }
         if (result.kind === 'inaccessible') {
             throw new EmptyResultError(result.detail);

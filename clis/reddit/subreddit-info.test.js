@@ -60,6 +60,8 @@ describe('reddit subreddit-info command', () => {
                     const result = await (new Function('fetch', `return (${script})`))(vi.fn(async () => ({
                         status,
                         ok: false,
+                        headers: { get: () => 'application/json; charset=UTF-8' },
+                        text: async () => JSON.stringify({ message: 'Forbidden', error: status }),
                     })));
                     scriptResults.push(result);
                     return result;

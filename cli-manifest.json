@@ -30210,7 +30210,7 @@
         "type": "bool",
         "default": false,
         "required": false,
-        "help": "With --expand-more: if /api/morechildren is denied (HTTP 401/403), keep the comments already loaded and append a NOTICE row instead of failing"
+        "help": "With --expand-more: if Reddit denies /api/morechildren (HTTP 401/403, network-security block, or rate limit), keep the comments already loaded and append a NOTICE row instead of failing"
       }
     ],
     "columns": [

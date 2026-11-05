@@ -88,10 +88,21 @@ Reddit's "more comments" stubs by calling `/api/morechildren.json` up to
 itself rejects the request with 401/403, that's surfaced as
 `AuthRequiredError` because writeable/expand endpoints often require a logged-
 in session even though the post listing is public. Pass `--allow-partial` to
-keep the post and the comments already loaded instead: expansion stops, the
-unexpanded stubs still show as `[+N more replies]`, and a final `NOTICE` row
-reports the HTTP status and how many comments were not retrieved. Other
-failures (including 401/403/404 on the post itself) still raise errors.
+keep the post and the comments already loaded instead when morechildren is
+denied (401/403, Reddit's network-security block, or a rate limit): expansion
+stops, the unexpanded stubs still show as `[+N more replies]`, and a final
+`NOTICE` row names the refusal and how many comments were not retrieved. Other
+failures (including any failure on the post itself) still raise errors.
+
+## Network-security blocks
+
+Reddit sometimes answers `.json` requests from a logged-in browser with its
+"You've been blocked by network security" page (HTTP 403, HTML). Which
+endpoints are affected varies by network and over time (`/search.json` and
+`/by_id` first, then subreddit listings). Every Reddit read command reports this
+page as a `SECURITY_BLOCK` error rather than `LOGIN_WALL` or a JSON parse
+error: logging in again does not clear it. opencli does not retry the request or
+route it through another Reddit host. HTTP 429 is reported as `RATE_LIMITED`.
 
 ## Prerequisites
 

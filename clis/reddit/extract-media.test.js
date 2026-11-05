@@ -1,40 +1,11 @@
 /**
- * Behavioral tests for the extractRedditMedia helper.
- *
- * The helper is duplicated inline inside each adapter's browser-side evaluate()
- * source (see popular.js / hot.js / search.js / frontpage.js / subreddit.js).
- * Per-adapter tests grep that the same function-name + spread call is present.
- * This file pins the helper's behavior against representative Reddit-JSON
- * fixtures.
+ * Behavioral tests for the extractRedditMedia helper shared by the Reddit
+ * listing commands (./api.js); search.js and read.js build the same fields
+ * themselves. This file pins the helper's behavior against
+ * representative Reddit-JSON fixtures.
  */
 import { describe, expect, it } from 'vitest';
-
-function decodeHtml(s) {
-  if (typeof s !== 'string' || !s) return '';
-  return s
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#x27;/gi, "'")
-    .replace(/&#39;/g, "'");
-}
-function extractRedditMedia(d) {
-  const post_hint = d?.post_hint || '';
-  const url_overridden_by_dest = d?.url_overridden_by_dest || '';
-  const preview_image_url = decodeHtml(d?.preview?.images?.[0]?.source?.url || '');
-  const gallery_urls = [];
-  const items = d?.gallery_data?.items;
-  const meta = d?.media_metadata;
-  if (Array.isArray(items) && meta) {
-    for (const it of items) {
-      const m = it && meta[it.media_id];
-      const u = m?.s?.u;
-      if (u) gallery_urls.push(decodeHtml(u));
-    }
-  }
-  return { post_hint, url_overridden_by_dest, preview_image_url, gallery_urls };
-}
+import { extractRedditMedia } from './api.js';
 
 describe('extractRedditMedia', () => {
   it('returns empty fields for a plain text/self post', () => {

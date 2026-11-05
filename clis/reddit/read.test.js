@@ -57,9 +57,22 @@ function jsonResponse(payload, status = 200) {
     return {
         ok: status >= 200 && status < 300,
         status,
-        json: vi.fn().mockResolvedValue(payload),
+        headers: { get: (name) => (name.toLowerCase() === 'content-type' ? 'application/json; charset=UTF-8' : null) },
+        text: vi.fn().mockResolvedValue(JSON.stringify(payload)),
     };
 }
+
+function htmlResponse(body, status = 403) {
+    return {
+        ok: status >= 200 && status < 300,
+        status,
+        headers: { get: (name) => (name.toLowerCase() === 'content-type' ? 'text/html; charset=utf-8' : null) },
+        text: vi.fn().mockResolvedValue(body),
+    };
+}
+
+const NETWORK_SECURITY_PAGE = '<body class=theme-beta><div><p>You\'ve been blocked by network security.</p>'
+    + '<p>To continue, log in to your Reddit account or use your developer token</p></div></body>';
 
 function makeRuntimePage(fetchImpl) {
     return {
@@ -489,6 +502,42 @@ describe('reddit read adapter', () => {
                 'allow-partial': true,
             })).rejects.toBeInstanceOf(CommandExecutionError);
         });
+
+        it('keeps the loaded tree and names the network-security block when morechildren is blocked', async () => {
+            const fetchMock = vi.fn(async (url) => {
+                if (String(url).startsWith('/comments/')) return jsonResponse(nestedTreeWithMoreStubs());
+                if (String(url) === '/api/morechildren') return htmlResponse(NETWORK_SECURITY_PAGE);
+                throw new Error(`unexpected URL ${url}`);
+            });
+            const result = await command.func(makeRuntimePage(fetchMock), {
+                'post-id': 'abc123',
+                'expand-more': true,
+                'allow-partial': true,
+                depth: 3,
+            });
+            expect(result.map((row) => row.author).slice(0, 3)).toEqual(['op', 'a', 'a1']);
+            expect(result.at(-1)).toMatchObject({
+                type: 'NOTICE',
+                text: '[partial: /api/morechildren was blocked by Reddit network security (HTTP 403); 5 comments behind "more" stubs were not retrieved]',
+            });
+        });
+
+        it('reports a blocked morechildren call as SECURITY_BLOCK, not AuthRequiredError, without --allow-partial', async () => {
+            const fetchMock = vi.fn(async (url) => {
+                if (String(url).startsWith('/comments/')) return jsonResponse(nestedTreeWithMoreStubs());
+                if (String(url) === '/api/morechildren') return htmlResponse(NETWORK_SECURITY_PAGE);
+                throw new Error(`unexpected URL ${url}`);
+            });
+            await expect(command.func(makeRuntimePage(fetchMock), { 'post-id': 'abc123', 'expand-more': true }))
+                .rejects.toMatchObject({ code: 'SECURITY_BLOCK' });
+        });
+    });
+
+    it('reports a blocked initial /comments read as SECURITY_BLOCK instead of an inaccessible post', async () => {
+        const fetchMock = vi.fn(async () => htmlResponse(NETWORK_SECURITY_PAGE));
+        await expect(command.func(makeRuntimePage(fetchMock), { 'post-id': 'abc123', 'allow-partial': true }))
+            .rejects.toMatchObject({ code: 'SECURITY_BLOCK' });
+        expect(fetchMock).toHaveBeenCalledTimes(1);
     });
 
     it('uses 5-kind discriminated union keys that DO NOT collide with declared columns', () => {
