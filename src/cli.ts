@@ -16,6 +16,7 @@ import { daemonRestart, daemonStatus, daemonStop } from './commands/daemon.js';
 import { registerListCommand } from './commands/list.js';
 import { registerPluginCommands } from './commands/plugin.js';
 import { registerProfileCommands } from './commands/profile.js';
+import { registerTraceCommands } from './commands/trace.js';
 import { printCompletionScript } from './completion.js';
 import { CliError, EXIT_CODES } from './errors.js';
 import { formatRootAdapterHelpText, installCommanderNamespaceStructuredHelp, installStructuredHelp, rootHelpData, type RootAdapterGroups } from './help.js';
@@ -156,6 +157,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
   const adapterCmd = registerAdapterCommands(program, BUILTIN_CLIS, USER_CLIS);
 
   const profileCmd = registerProfileCommands(program);
+  registerTraceCommands(program);
 
   const daemonCmd = program.command('daemon').description('Manage the opencli daemon');
   // Snapshot before applyRootSubcommandSummaries() rewrites .description() to a child-name listing.

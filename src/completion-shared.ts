@@ -13,6 +13,7 @@ export const BUILTIN_COMMANDS = [
   'adapter',
   'profile',
   'daemon',
+  'trace',
   'skills',
   'convention-audit',
   'auth',
