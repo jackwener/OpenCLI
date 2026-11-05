@@ -104,6 +104,15 @@ Static candidates are not executed. The agent decides which endpoints to investi
 
 Limits are explicit: up to 20 document scripts, 2 MiB per script, a 2 MiB combined inline-script budget, and a 10-second timeout per external script. External scripts are fetched through Node without browser credentials. Imports, workers, alias/data-flow resolution and scripts not present in the current document are not crawled. The report includes parse/fetch errors, omitted scripts and `analysisComplete` for this bounded scan; it does not claim complete site coverage. A drained network buffer falls back to the session cache, with `networkSource` and `networkSavedAt` identifying cached evidence.
 
+### Aggregate captured traffic
+
+Use `opencli browser network --session research --summary --sort failures` to find
+interfaces with failed or missing HTTP responses, or add `--group-by origin --sort size`
+to group by site and rank recorded response-character totals. Summary mode supports
+time/failure/shape filters, pagination, and stable keys for `--detail`; totals include
+all matching groups. See [network summaries](./network-summary.md) for measurement,
+cache, and output semantics.
+
 ### Real-browser regression test
 
 After building the CLI and extension, use Chrome for Testing or Chromium:

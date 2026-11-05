@@ -10,13 +10,14 @@ import { buildHtmlTreeJs, type HtmlTreeResult } from '../browser/html-tree.js';
 import { DEFAULT_TTL_MS, findEntry, loadNetworkCache, saveNetworkCache, type CachedNetworkEntry } from '../browser/network-cache.js';
 import { NETWORK_INTERCEPTOR_JS } from '../browser/network-interceptor.js';
 import { assignKeys } from '../browser/network-key.js';
+import { resolveNetworkSummaryOptions, summarizeNetwork, type NetworkSummaryOptions } from '../browser/network-summary.js';
 import { sanitizeCapturedRequest, sanitizeCapturedUrl, type SafeNetworkRequest } from '../browser/network-request.js';
 import { profileRouteParams, resolveProfileSelection, type ProfileSelection } from '../browser/profile.js';
 import { parseFilter, shapeMatchesFilter } from '../browser/shape-filter.js';
 import { inferShape } from '../browser/shape.js';
 import { TargetError, type TargetErrorCode } from '../browser/target-errors.js';
 import { getAttributesResolvedJs, getTextResolvedJs, getValueResolvedJs, isAutocompleteResolvedJs, resolveTargetJs, selectResolvedJs, type ResolveOptions, type TargetMatchLevel } from '../browser/target-resolver.js';
-import { EXIT_CODES, getErrorMessage } from '../errors.js';
+import { ArgumentError, EXIT_CODES, getErrorMessage } from '../errors.js';
 import { installCommanderNamespaceStructuredHelp } from '../help.js';
 import { log } from '../logger.js';
 import type { BrowserWindowMode } from '../runtime.js';
@@ -1877,6 +1878,11 @@ export function registerBrowserCommands(program: Command): Command {
 
   addBrowserTabOption(browser.command('network'))
     .option('--static', 'Include AST endpoint candidates from loaded scripts')
+    .option('--summary', 'Aggregate captured requests by endpoint or origin without emitting bodies')
+    .option('--group-by <mode>', 'With --summary: endpoint (default) or origin')
+    .option('--sort <order>', 'With --summary: requests (default), failures, size, or recent')
+    .option('--offset <n>', 'With --summary: skip n groups (default: 0)')
+    .option('--limit <n>', 'With --summary: show 1-500 groups (default: 20); totals cover all matches')
     .option('--detail <key>', 'Emit full body for the entry with this key')
     .option('--all', 'Include static resources (js/css/images/telemetry)')
     .option('--raw', 'Emit full bodies for every entry (skip shape preview)')
@@ -1889,6 +1895,23 @@ export function registerBrowserCommands(program: Command): Command {
     .option('--ttl <ms>', 'Cache TTL in ms for --detail lookups', String(DEFAULT_TTL_MS))
     .description('Capture network requests as shape previews; retrieve full bodies by key')
     .action(browserAction(async (page, opts) => {
+      let summaryOptions: Required<NetworkSummaryOptions> | undefined;
+      if (opts.summary) {
+        if (opts.static || opts.follow || opts.detail !== undefined || opts.raw) {
+          throw new ArgumentError('--summary cannot be combined with --static, --follow, --detail, or --raw.');
+        }
+        const integer = (value: unknown, flag: string): number | undefined => {
+          if (value === undefined) return undefined;
+          if (typeof value !== 'string' || !/^\d+$/.test(value)) throw new ArgumentError(`--${flag} must be an integer.`);
+          return Number(value);
+        };
+        summaryOptions = resolveNetworkSummaryOptions({
+          groupBy: opts.groupBy, sort: opts.sort,
+          offset: integer(opts.offset, 'offset'), limit: integer(opts.limit, 'limit'),
+        });
+      } else if (opts.groupBy !== undefined || opts.sort !== undefined || opts.offset !== undefined || opts.limit !== undefined) {
+        throw new ArgumentError('--group-by, --sort, --offset, and --limit require --summary.');
+      }
       if (opts.static && (opts.follow || opts.detail || opts.raw || opts.filter)) {
         emitFailure({ code: 'usage_error', message: '--static cannot be combined with --follow, --detail, --raw or --filter.' });
         return;
@@ -2063,12 +2086,14 @@ export function registerBrowserCommands(program: Command): Command {
       // call drained it. Reuse the still-fresh raw cache instead of replacing
       // it with an empty file, so `network` followed by `network --all` works.
       let reusedCache = false;
+      let reusedCacheSavedAt: string | undefined;
       if (rawItems.length === 0) {
         const cached = loadNetworkCache(cacheScope, { ttlMs });
         if (cached.status === 'ok' && cached.file) {
           cacheEntries = filterByTimeWindow(cached.file.entries, { sinceMs, untilMs });
           if (opts.failed) cacheEntries = cacheEntries.filter((item) => item.status === 0 || item.status >= 400);
           reusedCache = true;
+          reusedCacheSavedAt = cached.file.savedAt;
         }
       }
 
@@ -2101,7 +2126,7 @@ export function registerBrowserCommands(program: Command): Command {
       // body. Cache persistence above stored the unfiltered set on purpose:
       // later `--detail <key>` lookups must still see requests that the
       // current --filter narrowed out.
-      const shaped = displayEntries.map((e) => ({ entry: e, shape: inferShape(e.body) }));
+      const shaped = displayEntries.map((e) => ({ entry: e, shape: summaryOptions && !filterFields ? {} : inferShape(e.body) }));
       const visible = filterFields
         ? shaped.filter((s) => shapeMatchesFilter(s.shape, filterFields))
         : shaped;
@@ -2123,7 +2148,18 @@ export function registerBrowserCommands(program: Command): Command {
       const truncatedCount = visible.filter((s) => s.entry.body_truncated).length;
       if (truncatedCount > 0) {
         envelope.body_truncated_count = truncatedCount;
-        envelope.body_truncated_hint = 'Some bodies exceeded the capture limit; their `shape` reflects only the captured prefix.';
+        envelope.body_truncated_hint = summaryOptions
+          ? 'Some captured bodies are truncated; summary sizes use recorded full sizes when available.'
+          : 'Some bodies exceeded the capture limit; their `shape` reflects only the captured prefix.';
+      }
+
+      if (summaryOptions) {
+        envelope.capture_source = reusedCache ? 'cache' : rawItems.length ? 'live' : 'empty';
+        if (reusedCacheSavedAt) envelope.cache_saved_at = reusedCacheSavedAt;
+        envelope.summary = summarizeNetwork(visible.map((s) => s.entry), summaryOptions);
+        envelope.detail_hint = `Use an example_keys value with opencli browser network --detail <key> --session ${JSON.stringify(session)}.`;
+        emitResult(envelope);
+        return;
       }
 
       if (opts.raw) {
