@@ -54,6 +54,9 @@ opencli reddit read 1abc123 --depth 2
 # Read with "more comments" expansion via /api/morechildren.json
 opencli reddit read 1abc123 --depth 3 --expand-more --expand-rounds 3
 
+# Keep the loaded thread if expansion is denied (appends a NOTICE row)
+opencli reddit read 1abc123 --depth 3 --expand-more --allow-partial
+
 # Comment on a post
 opencli reddit comment 1abc123 "Great post"
 
@@ -84,7 +87,11 @@ Reddit's "more comments" stubs by calling `/api/morechildren.json` up to
 `--expand-rounds` times (default 2, max 5). If the morechildren endpoint
 itself rejects the request with 401/403, that's surfaced as
 `AuthRequiredError` because writeable/expand endpoints often require a logged-
-in session even though the post listing is public.
+in session even though the post listing is public. Pass `--allow-partial` to
+keep the post and the comments already loaded instead: expansion stops, the
+unexpanded stubs still show as `[+N more replies]`, and a final `NOTICE` row
+reports the HTTP status and how many comments were not retrieved. Other
+failures (including 401/403/404 on the post itself) still raise errors.
 
 ## Prerequisites
 

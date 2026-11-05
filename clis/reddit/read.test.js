@@ -365,6 +365,132 @@ describe('reddit read adapter', () => {
         })).rejects.toBeInstanceOf(CommandExecutionError);
     });
 
+    describe('--allow-partial when /api/morechildren is denied', () => {
+        function nestedTreeWithMoreStubs() {
+            const a = commentThing('a', 'A', 't3_abc123', 9);
+            a.data.replies = {
+                kind: 'Listing',
+                data: {
+                    children: [
+                        commentThing('a1', 'A1', 't1_a', 4),
+                        moreThing('more_a', ['a2', 'a3'], 't1_a'),
+                    ],
+                },
+            };
+            return redditPostEnvelope([
+                a,
+                moreThing('more_top', ['b', 'c', 'd'], 't3_abc123', 3),
+            ]);
+        }
+
+        it('keeps the post and nested replies and appends a NOTICE row with the uncovered count', async () => {
+            const fetchMock = vi.fn(async (url) => {
+                if (String(url).startsWith('/comments/')) return jsonResponse(nestedTreeWithMoreStubs());
+                if (String(url) === '/api/morechildren') return jsonResponse({}, 403);
+                throw new Error(`unexpected URL ${url}`);
+            });
+            const page = makeRuntimePage(fetchMock);
+
+            const result = await command.func(page, {
+                'post-id': 'abc123',
+                'expand-more': true,
+                'allow-partial': true,
+                depth: 3,
+                replies: 10,
+            });
+
+            expect(fetchMock).toHaveBeenCalledTimes(2);
+            expect(result.map((row) => [row.type, row.author])).toEqual([
+                ['POST', 'op'],
+                ['L0', 'a'],
+                ['L1', 'a1'],
+                ['L1', ''],
+                ['', ''],
+                ['NOTICE', ''],
+            ]);
+            expect(result[3].text).toContain('[+2 more replies]');
+            expect(result[4].text).toBe('[+3 more top-level comments]');
+            expect(result[5].text).toBe(
+                '[partial: /api/morechildren returned HTTP 403; 5 comments behind "more" stubs were not retrieved]',
+            );
+        });
+
+        it('keeps comments expanded in earlier rounds when a later round is denied', async () => {
+            let mcCalls = 0;
+            const fetchMock = vi.fn(async (url) => {
+                if (String(url).startsWith('/comments/')) {
+                    return jsonResponse(redditPostEnvelope([moreThing('more_top', ['b'])]));
+                }
+                if (String(url) === '/api/morechildren') {
+                    mcCalls += 1;
+                    if (mcCalls === 1) {
+                        const b = commentThing('b', 'B');
+                        b.data.replies = { kind: 'Listing', data: { children: [moreThing('more_b', ['b1'], 't1_b')] } };
+                        return jsonResponse({ json: { errors: [], data: { things: [b] } } });
+                    }
+                    return jsonResponse({}, 403);
+                }
+                throw new Error(`unexpected URL ${url}`);
+            });
+            const page = makeRuntimePage(fetchMock);
+
+            const result = await command.func(page, {
+                'post-id': 'abc123',
+                'expand-more': true,
+                'allow-partial': true,
+                'expand-rounds': 3,
+                depth: 3,
+            });
+
+            expect(mcCalls).toBe(2);
+            expect(result.map((row) => row.author)).toEqual(['op', 'b', '', '']);
+            expect(result[2].text).toContain('[+1 more replies]');
+            expect(result[3]).toMatchObject({ type: 'NOTICE' });
+            expect(result[3].text).toContain('1 comments behind "more" stubs were not retrieved');
+        });
+
+        it('still fails with AuthRequiredError when --allow-partial is not set', async () => {
+            const fetchMock = vi.fn(async (url) => {
+                if (String(url).startsWith('/comments/')) return jsonResponse(nestedTreeWithMoreStubs());
+                if (String(url) === '/api/morechildren') return jsonResponse({}, 403);
+                throw new Error(`unexpected URL ${url}`);
+            });
+            const page = makeRuntimePage(fetchMock);
+
+            await expect(command.func(page, { 'post-id': 'abc123', 'expand-more': true }))
+                .rejects.toBeInstanceOf(AuthRequiredError);
+        });
+
+        it('still fails closed when the initial post read is denied', async () => {
+            const fetchMock = vi.fn(async (url) => {
+                if (String(url).startsWith('/comments/')) return jsonResponse({}, 403);
+                throw new Error(`unexpected URL ${url}`);
+            });
+            const page = makeRuntimePage(fetchMock);
+
+            await expect(command.func(page, {
+                'post-id': 'abc123',
+                'expand-more': true,
+                'allow-partial': true,
+            })).rejects.toBeInstanceOf(EmptyResultError);
+        });
+
+        it('does not treat non-auth morechildren failures as partial success', async () => {
+            const fetchMock = vi.fn(async (url) => {
+                if (String(url).startsWith('/comments/')) return jsonResponse(nestedTreeWithMoreStubs());
+                if (String(url) === '/api/morechildren') return jsonResponse({}, 500);
+                throw new Error(`unexpected URL ${url}`);
+            });
+            const page = makeRuntimePage(fetchMock);
+
+            await expect(command.func(page, {
+                'post-id': 'abc123',
+                'expand-more': true,
+                'allow-partial': true,
+            })).rejects.toBeInstanceOf(CommandExecutionError);
+        });
+    });
+
     it('uses 5-kind discriminated union keys that DO NOT collide with declared columns', () => {
         // Read the evaluate template once to assert the intermediate keys we
         // return on the browser side never name any of `type` / `author` /
