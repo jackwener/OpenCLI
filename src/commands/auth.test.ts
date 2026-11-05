@@ -39,6 +39,22 @@ function registerWhoami(site: string, opts: {
   });
 }
 
+function registerLogin(site: string): void {
+  cli({
+    site,
+    name: 'login',
+    access: 'write',
+    description: `${site} login`,
+    strategy: Strategy.COOKIE,
+    browser: true,
+    domain: `${site}.example.com`,
+    navigateBefore: false,
+    args: [],
+    columns: ['status'],
+    func: async () => ({ status: 'login_complete' }),
+  });
+}
+
 async function tempStatePath(): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), 'opencli-auth-refresh-test-'));
   return join(dir, 'auth-refresh.json');
@@ -293,6 +309,69 @@ describe('auth refresh collection', () => {
       },
     ]);
     expect(executeCommandMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('auth recovery hints', () => {
+  it('adds the site login command to quick not_logged_in rows', async () => {
+    registerWhoami('alpha', { quick: true, quickLoggedIn: false });
+    registerLogin('alpha');
+    registerWhoami('beta', { quick: true });
+    registerLogin('beta');
+    executeCommandMock.mockImplementation(async (cmd: BrowserCliCommand, kwargs: Record<string, unknown>) => {
+      if (cmd.site === 'beta') throw new AuthRequiredError('beta.example.com');
+      return cmd.func!({ goto: vi.fn(), wait: vi.fn() } as never, kwargs);
+    });
+
+    const rows = await collectAuthStatus({});
+
+    expect(rows).toEqual([
+      { site: 'alpha', status: 'not_logged_in', logged_in: false, identity: '', checked: 'quick', error: '', recovery: 'opencli alpha login' },
+      { site: 'beta', status: 'not_logged_in', logged_in: false, identity: '', checked: 'quick', error: '', recovery: 'opencli beta login' },
+    ]);
+  });
+
+  it('adds the site login command to full not_logged_in rows', async () => {
+    registerWhoami('gamma', { identity: { logged_in: false } });
+    registerLogin('gamma');
+
+    const rows = await collectAuthStatus({ full: true });
+
+    expect(rows[0]).toMatchObject({ status: 'not_logged_in', recovery: 'opencli gamma login' });
+  });
+
+  it('adds the site login command to refresh not_logged_in rows, scoped to the checked profile', async () => {
+    registerWhoami('delta', { quick: true, quickLoggedIn: true });
+    registerLogin('delta');
+    executeCommandMock.mockRejectedValue(new AuthRequiredError('delta.example.com'));
+
+    const unprofiled = await collectAuthRefresh({ statePath: await tempStatePath() });
+    const profiled = await collectAuthRefresh({ statePath: await tempStatePath(), profile: 'work' });
+    const spaced = await collectAuthRefresh({ statePath: await tempStatePath(), profile: "Bob's work" });
+
+    expect(unprofiled[0]).toMatchObject({ status: 'not_logged_in', recovery: 'opencli delta login' });
+    expect(profiled[0]).toMatchObject({ status: 'not_logged_in', recovery: 'opencli --profile work delta login' });
+    expect(spaced[0]?.recovery).toBe("opencli --profile 'Bob'\\''s work' delta login");
+  });
+
+  it('omits recovery when the site has no login command or the row is not not_logged_in', async () => {
+    registerWhoami('epsilon', { quick: true, quickLoggedIn: false });
+    registerWhoami('zeta', { quick: true, quickLoggedIn: true });
+    registerLogin('zeta');
+    registerWhoami('eta', { quick: true });
+    registerLogin('eta');
+    executeCommandMock.mockImplementation(async (cmd: BrowserCliCommand, kwargs: Record<string, unknown>) => {
+      if (cmd.site === 'eta') throw new Error('network down');
+      return cmd.func!({ goto: vi.fn(), wait: vi.fn() } as never, kwargs);
+    });
+
+    const rows = await collectAuthStatus({});
+
+    expect(rows.map(row => [row.site, row.status, 'recovery' in row])).toEqual([
+      ['epsilon', 'not_logged_in', false],
+      ['eta', 'error', false],
+      ['zeta', 'logged_in', false],
+    ]);
   });
 });
 
