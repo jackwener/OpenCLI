@@ -23,6 +23,34 @@ function unwrapBrowserResult(value) {
   return value;
 }
 
+// The /search/top SPA can take tens of seconds to render its result cards
+// (observed live in #2650), so one snapshot after a fixed settle window
+// returns 0-1 rows from a page that later holds a full result list. Re-run the
+// cheap in-page extraction until the list is complete (enough rows), has
+// stopped growing for SEARCH_STABLE_POLLS consecutive polls, or the bounded
+// deadline (~30s) expires. A partial list is never returned just because a
+// first row appeared: cards stream in, so a count must hold before it counts.
+const SEARCH_POLL_INTERVAL_S = 2;
+const SEARCH_POLL_ATTEMPTS = 15;
+const SEARCH_STABLE_POLLS = 2;
+
+async function extractSearchRows(page, limit) {
+  let payload;
+  let previousCount = -1;
+  let stablePolls = 0;
+  for (let attempt = 0; attempt < SEARCH_POLL_ATTEMPTS; attempt += 1) {
+    if (attempt > 0) await page.sleep(SEARCH_POLL_INTERVAL_S);
+    payload = unwrapBrowserResult(await page.evaluate(buildSearchExtractScript(limit)));
+    if (!payload || typeof payload !== 'object' || !Array.isArray(payload.rows)) return payload;
+    const count = payload.rows.length;
+    if (payload.status === 'auth' || count >= limit) return payload;
+    stablePolls = count === previousCount ? stablePolls + 1 : 0;
+    if (count > 0 && stablePolls >= SEARCH_STABLE_POLLS) return payload;
+    previousCount = count;
+  }
+  return payload;
+}
+
 // Modern facebook.com /search/top renders results inside [role="feed"] as
 // entity/content links (people, pages, groups, posts) — [role="article"] /
 // [role="listitem"] no longer wrap them — and FB seeds scrambled hidden-char
@@ -155,7 +183,7 @@ async function searchFacebook(page, kwargs) {
 
   let payload;
   try {
-    payload = unwrapBrowserResult(await page.evaluate(buildSearchExtractScript(limit)));
+    payload = await extractSearchRows(page, limit);
   } catch (err) {
     throw new CommandExecutionError(
       `Failed to read facebook search results: ${err instanceof Error ? err.message : err}`,
