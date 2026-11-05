@@ -38,7 +38,7 @@ import { TargetError, type TargetErrorCode } from './target-errors.js';
 import { CliError, CommandExecutionError } from '../errors.js';
 import { formatSnapshot } from '../snapshotFormatter.js';
 import { installVisualRefOverlayJs, removeVisualRefOverlayJs } from './visual-refs.js';
-import { cdpKeyPressEvents } from './key-definitions.js';
+import { cdpKeyPressEvents, keyModifierFlags } from './key-definitions.js';
 
 export const NATIVE_INPUT_VISIBILITY_JS = 'document.visibilityState';
 
@@ -1297,13 +1297,7 @@ export abstract class CDPBasePage extends BasePage {
 
   async nativeKeyPress(key: string, modifiers: string[] = []): Promise<void> {
     await this.assertNativeInputVisible();
-    let modifierFlags = 0;
-    for (const mod of modifiers) {
-      if (mod === 'Alt') modifierFlags |= 1;
-      if (mod === 'Ctrl' || mod === 'Control') modifierFlags |= 2;
-      if (mod === 'Meta') modifierFlags |= 4;
-      if (mod === 'Shift') modifierFlags |= 8;
-    }
+    const modifierFlags = keyModifierFlags(modifiers);
     // Include code / keyCode / text so pages see the same key fields and
     // keypress phase as a real key press (#2751).
     const { keyDown, keyUp } = cdpKeyPressEvents(key, modifierFlags);

@@ -128,7 +128,7 @@ describe('CDPBridge cookies', () => {
 
     expect(send.mock.calls.filter(([method]) => method !== 'Runtime.evaluate')).toEqual([
       ['Input.insertText', { text: 'hello' }],
-      ['Input.dispatchKeyEvent', { type: 'keyDown', key: 'a', code: 'KeyA', windowsVirtualKeyCode: 65, nativeVirtualKeyCode: 65, modifiers: 2 }],
+      ['Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'a', code: 'KeyA', windowsVirtualKeyCode: 65, nativeVirtualKeyCode: 65, modifiers: 2 }],
       ['Input.dispatchKeyEvent', { type: 'keyUp', key: 'a', code: 'KeyA', windowsVirtualKeyCode: 65, nativeVirtualKeyCode: 65, modifiers: 2 }],
       ['Input.dispatchMouseEvent', { type: 'mouseMoved', x: 10, y: 20 }],
       ['Input.dispatchMouseEvent', { type: 'mousePressed', x: 10, y: 20, button: 'left', clickCount: 1 }],
