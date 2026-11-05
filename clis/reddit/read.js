@@ -124,6 +124,12 @@ cli({
             default: DEFAULT_EXPAND_ROUNDS,
             help: `Max expansion passes when --expand-more is on (${REDDIT_EXPAND_ROUNDS_MIN}–${REDDIT_EXPAND_ROUNDS_MAX}; each round can fan out new "more" stubs)`,
         },
+        {
+            name: 'allow-partial',
+            type: 'bool',
+            default: false,
+            help: 'With --expand-more: if /api/morechildren is denied (HTTP 401/403), keep the comments already loaded and append a NOTICE row instead of failing',
+        },
     ],
     columns: ['type', 'author', 'score', 'text', 'post_hint', 'url_overridden_by_dest', 'preview_image_url', 'gallery_urls'],
     func: async (page, kwargs) => {
@@ -138,6 +144,7 @@ cli({
         const maxLength = Math.max(100, kwargs['max-length'] ?? 2000);
         const expandMore = Boolean(kwargs['expand-more']);
         const expandRounds = parseExpandRounds(kwargs['expand-rounds']);
+        const allowPartial = Boolean(kwargs['allow-partial']);
         const postId = normalizeRedditPostId(kwargs['post-id']);
 
         // 不再显式导航首页：框架 navigateBefore（domain=reddit.com）已把页面带到 reddit origin，
@@ -150,7 +157,9 @@ cli({
         //     not session auth — same session works for other posts)
         //   - auth:         /api/morechildren.json 401/403 (session-level on
         //     the write-like expand endpoint — see two-pronged auth detection
-        //     sediment from PR #1428)
+        //     sediment from PR #1428). With --allow-partial the denial instead
+        //     stops expansion, keeps the already-loaded tree, and appends a
+        //     NOTICE row (expandMeta.denied carries the HTTP status).
         //   - http:         5xx or other non-ok
         //   - malformed:    200 but Reddit shape is unexpected (schema drift)
         //   - parser-drift: tree non-empty but walk produced 0 rows
@@ -206,6 +215,7 @@ cli({
         var maxLength = ${maxLength};
         var expandMore = ${JSON.stringify(expandMore)};
         var expandRounds = ${expandRounds};
+        var allowPartial = ${JSON.stringify(allowPartial)};
 
         // ---------------------------------------------------------------
         // Step 1: fetch the post + initial comment tree
@@ -249,7 +259,7 @@ cli({
         // for nested). Each round may surface new "more" stubs (because
         // expansion is bounded by Reddit's depth param), so we iterate up
         // to expandRounds times.
-        var expandMeta = { rounds: 0, fetched: 0, capped: false, errors: [] };
+        var expandMeta = { rounds: 0, fetched: 0, capped: false, errors: [], denied: 0, notExpanded: 0 };
 
         if (expandMore) {
           // Index every existing t1 node so we can splice replies onto it.
@@ -329,7 +339,14 @@ cli({
                 return { kind: 'expand-failed', detail: 'morechildren request threw: ' + (e && e.message || e), expandMeta: expandMeta };
               }
               if (mcRes.status === 401 || mcRes.status === 403) {
-                return { kind: 'auth', detail: '/api/morechildren returned HTTP ' + mcRes.status + ' (write/expand likely requires login)' };
+                if (!allowPartial) {
+                  return { kind: 'auth', detail: '/api/morechildren returned HTTP ' + mcRes.status + ' (write/expand likely requires login)' };
+                }
+                // Optional expansion was denied. Keep what the initial read
+                // (and any earlier rounds) already loaded; leave this round's
+                // stubs untouched so the walker still counts them as hidden.
+                expandMeta.denied = mcRes.status;
+                break;
               }
               if (!mcRes.ok) {
                 return { kind: 'http', httpStatus: mcRes.status, where: '/api/morechildren (round ' + (r + 1) + ', batch ' + ((b / batchSize) + 1) + ')' };
@@ -348,6 +365,7 @@ cli({
               }
               for (var t = 0; t < things.length; t++) fetchedThings.push(things[t]);
             }
+            if (expandMeta.denied) break;
             expandMeta.rounds = r + 1;
             expandMeta.fetched += fetchedThings.length;
 
@@ -412,6 +430,11 @@ cli({
               var remaining = collectMoreStubs(topListing, null);
               if (remaining.length > 0) expandMeta.capped = true;
             }
+          }
+
+          if (expandMeta.denied) {
+            expandMeta.notExpanded = collectMoreStubs(topListing, null)
+              .reduce(function(sum, rec) { return sum + (rec.stub.data.count || rec.stub.data.children.length); }, 0);
           }
 
           if (expandMeta.errors.length > 0) {
@@ -553,6 +576,22 @@ cli({
         // schema). Surface as CommandExecutionError on the Node side.
         if (rows.length <= 1 && preWalkSize > 0 && t1TopLevel.length > 0) {
           return { kind: 'parser-drift', detail: 'Reddit comment listing for post ' + postId + ' had ' + t1TopLevel.length + ' t1 entries but walker produced no rows.' };
+        }
+
+        // --allow-partial: disclose that expansion stopped early so callers
+        // never mistake the partial tree for complete coverage.
+        if (expandMeta.denied) {
+          rows.push({
+            type: 'NOTICE',
+            author: '',
+            score: '',
+            text: '[partial: /api/morechildren returned HTTP ' + expandMeta.denied + '; '
+              + expandMeta.notExpanded + ' comments behind "more" stubs were not retrieved]',
+            post_hint: '',
+            url_overridden_by_dest: '',
+            preview_image_url: '',
+            gallery_urls: [],
+          });
         }
 
         return { kind: 'ok', rows: rows, expandMeta: expandMeta };
