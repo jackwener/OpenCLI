@@ -62,3 +62,39 @@ describe('LinkedIn posts collection outcomes', () => {
     expect(await collectPosts(page, { limit: 1 })).toHaveLength(1); expect(page.autoScroll).toHaveBeenCalledTimes(1);
   });
 });
+// Reconstructed from the #2651 report and its local repair (PR #2652), not a
+// captured live page: SDUi activity cards keyed by FeedType, body in
+// expandable-text-box, counts on labelled action buttons, no permalinks.
+const sduiCard = (id, key = `FeedType_CREATOR_PROFILE_ALL_CONTENT_VIEW-${id}`) => `<div id="${key}">
+  <a href="/in/author-${id}/">Author ${id}</a><span>3d</span>
+  <div data-testid="expandable-text-box">SDUi post body ${id} with enough text</div>
+  <button aria-label="Reactions: view who reacted">4${id.slice(-1)}</button>
+  <button aria-label="Comment on this post">7 comments</button>
+  <button aria-label="Repost">2</button>
+</div>`;
+describe('LinkedIn SDUi activity cards (#2651)', () => {
+  it('extracts SDUi cards that have no legacy classes or permalinks', () => {
+    const dom = fixture(`<div id="list-FeedType_CREATOR_PROFILE_ALL_CONTENT_VIEW">${sduiCard('111')}${sduiCard('222')}</div>`);
+    const payload = dom.window.eval(buildPostsScript());
+    expect(payload.rows.map(row => row.body)).toEqual(['SDUi post body 111 with enough text', 'SDUi post body 222 with enough text']);
+    expect(payload.rows.map(row => row.author)).toEqual(['Author 111', 'Author 222']);
+    expect(payload.rows[0]).toMatchObject({ reactions: 41, comments: 7, reposts: 2, url: '' });
+  });
+  it('derives the permalink only from a URN present on the card', () => {
+    const dom = fixture(sduiCard('333', 'urn:li:activity:7390000000000000333FeedType_CREATOR_PROFILE_ALL_CONTENT_VIEW'));
+    const payload = dom.window.eval(buildPostsScript());
+    expect(payload.rows).toHaveLength(1);
+    expect(payload.rows[0].url).toBe('https://www.linkedin.com/feed/update/urn:li:activity:7390000000000000333/');
+  });
+  it('keeps a card with a nested FeedType component as one post', () => {
+    const dom = fixture(`<div componentkey="FeedType_CREATOR_PROFILE_ALL_CONTENT_VIEW-444">${sduiCard('444', 'inner-FeedType_CREATOR_PROFILE_ALL_CONTENT_VIEW-444')}</div>${sduiCard('555')}`);
+    const found = locatePostCards(dom.window.document);
+    expect(found.cards).toHaveLength(2);
+    expect(found.cards[0].getAttribute('componentkey')).toBe('FeedType_CREATOR_PROFILE_ALL_CONTENT_VIEW-444');
+  });
+  it('still prefers legacy permalink cards when SDUi markup is absent', () => {
+    const dom = fixture(`<ul><li>${post('111')}</li></ul>`);
+    const payload = dom.window.eval(buildPostsScript());
+    expect(payload.rows[0]).toMatchObject({ url: 'https://www.linkedin.com/feed/update/urn:li:activity:111/?tracking=1', reactions: 12, comments: 3 });
+  });
+});
