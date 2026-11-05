@@ -31,35 +31,54 @@ export function resolveHostOpencliRoot(startFile = fileURLToPath(import.meta.url
   throw new Error(`Could not resolve the host OpenCLI package root from ${startFile}.`);
 }
 
+// Rename failures that mean "the destination exists and cannot be replaced".
+// Windows refuses to rename over a directory junction (EPERM/EACCES); other
+// platforms report a non-empty or existing destination.
+const REPLACE_REFUSED = new Set(['EPERM', 'EACCES', 'EEXIST', 'ENOTEMPTY', 'EISDIR']);
+
+function errorCode(err: unknown): string | undefined {
+  return (err as NodeJS.ErrnoException | undefined)?.code;
+}
+
+/** Remove a link itself. unlink never follows a symlink or junction into the host package. */
+function removeLink(linkPath: string): void {
+  try {
+    fs.unlinkSync(linkPath);
+  } catch (err) {
+    if (errorCode(err) !== 'ENOENT') throw err;
+  }
+}
+
 export function linkHostOpencli(pluginDir: string): boolean {
   let stagedLink: string | undefined;
+  let staleLink: string | undefined;
   try {
     const hostRoot = resolveHostOpencliRoot();
+    const hostRealpath = fs.realpathSync(hostRoot);
     const targetLink = path.join(pluginDir, 'node_modules', '@jackwener', 'opencli');
-    const current = fs.lstatSync(targetLink, { throwIfNoEntry: false });
-    if (current?.isSymbolicLink()) {
+    const resolvesToHost = (): boolean => {
       try {
-        if (fs.realpathSync(targetLink) === fs.realpathSync(hostRoot)) return true;
+        return fs.realpathSync(targetLink) === hostRealpath;
       } catch (err) {
-        if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
+        if (errorCode(err) === 'ENOENT') return false;
+        throw err;
       }
-    }
+    };
+    const current = fs.lstatSync(targetLink, { throwIfNoEntry: false });
+    if (current?.isSymbolicLink() && resolvesToHost()) return true;
 
     fs.mkdirSync(path.dirname(targetLink), { recursive: true });
     const linkType = process.platform === 'win32' ? 'junction' : 'dir';
     stagedLink = `${targetLink}.host-${randomUUID()}`;
     fs.symlinkSync(hostRoot, stagedLink, linkType);
-    // rename replaces stale or dangling symlinks without an unlink window.
     // A real npm-installed directory needs a one-time migration first.
     if (current?.isDirectory() && !current.isSymbolicLink()) {
       fs.rmSync(targetLink, { recursive: true, force: true });
     }
-    try {
-      fs.renameSync(stagedLink, targetLink);
-    } catch (err) {
-      // Another process may have published the same link on platforms that
-      // do not allow rename to replace a junction. Never unlink a live link.
-      if (fs.realpathSync(targetLink) !== fs.realpathSync(hostRoot)) throw err;
+    publishHostLink(stagedLink, targetLink, resolvesToHost, (link) => { staleLink = link; });
+    // Success means the plugin imports this host, not that some link exists.
+    if (!resolvesToHost()) {
+      throw new Error(`${targetLink} does not resolve to the running host ${hostRealpath}`);
     }
     log.debug(`Linked host opencli into plugin: ${targetLink} → ${hostRoot}`);
     return true;
@@ -67,6 +86,54 @@ export function linkHostOpencli(pluginDir: string): boolean {
     log.warn(`Failed to link host opencli into plugin: ${getErrorMessage(err)}`);
     return false;
   } finally {
-    if (stagedLink) fs.rmSync(stagedLink, { force: true });
+    for (const link of [stagedLink, staleLink]) {
+      if (!link) continue;
+      try { removeLink(link); } catch (err) {
+        log.debug(`Could not remove temporary host link ${link}: ${getErrorMessage(err)}`);
+      }
+    }
+  }
+}
+
+function publishHostLink(
+  stagedLink: string,
+  targetLink: string,
+  resolvesToHost: () => boolean,
+  setStaleLink: (link: string | undefined) => void,
+): void {
+  // rename replaces stale or dangling symlinks without an unlink window.
+  try {
+    fs.renameSync(stagedLink, targetLink);
+    return;
+  } catch (err) {
+    // Another process may have already published a link to this host.
+    if (resolvesToHost()) return;
+    const existing = fs.lstatSync(targetLink, { throwIfNoEntry: false });
+    if (!existing?.isSymbolicLink() || !REPLACE_REFUSED.has(errorCode(err) ?? '')) throw err;
+  }
+
+  // Windows cannot rename over a junction: move the stale link aside, then publish.
+  const staleLink = `${targetLink}.stale-${randomUUID()}`;
+  let movedAside = false;
+  try {
+    fs.renameSync(targetLink, staleLink);
+    movedAside = true;
+    setStaleLink(staleLink);
+  } catch (err) {
+    if (resolvesToHost()) return;
+    // A concurrent repair may have moved it first; anything else is a real failure.
+    if (fs.lstatSync(targetLink, { throwIfNoEntry: false })) throw err;
+  }
+  try {
+    fs.renameSync(stagedLink, targetLink);
+  } catch (err) {
+    if (resolvesToHost()) return;
+    if (movedAside && !fs.lstatSync(targetLink, { throwIfNoEntry: false })) {
+      try {
+        fs.renameSync(staleLink, targetLink);
+        setStaleLink(undefined);
+      } catch {}
+    }
+    throw err;
   }
 }
