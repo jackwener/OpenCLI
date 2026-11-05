@@ -127,6 +127,11 @@ npx skills add jackwener/opencli --skill opencli-browser
 npx skills add jackwener/opencli --skill opencli-usage
 ```
 
+OpenCLI 当前已不再发布 sitemap skills。升级后，旧版 `opencli-sitemap-author` 和
+`opencli-browser-sitemap` 仍可能留在 Agent 单独管理的 skills 目录中。如果副本仍存在，请使用 Agent
+管理器提供的卸载方式；没有时只删除这两个文件夹即可（例如 `~/.agents/skills/opencli-sitemap-author`，
+具体路径因 Agent 而异），不要删除整个 skills 目录。
+
 ### 选择哪个 skill
 
 | Skill | 适用场景 | 你对 AI Agent 说的话 |
