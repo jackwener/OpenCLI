@@ -30204,6 +30204,13 @@
         "default": 2,
         "required": false,
         "help": "Max expansion passes when --expand-more is on (1–5; each round can fan out new \"more\" stubs)"
+      },
+      {
+        "name": "allow-partial",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "With --expand-more: if Reddit denies /api/morechildren (HTTP 401/403, network-security block, or rate limit), keep the comments already loaded and append a NOTICE row instead of failing"
       }
     ],
     "columns": [

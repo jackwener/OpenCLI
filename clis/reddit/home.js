@@ -1,5 +1,6 @@
 import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { extractRedditMedia, redditFetchJson, throwRedditFetchFailure } from './api.js';
 
 const REDDIT_HOME_MAX_LIMIT = 100;
 
@@ -13,35 +14,6 @@ export function parseRedditHomeLimit(raw) {
         );
     }
     return n;
-}
-
-export function decodeRedditHtml(value) {
-    if (typeof value !== 'string' || !value) return '';
-    return value
-        .replace(/&amp;/g, '&')
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>')
-        .replace(/&quot;/g, '"')
-        .replace(/&#x27;/gi, "'")
-        .replace(/&#39;/g, "'");
-}
-
-export function extractRedditMedia(d) {
-    const galleryUrls = [];
-    const items = d?.gallery_data?.items;
-    const meta = d?.media_metadata;
-    if (Array.isArray(items) && meta && typeof meta === 'object') {
-        for (const item of items) {
-            const url = meta[item?.media_id]?.s?.u;
-            if (typeof url === 'string' && url) galleryUrls.push(decodeRedditHtml(url));
-        }
-    }
-    return {
-        post_hint: typeof d?.post_hint === 'string' ? d.post_hint : '',
-        url_overridden_by_dest: decodeRedditHtml(d?.url_overridden_by_dest || ''),
-        preview_image_url: decodeRedditHtml(d?.preview?.images?.[0]?.source?.url || ''),
-        gallery_urls: galleryUrls,
-    };
 }
 
 cli({
@@ -65,7 +37,8 @@ cli({
         // command) we require auth and surface the logged-out case via
         // AuthRequiredError instead of silently returning the public feed.
         //
-        // Two-pronged auth detection: HTTP 401/403 OR `me.data.name` missing
+        // Two-pronged auth detection: HTTP 401/403 (JSON, not Reddit's
+        // network-security page; see api.js) OR `me.data.name` missing
         // on 200 (stale anonymous cookie session). See PR #1428 sediment.
         //
         // Intermediate object keys avoid `rank`/`title`/`subreddit`/etc. to
@@ -73,28 +46,19 @@ cli({
         // raw payload. See PR #1329 sediment "中间解析对象 key 不能跟
         // columns 任一项重叠".
         const result = await page.evaluate(`(async () => {
+      const redditFetchJson = ${redditFetchJson.toString()};
       try {
-        const meRes = await fetch('/api/me.json', { credentials: 'include' });
-        if (meRes.status === 401 || meRes.status === 403) {
-          return { kind: 'auth', detail: 'Reddit /api/me.json returned HTTP ' + meRes.status };
-        }
-        if (!meRes.ok) {
-          return { kind: 'http', httpStatus: meRes.status, where: '/api/me.json' };
-        }
-        const me = await meRes.json();
+        const meRes = await redditFetchJson('/api/me.json');
+        if (!meRes.ok) return { kind: 'fetch-failed', failure: meRes.failure, where: '/api/me.json' };
+        const me = meRes.data;
         if (!me?.data?.name) {
           return { kind: 'auth', detail: 'Not logged in to reddit.com (no identity in /api/me.json)' };
         }
 
         const limit = ${JSON.stringify(limit)};
-        const res = await fetch('/best.json?limit=' + limit + '&raw_json=1', { credentials: 'include' });
-        if (res.status === 401 || res.status === 403) {
-          return { kind: 'auth', detail: 'Reddit /best.json returned HTTP ' + res.status };
-        }
-        if (!res.ok) {
-          return { kind: 'http', httpStatus: res.status, where: '/best.json' };
-        }
-        const j = await res.json();
+        const res = await redditFetchJson('/best.json?limit=' + limit + '&raw_json=1');
+        if (!res.ok) return { kind: 'fetch-failed', failure: res.failure, where: '/best.json' };
+        const j = res.data;
         const entries = j?.data?.children;
         if (!Array.isArray(entries)) {
           return { kind: 'http', httpStatus: 200, where: '/best.json (no data.children array)' };
@@ -105,6 +69,9 @@ cli({
       }
     })()`);
 
+        if (result?.kind === 'fetch-failed') {
+            throwRedditFetchFailure(result.failure, result.where);
+        }
         if (result?.kind === 'auth') {
             throw new AuthRequiredError('reddit.com', result.detail);
         }

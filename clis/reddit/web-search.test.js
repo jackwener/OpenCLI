@@ -54,6 +54,15 @@ describe('Reddit ranked web search', () => {
   ])('never falls back after a blocked web response: %j', async response => {
     const f = fixture([response]); await expect(f.run()).rejects.toThrow(); expect(f.fetch).toHaveBeenCalledTimes(1);
   });
+  it('reports Reddit\'s network-security block on /by_id hydration as SECURITY_BLOCK, not LOGIN_WALL (#2720)', async () => {
+    const f = fixture([{ body: unit('a') }, { status: 403, body: '<body class=theme-beta><p>You\'ve been blocked by network security.</p></body>' }]);
+    await expect(f.run()).rejects.toMatchObject({ code: 'SECURITY_BLOCK', message: expect.stringContaining('/by_id post hydration') });
+    expect(f.fetch).toHaveBeenCalledTimes(2);
+  });
+  it('reports a network-security block on the web search page as SECURITY_BLOCK without falling back', async () => {
+    const f = fixture([{ status: 403, body: '<body class=theme-beta><p>You\'ve been blocked by network security.</p></body>' }]);
+    await expect(f.run()).rejects.toMatchObject({ code: 'SECURITY_BLOCK' }); expect(f.fetch).toHaveBeenCalledTimes(1);
+  });
   it('does not mistake a result discussing a network block for a challenge', async () => {
     const f = fixture([{ body: unit('a') + '<title>Log in - Reddit search</title><form action="/login" hidden></form><p>I have been blocked by network security</p>' }, { body: listing(['a']), type: 'application/json' }]);
     expect((await f.run()).map(r => r.id)).toEqual(['a']);

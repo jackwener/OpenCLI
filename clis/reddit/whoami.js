@@ -1,5 +1,6 @@
 import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { redditFetchJson, throwRedditFetchFailure } from './api.js';
 
 cli({
     site: 'reddit',
@@ -23,15 +24,11 @@ cli({
         // 'value']) — see PR #1329 sediment "中间解析对象 key 不能跟 columns
         // 任一项重叠".
         const result = await page.evaluate(`(async () => {
+      const redditFetchJson = ${redditFetchJson.toString()};
       try {
-        const res = await fetch('/api/me.json?raw_json=1', { credentials: 'include' });
-        if (res.status === 401 || res.status === 403) {
-          return { kind: 'auth', detail: 'Reddit /api/me.json returned HTTP ' + res.status };
-        }
-        if (!res.ok) {
-          return { kind: 'http', httpStatus: res.status, where: '/api/me.json' };
-        }
-        const d = await res.json();
+        const res = await redditFetchJson('/api/me.json?raw_json=1');
+        if (!res.ok) return { kind: 'fetch-failed', failure: res.failure, where: '/api/me.json' };
+        const d = res.data;
         const me = d?.data;
         if (!me?.name) {
           return { kind: 'auth', detail: 'Not logged in to reddit.com (no identity in /api/me.json)' };
@@ -42,11 +39,11 @@ cli({
       }
     })()`);
 
+        if (result?.kind === 'fetch-failed') {
+            throwRedditFetchFailure(result.failure, result.where);
+        }
         if (result?.kind === 'auth') {
             throw new AuthRequiredError('reddit.com', result.detail);
-        }
-        if (result?.kind === 'http') {
-            throw new CommandExecutionError(`HTTP ${result.httpStatus} from ${result.where}`);
         }
         if (result?.kind === 'exception') {
             throw new CommandExecutionError(`whoami failed: ${result.detail}`);

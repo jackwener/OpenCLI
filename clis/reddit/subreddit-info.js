@@ -1,5 +1,6 @@
 import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { redditFetchJson, throwRedditFetchFailure } from './api.js';
 
 // Reddit subreddit names: 3–21 chars, letters/digits/underscore, must start
 // with a letter. Accept an optional `r/` prefix and normalise it off.
@@ -44,16 +45,15 @@ cli({
         // We surface those as EmptyResultError so the table never contains a
         // silent sentinel row. Intermediate keys avoid `field`/`value`.
         const result = await page.evaluate(`(async () => {
+      const redditFetchJson = ${redditFetchJson.toString()};
       try {
         const sub = ${JSON.stringify(sub)};
-        const res = await fetch('/r/' + encodeURIComponent(sub) + '/about.json?raw_json=1', { credentials: 'include' });
-        if (res.status === 401 || res.status === 403 || res.status === 404) {
-          return { kind: 'missing', detail: 'Subreddit r/' + sub + ' was not found or is not accessible (HTTP ' + res.status + ').' };
+        const res = await redditFetchJson('/r/' + encodeURIComponent(sub) + '/about.json?raw_json=1');
+        if (!res.ok && res.failure.reason === 'http' && [401, 403, 404].includes(res.failure.status)) {
+          return { kind: 'missing', detail: 'Subreddit r/' + sub + ' was not found or is not accessible (HTTP ' + res.failure.status + ').' };
         }
-        if (!res.ok) {
-          return { kind: 'http', httpStatus: res.status, where: '/r/' + sub + '/about.json' };
-        }
-        const j = await res.json();
+        if (!res.ok) return { kind: 'fetch-failed', failure: res.failure, where: '/r/' + sub + '/about.json' };
+        const j = res.data;
         // Reddit may return an envelope-style 200 with {"kind":"Listing"} or
         // an error body for quarantined / private subs. Identify "subreddit
         // not found / not accessible" by the absence of data.display_name.
@@ -73,6 +73,9 @@ cli({
       }
     })()`);
 
+        if (result?.kind === 'fetch-failed') {
+            throwRedditFetchFailure(result.failure, result.where);
+        }
         if (result?.kind === 'missing') {
             throw new EmptyResultError(result.detail);
         }

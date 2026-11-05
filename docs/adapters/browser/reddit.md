@@ -54,6 +54,9 @@ opencli reddit read 1abc123 --depth 2
 # Read with "more comments" expansion via /api/morechildren.json
 opencli reddit read 1abc123 --depth 3 --expand-more --expand-rounds 3
 
+# Keep the loaded thread if expansion is denied (appends a NOTICE row)
+opencli reddit read 1abc123 --depth 3 --expand-more --allow-partial
+
 # Comment on a post
 opencli reddit comment 1abc123 "Great post"
 
@@ -84,7 +87,22 @@ Reddit's "more comments" stubs by calling `/api/morechildren.json` up to
 `--expand-rounds` times (default 2, max 5). If the morechildren endpoint
 itself rejects the request with 401/403, that's surfaced as
 `AuthRequiredError` because writeable/expand endpoints often require a logged-
-in session even though the post listing is public.
+in session even though the post listing is public. Pass `--allow-partial` to
+keep the post and the comments already loaded instead when morechildren is
+denied (401/403, Reddit's network-security block, or a rate limit): expansion
+stops, the unexpanded stubs still show as `[+N more replies]`, and a final
+`NOTICE` row names the refusal and how many comments were not retrieved. Other
+failures (including any failure on the post itself) still raise errors.
+
+## Network-security blocks
+
+Reddit sometimes answers `.json` requests from a logged-in browser with its
+"You've been blocked by network security" page (HTTP 403, HTML). Which
+endpoints are affected varies by network and over time (`/search.json` and
+`/by_id` first, then subreddit listings). Every Reddit read command reports this
+page as a `SECURITY_BLOCK` error rather than `LOGIN_WALL` or a JSON parse
+error: logging in again does not clear it. opencli does not retry the request or
+route it through another Reddit host. HTTP 429 is reported as `RATE_LIMITED`.
 
 ## Prerequisites
 

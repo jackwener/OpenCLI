@@ -1,4 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { fetchRedditListing } from './api.js';
 cli({
     site: 'reddit',
     name: 'user-posts',
@@ -12,32 +13,18 @@ cli({
         { name: 'limit', type: 'int', default: 15 },
     ],
     columns: ['title', 'subreddit', 'score', 'comments', 'url'],
-    pipeline: [
-        { navigate: 'https://www.reddit.com' },
-        { evaluate: `(async () => {
-  const username = \${{ args.username | json }};
-  const name = username.startsWith('u/') ? username.slice(2) : username;
-  const limit = \${{ args.limit }};
-  const res = await fetch('/user/' + name + '/submitted.json?limit=' + limit + '&raw_json=1', {
-    credentials: 'include'
-  });
-  const d = await res.json();
-  return (d?.data?.children || []).map(c => ({
-    title: c.data.title,
-    subreddit: c.data.subreddit_name_prefixed,
-    score: c.data.score,
-    comments: c.data.num_comments,
-    url: 'https://www.reddit.com' + c.data.permalink,
-  }));
-})()
-` },
-        { map: {
-                title: '${{ item.title }}',
-                subreddit: '${{ item.subreddit }}',
-                score: '${{ item.score }}',
-                comments: '${{ item.comments }}',
-                url: '${{ item.url }}',
-            } },
-        { limit: '${{ args.limit }}' },
-    ],
+    func: async (page, kwargs) => {
+        await page.goto('https://www.reddit.com');
+        const username = String(kwargs.username ?? '');
+        const name = username.startsWith('u/') ? username.slice(2) : username;
+        const limit = kwargs.limit ?? 15;
+        const children = await fetchRedditListing(page, '/user/' + encodeURIComponent(name) + '/submitted.json?limit=' + limit + '&raw_json=1');
+        return children.slice(0, limit).map(c => ({
+            title: c.data.title,
+            subreddit: c.data.subreddit_name_prefixed,
+            score: c.data.score,
+            comments: c.data.num_comments,
+            url: 'https://www.reddit.com' + c.data.permalink,
+        }));
+    },
 });
