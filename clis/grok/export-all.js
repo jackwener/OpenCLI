@@ -7,7 +7,7 @@ import {
   requireBooleanEvaluateResult,
   requireObjectEvaluateResult,
 } from './export-utils.js';
-import { GROK_DOMAIN, GROK_URL } from './utils.js';
+import { GROK_DOMAIN, GROK_URL, MESSAGE_CONTENT_JS } from './utils.js';
 
 function normalizeInteger(value, defaultValue, label, { min = 0, max = Number.MAX_SAFE_INTEGER } = {}) {
   const raw = value ?? defaultValue;
@@ -210,6 +210,7 @@ async function readConversation(page, conversation, { pageTimeoutMs, pageScrolls
         return rect.width > 0 && rect.height > 0;
       };
       const messageSelector = '[data-testid="user-message"], [data-testid="assistant-message"]';
+      ${MESSAGE_CONTENT_JS}
       const findScrollableAncestors = () => {
         const first = document.querySelector(messageSelector);
         const out = [document.scrollingElement || document.documentElement];
@@ -262,8 +263,7 @@ async function readConversation(page, conversation, { pageTimeoutMs, pageScrolls
       for (const node of Array.from(document.querySelectorAll(messageSelector))) {
         if (!(node instanceof HTMLElement) || !isVisible(node)) continue;
         const isAssistant = node.getAttribute('data-testid') === 'assistant-message';
-        const text = (node.innerText || node.textContent || '').replace(/\\s+/g, ' ').trim();
-        const html = node.innerHTML || '';
+        const { text, html } = messageContent(node);
         if (!text && !html) continue;
         messages.push({
           messageIndex: messages.length + 1,
