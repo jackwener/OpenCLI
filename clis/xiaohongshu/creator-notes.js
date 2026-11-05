@@ -97,6 +97,28 @@ function mapDomCards(cards) {
         url: buildNoteDetailUrl(card.id),
     }));
 }
+// Runs in the page. The note-manager currently renders BEM `.note-card`
+// cards (#2707); older sessions still render `div.note` with `.title`,
+// `.time_status` and `.icon_list .icon`. Both carry the note id in
+// data-impression, and both list metrics as views / comments / likes /
+// collects / shares.
+function extractNoteManagerCards() {
+    const noteIdRe = /"noteId":"([0-9a-f]{24})"/;
+    const textOf = (el) => (el?.innerText ?? el?.textContent ?? '').trim();
+    const current = document.querySelectorAll('.note-card');
+    const cards = current.length > 0 ? current : document.querySelectorAll('div.note');
+    return Array.from(cards).map((card) => {
+        const impression = card.getAttribute('data-impression') || '';
+        const id = impression.match(noteIdRe)?.[1] || '';
+        const title = textOf(card.querySelector('.note-card__title, .title, .raw'));
+        const date = textOf(card.querySelector('.note-card__time, .time_status, .time')).replace(/^发布于\s*/, '');
+        const metrics = Array.from(card.querySelectorAll('.note-card__stat, .icon_list .icon'))
+            .map((el) => parseInt(textOf(el), 10))
+            .filter((value) => Number.isFinite(value));
+        return { id, title, date, metrics };
+    });
+}
+const EXTRACT_NOTE_MANAGER_CARDS_JS = `(${extractNoteManagerCards.toString()})()`;
 function mapAnalyzeItems(items) {
     return (items ?? []).map((item) => ({
         id: item.id ?? '',
@@ -226,17 +248,9 @@ async function pollCaptureMap(page) {
 async function fetchNoteManagerTitleMap(page, neededCount) {
     const map = new Map();
     const scrapeCards = async () => {
-        const cards = unwrapEvaluateResult(await page.evaluate(`() => {
-      const noteIdRe = /"noteId":"([0-9a-f]{24})"/;
-      return Array.from(document.querySelectorAll('div.note[data-impression], div.note')).map((card) => {
-        const impression = card.getAttribute('data-impression') || '';
-        const id = impression.match(noteIdRe)?.[1] || '';
-        const title = (card.querySelector('.title, .raw')?.innerText || '').trim();
-        return { id, title };
-      }).filter((entry) => entry.id && entry.title);
-    }`));
+        const cards = unwrapEvaluateResult(await page.evaluate(EXTRACT_NOTE_MANAGER_CARDS_JS));
         for (const card of Array.isArray(cards) ? cards : []) {
-            if (!map.has(card.id)) map.set(card.id, card.title);
+            if (card?.id && card.title && !map.has(card.id)) map.set(card.id, card.title);
         }
     };
     // Scroll the first scrollable ancestor of a note card to the bottom so
@@ -244,7 +258,7 @@ async function fetchNoteManagerTitleMap(page, neededCount) {
     // work because the cards live inside an inner overflow-auto container.
     const scrollInnerListToBottom = async () => {
         return unwrapEvaluateResult(await page.evaluate(`(() => {
-      const firstCard = document.querySelector('div.note[data-impression]');
+      const firstCard = document.querySelector('.note-card[data-impression], div.note[data-impression]');
       let el = firstCard && firstCard.parentElement;
       while (el) {
         const s = window.getComputedStyle(el);
@@ -391,20 +405,7 @@ export async function fetchCreatorNotes(page, limit) {
         await page.goto('https://creator.xiaohongshu.com/new/note-manager');
         const maxPageDowns = Math.max(0, Math.ceil(limit / 10) + 1);
         for (let i = 0; i <= maxPageDowns; i++) {
-            const domCards = await page.evaluate(`() => {
-        const noteIdRe = /"noteId":"([0-9a-f]{24})"/;
-        return Array.from(document.querySelectorAll('div.note[data-impression], div.note')).map((card) => {
-          const impression = card.getAttribute('data-impression') || '';
-          const id = impression.match(noteIdRe)?.[1] || '';
-          const title = (card.querySelector('.title, .raw')?.innerText || '').trim();
-          const dateText = (card.querySelector('.time_status, .time')?.innerText || '').trim();
-          const date = dateText.replace(/^发布于\\s*/, '');
-          const metrics = Array.from(card.querySelectorAll('.icon_list .icon'))
-            .map((el) => parseInt((el.innerText || '').trim(), 10))
-            .filter((value) => Number.isFinite(value));
-          return { id, title, date, metrics };
-        });
-      }`);
+            const domCards = unwrapEvaluateResult(await page.evaluate(EXTRACT_NOTE_MANAGER_CARDS_JS));
             const parsedDomNotes = mapDomCards(Array.isArray(domCards) ? domCards : []).filter((note) => note.title && note.date);
             if (parsedDomNotes.length > 0) {
                 notes = parsedDomNotes;
@@ -467,6 +468,7 @@ cli({
     },
 });
 export const __test__ = {
+    EXTRACT_NOTE_MANAGER_CARDS_JS,
     harvestAnalyzeListCaptures,
     isAnalyzeCaptureComplete,
     parseCaptureMapPayload,
