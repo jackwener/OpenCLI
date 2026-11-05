@@ -37219,6 +37219,43 @@
   },
   {
     "site": "twitter",
+    "name": "list-members",
+    "description": "List the member accounts of a Twitter/X list",
+    "access": "read",
+    "domain": "x.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "listId",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Numeric ID of a Twitter/X list (e.g. from `opencli twitter lists`)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 100,
+        "required": false,
+        "help": "Maximum number of members to return (default 100). Must be a positive integer."
+      }
+    ],
+    "columns": [
+      "screen_name",
+      "name",
+      "bio",
+      "followers",
+      "verified",
+      "user_id"
+    ],
+    "type": "js",
+    "modulePath": "twitter/list-members.js",
+    "sourceFile": "twitter/list-members.js",
+    "navigateBefore": "https://x.com"
+  },
+  {
+    "site": "twitter",
     "name": "list-remove",
     "description": "Remove a user from a Twitter/X list you own (toggles via UI; no-op if not currently a member)",
     "access": "write",
