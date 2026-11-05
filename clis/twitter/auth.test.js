@@ -3,27 +3,42 @@ import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/err
 import { getRegistry } from '@jackwener/opencli/registry';
 import './auth.js';
 
-const SESSION_COOKIES = [{ name: 'auth_token' }, { name: 'ct0' }];
+const SESSION_COOKIES = [
+    { name: 'auth_token', value: 'auth' },
+    { name: 'ct0', value: 'csrf' },
+    { name: 'twid', value: 'u%3D1234567890' },
+];
+
+function viewerPayload(screenName, { legacy = false } = {}) {
+    const result = legacy
+        ? { __typename: 'User', rest_id: '1234567890', legacy: { screen_name: screenName } }
+        : { __typename: 'User', rest_id: '1234567890', core: { screen_name: screenName }, legacy: {} };
+    return { data: { user: { result } } };
+}
 
 /**
- * Build a page whose profile link returns the given hrefs in order, so a read
- * that lands before the home surface settles is distinguishable from a settled
- * one. Hrefs are wrapped in the browser-bridge envelope the adapter unwraps.
+ * Page whose operation resolver finds nothing (so the baked UserByRestId
+ * fallback is used) and whose viewer lookup answers with `lookup`. Results
+ * are wrapped in the browser-bridge envelope the adapter unwraps.
  */
-function createPageMock(hrefs, cookies = SESSION_COOKIES) {
-    let index = 0;
+function createPageMock(lookup, cookies = SESSION_COOKIES) {
     return {
         getCookies: vi.fn().mockResolvedValue(cookies),
         goto: vi.fn().mockResolvedValue(undefined),
         wait: vi.fn().mockResolvedValue(undefined),
         sleep: vi.fn().mockResolvedValue(undefined),
-        evaluate: vi.fn((script) => {
-            if (!String(script).includes('AppTabBar_Profile_Link')) return Promise.resolve(undefined);
-            const href = hrefs[Math.min(index, hrefs.length - 1)];
-            index += 1;
-            return Promise.resolve({ session: 'site:twitter', data: href });
+        evaluate: vi.fn(async (script) => {
+            const text = String(script);
+            if (text.includes('placeholder.json')) return { session: 'site:twitter', data: null };
+            if (text.includes('/UserByRestId')) return { session: 'site:twitter', data: lookup };
+            throw new Error(`Unexpected evaluate: ${text.slice(0, 80)}`);
         }),
     };
+}
+
+function lookupUrl(page) {
+    const call = page.evaluate.mock.calls.find(([script]) => String(script).includes('/UserByRestId'));
+    return decodeURIComponent(String(call?.[0] ?? ''));
 }
 
 function whoamiCommand() {
@@ -33,88 +48,67 @@ function whoamiCommand() {
 }
 
 describe('twitter whoami command', () => {
-    it('waits out a page that still shows the previous account', async () => {
-        const page = createPageMock(['/old_acct', '/old_acct', '/old_acct', '/old_acct', '/new_acct', '/new_acct', '/new_acct', '/new_acct']);
+    it('resolves the account from the twid cookie without reading the DOM', async () => {
+        const page = createPageMock(viewerPayload('current_acct'));
 
         await expect(whoamiCommand().func(page)).resolves.toMatchObject({
             logged_in: true,
-            username: 'new_acct',
-            url: 'https://x.com/new_acct',
+            username: 'current_acct',
+            url: 'https://x.com/current_acct',
         });
+        expect(lookupUrl(page)).toContain('"userId":"1234567890"');
+        expect(page.wait).not.toHaveBeenCalled();
+        expect(page.sleep).not.toHaveBeenCalled();
     });
 
-    it('waits the full settle window before trusting a steady handle', async () => {
-        const page = createPageMock(['/steady_acct']);
+    it('accepts the legacy screen_name location', async () => {
+        const page = createPageMock(viewerPayload('legacy_acct', { legacy: true }));
 
-        await expect(whoamiCommand().func(page)).resolves.toMatchObject({ username: 'steady_acct' });
-        expect(page.evaluate).toHaveBeenCalledTimes(8);
-        expect(page.sleep).toHaveBeenCalledTimes(7);
-    });
-
-    it('accepts a link that only appears after several polls', async () => {
-        const page = createPageMock([null, null, '/late_acct', '/late_acct', '/late_acct', '/late_acct', '/late_acct', '/late_acct']);
-
-        await expect(whoamiCommand().func(page)).resolves.toMatchObject({ username: 'late_acct' });
-    });
-
-    it('accepts a new account after an old value clears during the settle window', async () => {
-        const page = createPageMock(['/old_acct', '/old_acct', null, '/new_acct', '/new_acct', '/new_acct', '/new_acct', '/new_acct']);
-
-        await expect(whoamiCommand().func(page)).resolves.toMatchObject({ username: 'new_acct' });
-    });
-
-    it('does not trust a transient new account that reverts before the window ends', async () => {
-        const page = createPageMock(['/old_acct', '/new_acct', '/new_acct', '/old_acct', '/old_acct', '/old_acct', '/old_acct', '/old_acct']);
-
-        await expect(whoamiCommand().func(page)).resolves.toMatchObject({ username: 'old_acct' });
-    });
-
-    it('typed-fails instead of returning an unconfirmed account', async () => {
-        const flapping = ['/aaa', '/bbb', '/aaa', '/bbb', '/aaa', '/bbb', '/aaa', '/bbb'];
-        const page = createPageMock(flapping);
-
-        await expect(whoamiCommand().func(page)).rejects.toBeInstanceOf(AuthRequiredError);
-        expect(page.evaluate).toHaveBeenCalledTimes(8);
-    });
-
-    it('typed-fails when the profile link never appears', async () => {
-        const page = createPageMock([null]);
-
-        await expect(whoamiCommand().func(page)).rejects.toBeInstanceOf(AuthRequiredError);
-    });
-
-    it('typed-fails malformed Browser Bridge profile-link envelopes', async () => {
-        const page = createPageMock([]);
-        page.evaluate.mockResolvedValue({ session: { id: 'site:twitter' }, data: '/current_acct' });
-
-        await expect(whoamiCommand().func(page)).rejects.toBeInstanceOf(CommandExecutionError);
-    });
-
-    it('does not accept non-profile paths as identity evidence', async () => {
-        const page = createPageMock(['/home', '/i/bookmarks', '/current_acct/status/123', 'https://evil.example/current_acct']);
-
-        await expect(whoamiCommand().func(page)).rejects.toBeInstanceOf(AuthRequiredError);
+        await expect(whoamiCommand().func(page)).resolves.toMatchObject({ username: 'legacy_acct' });
     });
 
     it('typed-fails before navigating when the session cookies are missing', async () => {
-        const page = createPageMock(['/current_acct'], [{ name: 'ct0' }]);
+        const page = createPageMock(viewerPayload('current_acct'), [{ name: 'ct0', value: 'csrf' }]);
 
         await expect(whoamiCommand().func(page)).rejects.toBeInstanceOf(AuthRequiredError);
         expect(page.goto).not.toHaveBeenCalled();
     });
 
-    it('waits for the home surface the sibling readers wait for', async () => {
-        const page = createPageMock(['/steady_acct']);
+    it('typed-fails when the twid cookie is absent or malformed', async () => {
+        for (const twid of [null, 'u%3D', 'u%3Dabc', 'garbage']) {
+            const cookies = SESSION_COOKIES.filter((cookie) => cookie.name !== 'twid');
+            if (twid) cookies.push({ name: 'twid', value: twid });
+            const page = createPageMock(viewerPayload('current_acct'), cookies);
 
-        await whoamiCommand().func(page);
+            await expect(whoamiCommand().func(page)).rejects.toBeInstanceOf(AuthRequiredError);
+            expect(page.evaluate.mock.calls.some(([script]) => String(script).includes('/UserByRestId'))).toBe(false);
+        }
+    });
 
-        expect(page.wait).toHaveBeenCalledWith({ selector: '[data-testid="primaryColumn"]' });
+    it('maps a rejected viewer lookup to AUTH_REQUIRED', async () => {
+        const page = createPageMock({ error: 401 });
+
+        await expect(whoamiCommand().func(page)).rejects.toBeInstanceOf(AuthRequiredError);
+    });
+
+    it('typed-fails other lookup errors instead of reporting logged out', async () => {
+        const page = createPageMock({ error: 500 });
+
+        await expect(whoamiCommand().func(page)).rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
+    it('does not accept a lookup without a valid screen_name', async () => {
+        for (const payload of [{ data: { user: {} } }, viewerPayload('home'), viewerPayload('not a handle')]) {
+            const page = createPageMock(payload);
+
+            await expect(whoamiCommand().func(page)).rejects.toBeInstanceOf(CommandExecutionError);
+        }
     });
 });
 
 describe('twitter login command', () => {
-    it('keeps each poll to a single profile-link read', async () => {
-        const page = createPageMock(['/polled_acct']);
+    it('reports the account once the session cookies appear', async () => {
+        const page = createPageMock(viewerPayload('polled_acct'));
         page.getCookies.mockResolvedValueOnce([]);
 
         const command = getRegistry().get('twitter/login');
@@ -122,6 +116,5 @@ describe('twitter login command', () => {
             status: 'login_complete',
             username: 'polled_acct',
         });
-        expect(page.evaluate).toHaveBeenCalledTimes(1);
     });
 });

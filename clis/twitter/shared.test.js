@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { JSDOM } from 'jsdom';
-import { __test__ } from './shared.js';
+import { __test__, parseTwidUserId } from './shared.js';
 import { ArgumentError } from '@jackwener/opencli/errors';
 
 const {
@@ -1108,6 +1108,20 @@ describe('describeTwitterApiError', () => {
             const msg = describeTwitterApiError('SearchTimeline', code);
             expect(msg).toMatch(/^HTTP \d+: /);
             expect(msg).toContain(`HTTP ${code}:`);
+        }
+    });
+});
+
+describe('parseTwidUserId', () => {
+    it('reads the rest_id from encoded, decoded and quoted twid values', () => {
+        expect(parseTwidUserId('u%3D1234567890')).toBe('1234567890');
+        expect(parseTwidUserId('u=1234567890')).toBe('1234567890');
+        expect(parseTwidUserId('"u%3D1234567890"')).toBe('1234567890');
+    });
+
+    it('rejects missing or malformed values', () => {
+        for (const value of [undefined, '', 'u%3D', 'u%3Dabc', 'x%3D123', 'u%3D123%26v%3D1', '%E0%A4%A']) {
+            expect(parseTwidUserId(value)).toBe('');
         }
     });
 });

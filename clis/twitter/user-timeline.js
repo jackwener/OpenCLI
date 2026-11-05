@@ -1,5 +1,5 @@
 import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
-import { resolveTwitterOperationMetadata, normalizeTwitterGraphqlPayload, unwrapBrowserResult, normalizeTwitterScreenName } from './shared.js';
+import { resolveLoggedInTwitterUser, resolveTwitterOperationMetadata, normalizeTwitterGraphqlPayload, unwrapBrowserResult, normalizeTwitterScreenName } from './shared.js';
 import { TWITTER_BEARER_TOKEN } from './utils.js';
 
 const USER_TWEETS_QUERY_ID = 'lrMzG9qPQHpqJdP3AbM-bQ';
@@ -170,19 +170,7 @@ export async function resolveUserTimelineContext(
         throw new ArgumentError('twitter collection username must be a valid Twitter/X handle', 'Example: opencli twitter collection @jack --until 2026-07-23T00:00:00Z');
     }
     if (!username) {
-        await page.goto('https://x.com/home');
-        await page.wait({ selector: '[data-testid="primaryColumn"]' });
-        const href = unwrapBrowserResult(await page.evaluate(`() => {
-            const link = document.querySelector('a[data-testid="AppTabBar_Profile_Link"]');
-            return link ? link.getAttribute('href') : null;
-        }`));
-        if (!href || typeof href !== 'string') {
-            throw new AuthRequiredError('x.com', 'Could not detect logged-in user. Are you logged in?');
-        }
-        username = normalizeTwitterScreenName(href);
-        if (!username) {
-            throw new AuthRequiredError('x.com', 'Could not detect logged-in user. Are you logged in?');
-        }
+        username = (await resolveLoggedInTwitterUser(page)).screenName;
     }
 
     const cookies = await page.getCookies({ url: 'https://x.com' });

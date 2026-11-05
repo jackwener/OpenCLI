@@ -247,24 +247,25 @@ function bridgeEnvelope(data) {
     return { session: 'site:twitter', data };
 }
 
+const VIEWER_LOOKUP = { data: { user: { result: { __typename: 'User', rest_id: '42', core: { screen_name: 'viewer' } } } } };
+
 function createFollowingPage(followingResponses, { ct0 = 'token', userLookup = { userId: '42' }, envelope = false } = {}) {
     const page = {
         goto: vi.fn().mockResolvedValue(undefined),
         wait: vi.fn().mockResolvedValue(undefined),
-        getCookies: vi.fn(async () => (ct0 ? [{ name: 'ct0', value: ct0 }] : [])),
+        getCookies: vi.fn(async () => (ct0 ? [{ name: 'ct0', value: ct0 }, { name: 'twid', value: 'u%3D42' }] : [])),
         evaluate: vi.fn(async (script, ...args) => {
             const wrap = (value) => envelope ? bridgeEnvelope(value) : value;
             if (typeof script === 'function') {
                 const haystack = [script.toString(), ...args.map((arg) => String(arg))].join('\n');
                 if (haystack.includes('/UserByScreenName')) return wrap(userLookup);
                 if (haystack.includes('/Following')) return wrap(followingResponses.shift() || followingPayload([], null));
-                if (haystack.includes('AppTabBar_Profile_Link')) return wrap('/viewer');
                 throw new Error(`Unexpected evaluate function: ${haystack.slice(0, 80)}`);
             }
             if (script.includes('operationName')) return null;
             if (script.includes('/UserByScreenName')) return wrap(userLookup);
             if (script.includes('/Following')) return wrap(followingResponses.shift() || followingPayload([], null));
-            if (script.includes('AppTabBar_Profile_Link')) return wrap('/viewer');
+            if (script.includes('/UserByRestId')) return wrap(VIEWER_LOOKUP);
             throw new Error(`Unexpected evaluate script: ${script.slice(0, 80)}`);
         }),
     };
@@ -291,6 +292,22 @@ describe('twitter following command', () => {
         const followingCalls = page.evaluate.mock.calls.filter((call) => callText(call).includes('/Following'));
         expect(followingCalls).toHaveLength(2);
         expect(decodeURIComponent(callText(followingCalls[1]))).toContain('"cursor":"cursor-1"');
+    });
+
+    it('defaults to the logged-in account from the twid cookie without the DOM sidebar (#2770)', async () => {
+        const command = getRegistry().get('twitter/following');
+        const page = createFollowingPage([followingPayload(['alice'], null)]);
+
+        const rows = await command.func(page, { limit: 5 });
+
+        expect(rows.map((row) => row.screen_name)).toEqual(['alice']);
+        const callText = (call) => call.map((part) => typeof part === 'function' ? part.toString() : String(part)).join('\n');
+        const viewerLookup = callText(page.evaluate.mock.calls.find((call) => callText(call).includes('/UserByRestId')) || []);
+        expect(decodeURIComponent(viewerLookup)).toContain('"userId":"42"');
+        const userLookup = callText(page.evaluate.mock.calls.find((call) => callText(call).includes('/UserByScreenName')) || []);
+        expect(decodeURIComponent(userLookup)).toContain('"screen_name":"viewer"');
+        expect(page.wait).not.toHaveBeenCalled();
+        expect(page.evaluate.mock.calls.some((call) => callText(call).includes('data-testid'))).toBe(false);
     });
 
 });
