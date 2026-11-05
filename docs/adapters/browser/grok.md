@@ -14,6 +14,10 @@ Drive **Grok** (grok.com) chat from the terminal. All commands run through your 
 | `opencli grok detail <id>` | Open a conversation by ID and read its messages | read |
 | `opencli grok export` | Export visible conversation history metadata from the history dialog | read |
 | `opencli grok export-all` | Export conversation metadata plus per-conversation transcript JSON | read |
+| `opencli grok conversations` | List every chat in the account through grok.com's own API | read |
+| `opencli grok transcript <id>` | Read a full chat, including edit branches, reasoning steps and tool calls | read |
+| `opencli grok bots` | List the account's Grok bots (`grok.com/bot/<id>`) | read |
+| `opencli grok bot-transcript <id>` | Read a bot's whole transcript, including archived history | read |
 | `opencli grok ask <prompt>` | Send a prompt and wait for the assistant reply | write |
 | `opencli grok send <prompt>` | Fire-and-forget: send a prompt without waiting | write |
 | `opencli grok new` | Start a fresh conversation | write |
@@ -41,6 +45,14 @@ opencli grok detail https://grok.com/c/7c4197f2-10a1-4ebb-a84a-fea89f4f1d06 --ma
 # Export loaded history metadata, then export transcripts from that manifest
 opencli grok export --limit 25 -f json > grok-history.json
 opencli grok export-all --manifestPath grok-history.json --limit 25 -f json > grok-transcripts.json
+
+# Full chat history through grok.com's own API: list, then read one chat as structured JSON
+opencli grok conversations -f json
+opencli grok transcript 7c4197f2-10a1-4ebb-a84a-fea89f4f1d06 -f json
+
+# Bots: list them, then read one bot's whole transcript
+opencli grok bots
+opencli grok bot-transcript https://grok.com/bot/0e3b9a52-6d4f-4c1e-8a27-93f5b1c0d6e4 -f json
 
 # Ask a question and wait for the reply
 opencli grok ask "Explain quantum computing in simple terms"
@@ -115,6 +127,26 @@ opencli grok delete 7c4197f2-10a1-4ebb-a84a-fea89f4f1d06 --yes true
 | `--delayMinMs` | Minimum polite delay after a conversation page loads (default: `0`) |
 | `--delayMaxMs` | Maximum polite delay after a conversation page loads (default: `5000`) |
 
+### `conversations`
+
+| Option | Description |
+|--------|-------------|
+| `--limit` | Max conversations, in the order grok.com lists them (most recently updated first); `0` lists all (default: `0`) |
+
+### `transcript`
+
+| Option | Description |
+|--------|-------------|
+| `id` | Conversation ID (UUID) or full `https://grok.com/c/<id>` URL (required positional) |
+| `--timeout` | Max seconds for the whole read (default: `120`) |
+
+### `bot-transcript`
+
+| Option | Description |
+|--------|-------------|
+| `id` | Bot ID (UUID) or full `https://grok.com/bot/<id>` URL (required positional) |
+| `--timeout` | Max seconds for the whole read (default: `300`) |
+
 ### `pin` / `unpin` / `delete`
 
 | Option | Description |
@@ -132,6 +164,10 @@ opencli grok delete 7c4197f2-10a1-4ebb-a84a-fea89f4f1d06 --yes true
 | `detail` | `Role, Text` |
 | `export` | `index, id, title, date, url` |
 | `export-all` | `index, id, title, date, url, status, messageCount, error, messagesJson` |
+| `conversations` | `index, id, title, createdAt, updatedAt, starred, temporary, url` |
+| `transcript` | `index, id, parentId, role, text, model, effort, createdAt, partial, thinkingStartTime, thinkingEndTime, steps, attachments` |
+| `bots` | `index, id, name, description, isGroup, createdAt, updatedAt, lastActivityAt, url` |
+| `bot-transcript` | `index, id, kind, type, role, text, createdAt, requestId, entryVersion, replyTo, extras` |
 | `ask` | `response` |
 | `send` | `Status, Prompt` |
 | `new` | `Status` |
@@ -153,6 +189,8 @@ opencli grok delete 7c4197f2-10a1-4ebb-a84a-fea89f4f1d06 --yes true
 - `history` reads the visible sidebar — if Grok lazy-loads older conversations, scroll the sidebar in your browser before re-running, or use `detail <id>` directly.
 - `export` opens the full history dialog and scrolls it to collect real `https://grok.com/c/<id>` conversation URLs. Malformed history rows are treated as selector drift, not silently dropped.
 - `export-all` visits each conversation URL and records per-conversation `status`. A page with no visible transcript produces an `empty` row with an `error` message; malformed transcript rows produce a `failed` row; malformed history or manifest identity fails before export.
+- `conversations` and `transcript` read the JSON endpoints the Grok web app itself uses (`/rest/app-chat/`), so text is the original markdown and IDs are Grok's own. `transcript` returns every turn in the conversation tree: an edited prompt appears as a sibling turn with the same `parentId`, and Grok does not mark which branch is active. Each `steps` item keeps the step `tags` and `text`, the tool calls (`toolCalls[].id/name/input`) and their results (`toolResults[].toolCallId/kind/content`); other non-empty step fields are kept under `extras`. A transcript is never returned with turns missing.
+- Bots have no REST endpoint. `bots` and `bot-transcript` open their own connection to the bot relay the page uses (`wss://grok.com/ws/bot/`, JSON-RPC 2.0), make only read calls, and close it. `bot-transcript` reads the archive whole and merges the newest entries from the live tail; for an entry present in both, the higher `entryVersion` wins and the archive wins a tie. `text` is the user message, the bot's text reply, a widget prompt, or an approval summary; the remaining entry fields (the user's widget answer in `respondedValue`, reactions, attachment metadata, event details) are kept under `extras`. A bot transcript holds only what the bot sent, not its internal tool use.
 - `pin`, `unpin`, and `delete` operate on conversations visible in the sidebar. `pin` / `unpin` verify the post-action context-menu state; `delete --yes` verifies the sidebar entry disappears before returning success.
 - `status` returns `Model` / `SessionId` as `null` when they cannot be detected (e.g. page still loading) rather than a string sentinel — branch on `null` in agent code.
 - DOM or product changes on Grok can break composer detection — `opencli grok status` is the quickest sanity check.
