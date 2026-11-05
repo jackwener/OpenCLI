@@ -1,5 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { escapeRestliValue } from './shared.js';
 const LINKEDIN_DOMAIN = 'linkedin.com';
 const MIN_LIMIT = 1;
 const MAX_LIMIT = 100;
@@ -95,12 +96,6 @@ function decodeLinkedinRedirect(url) {
     catch { }
     return url;
 }
-// Rest.li treats ( ) , : ' as syntax and % as its escape character, so they
-// have to be escaped inside values. buildVoyagerUrl turns %2C/%3A/%28/%29 back
-// into structural characters, so the escaped values must come out as %252C etc.
-function restliEscape(value) {
-    return String(value).replace(/[%(),:']/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase());
-}
 function buildVoyagerSearchQuery(input) {
     const hasFilters = input.companyIds.length ||
         input.experienceLevels.length ||
@@ -109,10 +104,10 @@ function buildVoyagerSearchQuery(input) {
         input.remoteTypes.length;
     const parts = [
         'origin:' + (hasFilters ? 'JOB_SEARCH_PAGE_JOB_FILTER' : 'JOB_SEARCH_PAGE_OTHER_ENTRY'),
-        'keywords:' + restliEscape(input.keywords),
+        'keywords:' + escapeRestliValue(input.keywords),
     ];
     if (input.location) {
-        parts.push('locationUnion:(seoLocation:(location:' + restliEscape(input.location) + '))');
+        parts.push('locationUnion:(seoLocation:(location:' + escapeRestliValue(input.location) + '))');
     }
     const filters = [];
     if (input.companyIds.length)
@@ -136,6 +131,8 @@ function buildVoyagerUrl(input, offset, count) {
         count: String(count),
         q: 'jobSearch',
     });
+    // Only structural characters are restored; values were Rest.li-escaped
+    // first, so their %2C etc. stay encoded as %252C.
     const query = encodeURIComponent(buildVoyagerSearchQuery(input))
         .replace(/%3A/gi, ':')
         .replace(/%2C/gi, ',')
@@ -319,6 +316,38 @@ async function fetchJobCards(page, input) {
     }));
 }
 // ── Job detail enrichment (--details flag) ────────────────────────────
+// The job description is located by its English "About the job" heading when
+// present, otherwise by LinkedIn's description container classes, so localized
+// UIs (e.g. "Sobre a vaga") still resolve. Runs inside the browser; keep it
+// self-contained for script injection.
+function findJobDescriptionRoot(doc) {
+    const norm = (v) => (v || '').replace(/\s+/g, ' ').trim();
+    const heading = [...doc.querySelectorAll('h1,h2,h3,h4')]
+        .find(el => norm(el.textContent).toLowerCase() === 'about the job');
+    // Nearest (most specific) container led by that heading, avoiding outer
+    // wrappers that include unrelated text.
+    for (let el = heading?.parentElement; el; el = el.parentElement) {
+        if (el.matches('div, section, article') && el.querySelector('h1,h2,h3,h4') === heading
+            && norm(el.innerText || el.textContent).length > 'About the job'.length)
+            return el;
+    }
+    return [...doc.querySelectorAll('#job-details, .jobs-description-content__text, .jobs-box__html-content, .jobs-description__content')]
+        .find(el => norm(el.innerText || el.textContent)) || null;
+}
+// Waits until the description is rendered. Not fatal on timeout: the
+// extraction then reports detail_error "missing description".
+function buildJobDescriptionWaitScript(timeoutMs) {
+    return `(async () => {
+      const find = ${findJobDescriptionRoot.toString()};
+      const deadline = Date.now() + ${timeoutMs};
+      while (Date.now() < deadline) {
+        if (find(document)) return true;
+        await new Promise(resolve => setTimeout(resolve, 250));
+      }
+      return false;
+    })()`;
+}
+//
 //
 // Per-row failures should NOT abort the whole list (--details enriches N rows;
 // partial failure is expected). But silent empty-string fields hide the failure
@@ -344,12 +373,11 @@ async function enrichJobDetails(page, jobs) {
         try {
             await page.goto(job.url);
             await assertLinkedInAuthenticated(page, 'LinkedIn job detail');
-            await page.wait({ text: 'About the job', timeout: 8 });
+            await page.evaluate(buildJobDescriptionWaitScript(8000));
             // Expand "Show more" button if present
             await page.evaluate(`(() => {
         const norm = (v) => (v || '').replace(/\\s+/g, ' ').trim().toLowerCase();
-        const section = [...document.querySelectorAll('div, section, article')]
-          .find(el => norm(el.querySelector('h1,h2,h3,h4')?.textContent || '') === 'about the job');
+        const section = (${findJobDescriptionRoot.toString()})(document);
         const btn = [...(section?.querySelectorAll('button, a[role="button"]') || [])]
           .find(el => /more/.test(norm(el.textContent || '')) || /more/.test(norm(el.getAttribute('aria-label') || '')));
         if (btn) btn.click();
@@ -358,17 +386,8 @@ async function enrichJobDetails(page, jobs) {
             // Extract description and apply URL
             const detail = await page.evaluate(`(() => {
         const norm = (v) => (v || '').replace(/\\s+/g, ' ').trim();
-        // Find the most specific (shortest) container with "About the job" heading
-        // Shortest = most specific DOM node, avoiding outer wrappers that include unrelated text
-        const candidates = [...document.querySelectorAll('div, section, article')]
-          .map(el => ({
-            heading: norm(el.querySelector('h1,h2,h3,h4')?.textContent || ''),
-            text: norm(el.innerText || ''),
-          }))
-          .filter(c => c.text && c.heading.toLowerCase() === 'about the job' && c.text.length > 'About the job'.length)
-          .sort((a, b) => a.text.length - b.text.length);
-
-        const description = candidates[0]?.text.replace(/^About the job\\s*/i, '') || '';
+        const root = (${findJobDescriptionRoot.toString()})(document);
+        const description = norm(root?.innerText || root?.textContent || '').replace(/^About the job\\s*/i, '');
         const applyLink = [...document.querySelectorAll('a[href]')]
           .map(a => ({ href: a.href || '', text: norm(a.textContent || ''), aria: norm(a.getAttribute('aria-label') || '') }))
           .find(a => /apply/i.test(a.text) || /apply/i.test(a.aria));
@@ -460,6 +479,7 @@ export const __test__ = {
     looksLinkedInAuthWallText,
     assertLinkedInAuthenticated,
     enrichJobDetails,
+    findJobDescriptionRoot,
     buildVoyagerUrl,
     EXPERIENCE_LEVELS,
     JOB_TYPES,

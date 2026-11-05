@@ -27,6 +27,13 @@ describe('linkedin salesnav-search command', () => {
     expect(profileUrlFromEntityUrn('not-a-urn')).toBe('');
   });
 
+  it('keeps Rest.li reserved characters inside the keyword value (#2714)', () => {
+    const url = leadSearchUrl("quality, food (QA): O'Neil 100%", 0);
+    expect(url).toContain('keywords:quality%252C%20food%20%2528QA%2529%253A%20O%2527Neil%20100%2525)&start=0');
+    const query = new URL(url).searchParams.get('query');
+    expect(query).toBe("(spellCorrectionEnabled:true,recentSearchParam:(doLogHistory:true),keywords:quality%2C food %28QA%29%3A O%27Neil 100%25)");
+  });
+
   it('derives a Sales Navigator lead URL from the full sales-profile entityUrn', () => {
     expect(leadUrlFromEntityUrn('urn:li:fs_salesProfile:(ACwAAAJS8TABxyz,NAME_SEARCH,Enlo)'))
       .toBe('https://www.linkedin.com/sales/lead/ACwAAAJS8TABxyz,NAME_SEARCH,Enlo');
