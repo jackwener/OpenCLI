@@ -16,9 +16,8 @@ async function hasGoogleSessionCookie(page) {
   ].some(name => names.has(name));
 }
 
-async function verifyYoutubeIdentity(page) {
-  await page.goto('https://www.youtube.com/');
-  await page.wait(3);
+// Reads the signed-in state of the YouTube page that is already loaded.
+async function probeYoutubeIdentity(page) {
   const probe = await page.evaluate(`
     (() => {
       const cfg = (typeof window !== 'undefined' && window.ytcfg && typeof window.ytcfg.get === 'function') ? window.ytcfg : null;
@@ -41,6 +40,12 @@ async function verifyYoutubeIdentity(page) {
   return { name: probe.name };
 }
 
+async function verifyYoutubeIdentity(page) {
+  await page.goto('https://www.youtube.com/');
+  await page.wait(3);
+  return probeYoutubeIdentity(page);
+}
+
 registerSiteAuthCommands({
   site: 'youtube',
   domain: 'www.youtube.com',
@@ -48,5 +53,11 @@ registerSiteAuthCommands({
   columns: ['name'],
   quickCheck: hasGoogleSessionCookie,
   verify: verifyYoutubeIdentity,
-  poll: async (page) => verifyYoutubeIdentity(page),
+  // The login tab sits on accounts.google.com until Google redirects back via
+  // the continue URL; navigating away while polling would abort the sign-in.
+  poll: async (page) => {
+    const host = await page.evaluate('location.hostname');
+    if (host !== 'www.youtube.com') throw new AuthRequiredError('www.youtube.com', 'Waiting for Google sign-in to return to YouTube');
+    return probeYoutubeIdentity(page);
+  },
 });

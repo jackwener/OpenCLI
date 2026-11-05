@@ -7,12 +7,13 @@ import './auth.js';
 const whoami = getRegistry().get('youtube/whoami');
 const login = getRegistry().get('youtube/login');
 
-function createPage({ cookies = [], probes = [] } = {}) {
+function createPage({ cookies = [], probes = [], hosts = [] } = {}) {
   return {
     getCookies: vi.fn().mockResolvedValue(cookies.map(name => ({ name }))),
     goto: vi.fn().mockResolvedValue(undefined),
     wait: vi.fn().mockResolvedValue(undefined),
     evaluate: vi.fn(async script => {
+      if (script === 'location.hostname') return hosts.shift() ?? 'www.youtube.com';
       const probe = probes.shift() ?? { loggedIn: true };
       return runInNewContext(script, {
         window: {
@@ -60,13 +61,22 @@ describe('youtube auth', () => {
     await expect(whoami.func(page, {})).resolves.toMatchObject({ logged_in: true, name: '' });
   });
 
-  it('login polling uses the page login signal without a cookie precheck', async () => {
-    const page = createPage({ probes: [{ loggedIn: false }, { loggedIn: true, name: 'Example channel' }] });
-    await expect(login.func(page, { timeout: 1 })).resolves.toMatchObject({
+  it('login polling waits on the Google sign-in page and then reads YouTube page state in place', async () => {
+    const page = createPage({
+      probes: [{ loggedIn: false }, { loggedIn: true, name: 'Example channel' }],
+      hosts: ['accounts.google.com', 'accounts.google.com', 'www.youtube.com'],
+    });
+    await expect(login.func(page, { timeout: 30 })).resolves.toMatchObject({
       status: 'login_complete',
       logged_in: true,
       name: 'Example channel',
     });
     expect(page.getCookies).not.toHaveBeenCalled();
+    // Only the initial identity check and the login page; polling must not navigate the sign-in tab away.
+    expect(page.goto.mock.calls.map(([url]) => url)).toEqual([
+      'https://www.youtube.com/',
+      expect.stringContaining('https://accounts.google.com/ServiceLogin'),
+    ]);
+    expect(page.evaluate.mock.calls.filter(([script]) => script === 'location.hostname')).toHaveLength(3);
   });
 });
