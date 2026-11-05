@@ -1,31 +1,7 @@
-import { AuthRequiredError, CliError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { CommandExecutionError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { clampInt, requireNonEmptyQuery } from '../_shared/common.js';
-
-// Runs in the page. Only consulted when no product nodes rendered, so a JD
-// header "登录" link on a real results page can never classify it as blocked.
-function detectJdSearchBlock() {
-    const href = location.href;
-    const title = document.title || '';
-    const bodyText = document.body?.innerText || document.body?.textContent || '';
-    if (/passport\.jd\.com|\/login\.aspx/.test(href) || /京东-欢迎登录|京东登录/.test(title)) {
-        return { error: 'auth-required', href };
-    }
-    if (/risk_handler|安全验证|安全校验|完成安全验证|captcha|访问过于频繁|验证中心|京东验证/.test(`${href}\n${title}\n${bodyText}`)) {
-        return { error: 'security-verification', href };
-    }
-    return null;
-}
-
-function describeLocation(href) {
-    try {
-        const url = new URL(href);
-        return `${url.host}${url.pathname}`;
-    }
-    catch {
-        return String(href || 'unknown page');
-    }
-}
+import { detectJdGate, jdGateError } from './page-state.js';
 
 cli({
     site: 'jd',
@@ -48,17 +24,25 @@ cli({
         await page.autoScroll({ times: 2, delayMs: 1500 });
         const data = await page.evaluate(`
       (async () => {
-        const detectJdSearchBlock = ${detectJdSearchBlock.toString()};
+        const detectJdGate = ${detectJdGate.toString()};
         const normalize = v => (v || '').replace(/\\s+/g, ' ').trim();
+        // Only consult the gate when no product rendered: a normal results
+        // page also carries a "你好，请登录" header link.
+        const gateIfEmpty = () => {
+          if (document.querySelectorAll('div[data-sku]').length > 0) return null;
+          const gate = detectJdGate();
+          return gate.isLoginPage || gate.hasSecurityChallenge
+            ? { href: gate.href, isLoginPage: gate.isLoginPage, hasSecurityChallenge: gate.hasSecurityChallenge }
+            : null;
+        };
         for (let i = 0; i < 20; i++) {
           if (document.querySelectorAll('div[data-sku]').length > 0) break;
+          if (gateIfEmpty()) break;
           await new Promise(r => setTimeout(r, 500));
         }
+        const gate = gateIfEmpty();
+        if (gate) return { gate };
         const items = document.querySelectorAll('div[data-sku]');
-        if (items.length === 0) {
-          const block = detectJdSearchBlock();
-          if (block) return block;
-        }
         const results = [];
         for (const el of items) {
           const sku = el.getAttribute('data-sku') || '';
@@ -93,17 +77,11 @@ cli({
         return { items: results };
       })()
     `);
-        if (data?.error === 'auth-required') {
-            throw new AuthRequiredError('jd.com', `JD redirected search to its login page (${describeLocation(data.href)}) instead of returning results`);
-        }
-        if (data?.error === 'security-verification') {
-            throw new CliError('SECURITY_BLOCK', `JD search is showing a security verification page (${describeLocation(data.href)}) instead of results`, 'Open https://search.jd.com in your browser, complete the verification, then retry.');
-        }
+        const gateError = jdGateError(data?.gate, 'JD search');
+        if (gateError) throw gateError;
         if (!Array.isArray(data?.items)) {
             throw new CommandExecutionError(`Unexpected JD search payload: ${JSON.stringify(data)}`);
         }
         return data.items;
     },
 });
-
-export const __test__ = { detectJdSearchBlock };
