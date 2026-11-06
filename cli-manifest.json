@@ -42336,7 +42336,7 @@
         "name": "video",
         "type": "str",
         "required": true,
-        "help": "视频绝对路径 (.mp4/.mov)"
+        "help": "视频文件路径 (.mp4/.mov，视频内容以文件实际类型校验)"
       },
       {
         "name": "cover",
@@ -42348,19 +42348,7 @@
         "name": "topics",
         "type": "str",
         "required": false,
-        "help": "话题标签，逗号分隔，不含 # 号"
-      },
-      {
-        "name": "declaration",
-        "type": "str",
-        "required": false,
-        "help": "内容类型声明：ai = 笔记含AI合成内容"
-      },
-      {
-        "name": "schedule",
-        "type": "str",
-        "required": false,
-        "help": "定时发布，格式 \"YYYY-MM-DD HH:mm\"（本地时间）"
+        "help": "话题标签，逗号分隔，不含 # 号；无法精确匹配时整体失败"
       },
       {
         "name": "draft",
