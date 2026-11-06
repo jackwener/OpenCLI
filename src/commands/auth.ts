@@ -8,6 +8,7 @@ import { AuthRequiredError, CommandExecutionError, CliError, getErrorMessage } f
 import { executeCommand } from '../execution.js';
 import {
   type BrowserCliCommand,
+  type BrowserCommandFunc,
   type CliCommand,
   type CommandArgs,
   type InternalCliCommand,
@@ -15,6 +16,7 @@ import {
   getRegistry,
 } from '../registry.js';
 import { render as renderOutput } from '../output.js';
+import type { BrowserCookie, IPage } from '../types.js';
 
 type AuthStatus = 'logged_in' | 'not_logged_in' | 'unknown' | 'error';
 type AuthStatusMode = 'quick' | 'full';
@@ -51,7 +53,13 @@ export interface AuthRefreshRow {
   error: string;
   /** Command that recovers a not_logged_in row, when the site registers a login command. */
   recovery?: string;
+  /** Latest session cookie expiry before the refresh, when the site declares its session cookies. */
+  cookie_expiry_before?: string;
+  /** Latest session cookie expiry after the refresh, when the site declares its session cookies. */
+  cookie_expiry_after?: string;
 }
+
+type CookieExpiryFields = Pick<AuthRefreshRow, 'cookie_expiry_before' | 'cookie_expiry_after'>;
 
 interface AuthRefreshOptions {
   sites?: string;
@@ -233,15 +241,70 @@ function rowForError(site: string, checked: AuthStatusMode, error: unknown, prof
   };
 }
 
+function siteUrl(domain: string): string {
+  return domain.startsWith('http://') || domain.startsWith('https://') ? domain : `https://${domain}`;
+}
+
+function declaredSessionCookies(cmd: CliCommand): Set<string> | null {
+  const names = cmd.authStatus?.sessionCookies;
+  if (!Array.isArray(names)) return null;
+  const valid = names.filter((name): name is string => typeof name === 'string' && name.length > 0);
+  return valid.length > 0 ? new Set(valid) : null;
+}
+
+/** Latest expiry (epoch seconds) among the named cookies; null when none of them has one. */
+async function sessionCookieExpiry(page: IPage, url: string, names: Set<string>): Promise<number | null> {
+  let cookies: BrowserCookie[];
+  try {
+    cookies = await page.getCookies({ url });
+  } catch {
+    // Expiry is a diagnostic. Not being able to read it must not turn a
+    // successful touch into an error; the row stays `touched` without fields.
+    return null;
+  }
+  let latest: number | null = null;
+  for (const cookie of cookies) {
+    if (!names.has(cookie.name)) continue;
+    const expiry = cookie.expirationDate;
+    if (typeof expiry !== 'number' || !Number.isFinite(expiry)) continue;
+    if (latest === null || expiry > latest) latest = expiry;
+  }
+  return latest;
+}
+
+function expiryIso(epochSeconds: number | null): string | undefined {
+  if (epochSeconds === null) return undefined;
+  const date = new Date(epochSeconds * 1000);
+  return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+}
+
+/**
+ * Reads the declared session cookies' expiry around the refresh so the result
+ * can show whether the session was actually extended. Only cookie names and
+ * expiry timestamps are read; values never leave the browser.
+ */
+function withSessionCookieExpiry(refreshFunc: BrowserCommandFunc, url: string, names: Set<string>): BrowserCommandFunc {
+  return async (page, kwargs, debug) => {
+    const before = expiryIso(await sessionCookieExpiry(page, url, names));
+    const result = await refreshFunc(page, kwargs, debug);
+    const after = expiryIso(await sessionCookieExpiry(page, url, names));
+    if (before === undefined && after === undefined) return result;
+    const base = result && typeof result === 'object' && !Array.isArray(result) ? result as Record<string, unknown> : {};
+    return {
+      ...base,
+      ...(before !== undefined ? { cookie_expiry_before: before } : {}),
+      ...(after !== undefined ? { cookie_expiry_after: after } : {}),
+    };
+  };
+}
+
 function refreshCommand(cmd: CliCommand, timeoutSeconds: number): BrowserCliCommand | null {
   if (cmd.browser !== true) return null;
   let refreshFunc = cmd.authStatus?.refresh;
   if (typeof refreshFunc !== 'function') {
     const quickCheck = cmd.authStatus?.quickCheck;
     if (typeof quickCheck !== 'function' || !cmd.domain) return null;
-    const refreshUrl = cmd.domain.startsWith('http://') || cmd.domain.startsWith('https://')
-      ? cmd.domain
-      : `https://${cmd.domain}`;
+    const refreshUrl = siteUrl(cmd.domain);
     refreshFunc = async (page, kwargs, debug) => {
       await page.goto(refreshUrl);
       await page.wait(1);
@@ -253,6 +316,10 @@ function refreshCommand(cmd: CliCommand, timeoutSeconds: number): BrowserCliComm
       return { status: 'touched' };
     };
   }
+  const sessionCookies = declaredSessionCookies(cmd);
+  if (sessionCookies && cmd.domain) {
+    refreshFunc = withSessionCookieExpiry(refreshFunc, siteUrl(cmd.domain), sessionCookies);
+  }
   return withTimeoutArg({
     ...cmd,
     func: refreshFunc,
@@ -262,10 +329,29 @@ function refreshCommand(cmd: CliCommand, timeoutSeconds: number): BrowserCliComm
   }, timeoutSeconds) as BrowserCliCommand;
 }
 
-function normalizeRefreshStatus(result: unknown): 'refreshed' | 'touched' {
+function cookieExpiryFields(result: unknown): CookieExpiryFields {
+  if (!result || typeof result !== 'object' || Array.isArray(result)) return {};
+  const row = result as Record<string, unknown>;
+  const fields: CookieExpiryFields = {};
+  // Re-serialize so only well-formed timestamps reach the output.
+  for (const key of ['cookie_expiry_before', 'cookie_expiry_after'] as const) {
+    const value = row[key];
+    const parsed = typeof value === 'string' ? Date.parse(value) : Number.NaN;
+    if (Number.isFinite(parsed)) fields[key] = new Date(parsed).toISOString();
+  }
+  return fields;
+}
+
+function normalizeRefreshStatus(result: unknown, expiry: CookieExpiryFields): 'refreshed' | 'touched' {
   if (result && typeof result === 'object' && !Array.isArray(result)) {
     const row = result as Record<string, unknown>;
     if (row.status === 'refreshed' || row.refreshed === true) return 'refreshed';
+  }
+  // A later session expiry after the touch is visible evidence of a refresh.
+  // Unknown or unchanged expiry stays the best-effort `touched`.
+  if (expiry.cookie_expiry_before && expiry.cookie_expiry_after
+    && Date.parse(expiry.cookie_expiry_after) > Date.parse(expiry.cookie_expiry_before)) {
+    return 'refreshed';
   }
   return 'touched';
 }
@@ -418,7 +504,8 @@ async function runRefresh(cmd: CliCommand, opts: {
       windowMode: 'background',
       ...(opts.profile ? { profile: opts.profile } : {}),
     });
-    const status = normalizeRefreshStatus(result);
+    const expiry = cookieExpiryFields(result);
+    const status = normalizeRefreshStatus(result, expiry);
     opts.state.sites[stateKey] = {
       ...existing,
       last_attempt_at: attemptAt,
@@ -431,6 +518,7 @@ async function runRefresh(cmd: CliCommand, opts: {
       last_touched_at: attemptAt,
       next_refresh_at: new Date(opts.now.getTime() + AUTH_REFRESH_INTERVAL_MS).toISOString(),
       error: '',
+      ...expiry,
     };
   } catch (error) {
     const status: AuthRefreshStatus = error instanceof AuthRequiredError ? 'not_logged_in' : 'error';

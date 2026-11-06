@@ -32,6 +32,12 @@ export type SiteSessionMode = 'ephemeral' | 'persistent';
 export interface AuthStatusMetadata {
   quickCheck?: BrowserCommandFunc;
   refresh?: BrowserCommandFunc;
+  /**
+   * Names of the cookies that carry the site's login session. `auth refresh`
+   * compares their expiry before and after the touch to tell `refreshed` from
+   * `touched`. Only names and expiry timestamps are read, never values.
+   */
+  sessionCookies?: string[];
 }
 
 interface BaseCliCommand {
