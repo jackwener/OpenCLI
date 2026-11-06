@@ -11820,6 +11820,92 @@
   },
   {
     "site": "facebook",
+    "name": "marketplace-search",
+    "description": "Search Facebook Marketplace listings for sale (buyer side)",
+    "access": "read",
+    "domain": "www.facebook.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "What to search for, e.g. \"road bike\""
+      },
+      {
+        "name": "location",
+        "type": "str",
+        "required": false,
+        "help": "City slug or numeric city id from a Marketplace URL (chicago, nyc, 108659242498155). Defaults to your saved location"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of listings (1-100); scrolls for more than 24"
+      },
+      {
+        "name": "min-price",
+        "type": "int",
+        "required": false,
+        "help": "Minimum price"
+      },
+      {
+        "name": "max-price",
+        "type": "int",
+        "required": false,
+        "help": "Maximum price"
+      },
+      {
+        "name": "sort",
+        "type": "str",
+        "default": "best",
+        "required": false,
+        "help": "Sort order",
+        "choices": [
+          "best",
+          "newest",
+          "price-asc",
+          "price-desc",
+          "distance"
+        ]
+      },
+      {
+        "name": "days",
+        "type": "int",
+        "required": false,
+        "help": "Only listings posted within the last N days (1, 7, 30)"
+      },
+      {
+        "name": "exact",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Require an exact phrase match"
+      }
+    ],
+    "columns": [
+      "index",
+      "id",
+      "title",
+      "price",
+      "currency",
+      "originalPrice",
+      "location",
+      "badge",
+      "image",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "facebook/marketplace-search.js",
+    "sourceFile": "facebook/marketplace-search.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "facebook",
     "name": "memories",
     "description": "Get your Facebook memories (On This Day)",
     "access": "read",
