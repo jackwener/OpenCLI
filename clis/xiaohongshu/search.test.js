@@ -205,9 +205,15 @@ function createFilterBehaviorPage(options = {}) {
                             document.body.append(toast);
                             return;
                         }
-                        if (options.inactive === `${groupLabel}/${choice}`) return;
+                        if (options.inactive === `${groupLabel}/${choice}`) {
+                            if (options.closePanelOnApply) document.querySelector('.filter-panel')?.remove();
+                            return;
+                        }
                         state[groupLabel] = choice;
-                        renderPanel();
+                        // Some live result pages (seen on AI-summary queries) close the panel as the
+                        // filtered results load instead of re-rendering it open.
+                        if (options.closePanelOnApply) document.querySelector('.filter-panel')?.remove();
+                        else renderPanel();
                         const loading = document.createElement('div');
                         loading.className = 'filter-loading';
                         loading.setAttribute('aria-busy', 'true');
@@ -1047,6 +1053,35 @@ describe('xiaohongshu search filter behavior', () => {
             expect(page.filterState['排序依据']).toBe('最新');
             expect(page.trustedClicks).toEqual([page.chipCenter('排序依据', '最新')]);
             expect(page.filterClicks).toEqual(['排序依据/最新']);
+            expect(page.untrustedChipClicks).toEqual([]);
+        }
+        finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('verifies the chip by reopening the panel when the page closes it after a trusted click', async () => {
+        vi.useFakeTimers();
+        try {
+            const page = createFilterBehaviorPage({ ghosts: true, closePanelOnApply: true });
+            await runFilterCommand(page, { sort: 'latest' });
+            expect(page.filterState['排序依据']).toBe('最新');
+            expect(page.trustedClicks).toEqual([page.chipCenter('排序依据', '最新')]);
+            expect(page.untrustedChipClicks).toEqual([]);
+        }
+        finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('still fails typed when the reopened panel shows the chip inactive', async () => {
+        vi.useFakeTimers();
+        try {
+            const page = createFilterBehaviorPage({ ghosts: true, closePanelOnApply: true, inactive: '排序依据/最新' });
+            await expect(runFilterCommand(page, { sort: 'latest' })).rejects.toMatchObject({
+                code: 'COMMAND_EXEC',
+                message: expect.stringContaining('did not become active (排序依据/最新)'),
+            });
             expect(page.untrustedChipClicks).toEqual([]);
         }
         finally {

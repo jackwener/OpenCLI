@@ -598,15 +598,26 @@ function buildAwaitFilterAppliedJs(request) {
           ]);
         };
 
+        // Some result pages close the panel as the filtered results load instead of
+        // re-rendering it open; reopen it to read the chip state rather than
+        // reporting an applied filter as inactive.
+        const currentPanel = async () => {
+          const currentPanels = panels();
+          if (currentPanels.length === 1) return currentPanels[0];
+          if (currentPanels.length > 1) return null;
+          const opened = await openPanel();
+          return opened.status === 'ok' ? opened.panel : null;
+        };
+
         const clickedAt = Date.now();
         let found;
         let becameActive = false;
         while (Date.now() - clickedAt < 2500) {
           if (authBlocked()) return { status: 'auth', detail: 'login_wall' };
           if (locationBlocked()) return { status: 'location', detail: 'geolocation_denied' };
-          const currentPanels = panels();
-          if (currentPanels.length === 1) {
-            found = findOption(currentPanels[0], request);
+          const panel = await currentPanel();
+          if (panel) {
+            found = findOption(panel, request);
             if (found.status === 'ok' && isActive(found.option)) {
               becameActive = true;
               break;
@@ -638,8 +649,8 @@ function buildAwaitFilterAppliedJs(request) {
         if (stableSamples < 3) {
           return { status: 'timeout', detail: request.group + '/' + request.option };
         }
-        const finalPanels = panels();
-        const finalFound = finalPanels.length === 1 ? findOption(finalPanels[0], request) : null;
+        const finalPanel = await currentPanel();
+        const finalFound = finalPanel ? findOption(finalPanel, request) : null;
         if (!finalFound || finalFound.status !== 'ok' || !isActive(finalFound.option)) {
           return { status: 'inactive', detail: request.group + '/' + request.option };
         }
