@@ -122,6 +122,144 @@ function extractSegmentsFromNetworkCapture(entries, lang, videoId) {
     return malformed ? { error: malformed } : { segments: [] };
 }
 
+
+/**
+ * Innertube clients that still expose playable caption tracks when the WEB
+ * player is UNPLAYABLE or the watch-HTML caption URL returns a 0-byte body.
+ * Tried in order; the reported local repair (#2648) saw ANDROID return a
+ * usable json3 body first and IOS as the fallback.
+ */
+export const INNERTUBE_CAPTION_CLIENTS = [
+    {
+        name: 'ANDROID',
+        clientName: 'ANDROID',
+        clientVersion: '19.09.37',
+        clientId: '3',
+        context: { androidSdkVersion: 30, osName: 'Android', osVersion: '11' },
+    },
+    {
+        name: 'IOS',
+        clientName: 'IOS',
+        clientVersion: '19.45.4',
+        clientId: '5',
+        context: { deviceModel: 'iPhone16,2', osName: 'iPhone', osVersion: '18.3.2.22D82' },
+    },
+];
+
+/**
+ * Pick a caption track for the requested language: exact match, then language
+ * prefix, then the first manual track, then the first track. Kept as a plain
+ * function so it can be serialized into the page-evaluate script unchanged.
+ */
+export function pickCaptionTrack(tracks, lang) {
+    const langPref = String(lang || '');
+    if (langPref) {
+        const exact = tracks.find((track) => track.languageCode === langPref);
+        if (exact) return exact;
+        const prefix = tracks.find((track) => String(track.languageCode || '').startsWith(langPref));
+        if (prefix) return prefix;
+    }
+    return tracks.find((track) => track.kind !== 'asr') || tracks[0] || null;
+}
+
+/**
+ * Build the page-context fallback: POST /youtubei/v1/player with each client
+ * in turn, then fetch the selected track's baseUrl as fmt=json3. Returns null
+ * unless a non-empty transcript was parsed, so every later fallback still runs.
+ */
+export function buildInnertubeCaptionScript(videoId, lang) {
+    return `(async () => {
+        const clients = ${JSON.stringify(INNERTUBE_CAPTION_CLIENTS)};
+        const videoId = ${JSON.stringify(videoId)};
+        const lang = ${JSON.stringify(String(lang || ''))};
+        const pickCaptionTrack = ${pickCaptionTrack.toString()};
+
+        function parseJson3(text) {
+            let data;
+            try {
+                data = JSON.parse(text);
+            } catch (error) {
+                return null;
+            }
+            if (!Array.isArray(data?.events)) return null;
+            const rows = [];
+            for (const event of data.events) {
+                const startMs = Number(event?.tStartMs || 0);
+                const durMs = Number(event?.dDurationMs || 0);
+                const segs = Array.isArray(event?.segs) ? event.segs : [];
+                const line = segs.map((seg) => seg?.utf8 || '').join('').replace(/\s+/g, ' ').trim();
+                if (!line) continue;
+                rows.push({ start: startMs / 1000, end: (startMs + durMs) / 1000, text: line });
+            }
+            return rows;
+        }
+
+        for (const client of clients) {
+            try {
+                const body = {
+                    context: {
+                        client: {
+                            clientName: client.clientName,
+                            clientVersion: client.clientVersion,
+                            hl: 'en',
+                            gl: 'US',
+                            ...client.context,
+                        },
+                    },
+                    videoId,
+                    contentCheckOk: true,
+                    racyCheckOk: true,
+                };
+                const playerResp = await fetch('/youtubei/v1/player?prettyPrint=false', {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-YouTube-Client-Name': client.clientId,
+                        'X-YouTube-Client-Version': client.clientVersion,
+                    },
+                    body: JSON.stringify(body),
+                });
+                if (!playerResp.ok) continue;
+                const player = await playerResp.json();
+                const tracks = player?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+                if (!Array.isArray(tracks) || tracks.length === 0) continue;
+                const track = pickCaptionTrack(tracks, lang);
+                if (!track || typeof track.baseUrl !== 'string') continue;
+                const captionUrl = track.baseUrl + (track.baseUrl.includes('?') ? '&' : '?') + 'fmt=json3';
+                const captionResp = await fetch(captionUrl, { credentials: 'include' });
+                if (!captionResp.ok) continue;
+                const segments = parseJson3(await captionResp.text());
+                if (!segments || segments.length === 0) continue;
+                return {
+                    segments,
+                    language: track.languageCode,
+                    kind: track.kind || 'manual',
+                    source: 'innertube-' + client.name.toLowerCase(),
+                };
+            } catch (error) {
+                // Try the next client; the caller keeps the existing fallbacks.
+            }
+        }
+        return null;
+    })()`;
+}
+
+/**
+ * Run the innertube caption fallback and return parsed segments, or null when
+ * every client failed (caller falls back to the watch-HTML path unchanged).
+ */
+export async function fetchInnertubeCaptionSegments(page, videoId, lang) {
+    let payload;
+    try {
+        payload = unwrapBrowserResult(await page.evaluate(buildInnertubeCaptionScript(videoId, lang)));
+    } catch {
+        return null;
+    }
+    if (!payload || typeof payload !== 'object' || !Array.isArray(payload.segments)) return null;
+    return payload.segments.length > 0 ? payload.segments : null;
+}
+
 cli({
     site: 'youtube',
     name: 'transcript',
@@ -395,6 +533,12 @@ cli({
         }
         if (!segments) {
             await prepareYoutubeApiPage(page);
+            // Fallback #2648: the WEB player can report UNPLAYABLE and the
+            // watch-HTML caption URL can return a 0-byte body, while the
+            // ANDROID/IOS innertube clients still expose a usable track.
+            // Returns null on any failure so the watch-HTML path below runs
+            // unchanged.
+            segments = await fetchInnertubeCaptionSegments(page, videoId, lang);
         }
         // Fallback: get caption track URL from watch page HTML
         const captionData = segments ? null : unwrapBrowserResult(await page.evaluate(`
