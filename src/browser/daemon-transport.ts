@@ -1,7 +1,7 @@
-import { DEFAULT_DAEMON_PORT, isIgnorableDaemonPortEnv, unsupportedDaemonPortEnvMessage } from '../constants.js';
+import { DAEMON_HOST, DEFAULT_DAEMON_PORT, isIgnorableDaemonPortEnv, unsupportedDaemonPortEnvMessage } from '../constants.js';
 
 const DAEMON_PORT = DEFAULT_DAEMON_PORT;
-const DAEMON_URL = `http://127.0.0.1:${DAEMON_PORT}`;
+const DAEMON_URL = `http://${DAEMON_HOST}:${DAEMON_PORT}`;
 const OPENCLI_HEADERS = { 'X-OpenCLI': '1' };
 
 class UnsupportedDaemonPortEnvError extends Error {

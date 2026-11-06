@@ -178,6 +178,17 @@ describe('createProgram root help descriptions', () => {
       expect(first.data.nextOffset).toBe(2);
       expect(first.data.total).toBeGreaterThan(2);
       stdoutSpy.mockClear();
+      const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+      try {
+        await createProgram('', '').parseAsync(['node', 'opencli', 'list', '--limit', '2', '-f', 'yaml']);
+        expect(stderrSpy.mock.calls.flat().join('')).toContain(`Showing 1-2 of ${first.data.total} commands; rerun with --offset 2 for more.`);
+        stderrSpy.mockClear();
+        await createProgram('', '').parseAsync(['node', 'opencli', 'list', 'hot', '--site', 'bilibili', '-f', 'yaml']);
+        expect(stderrSpy).not.toHaveBeenCalled();
+      } finally {
+        stderrSpy.mockRestore();
+      }
+      stdoutSpy.mockClear();
       await createProgram('', '').parseAsync(['node', 'opencli', 'list', 'hot', '--site', 'bilibili']);
       const result = JSON.parse(stdoutSpy.mock.calls.flat().join('\n'));
       expect(result).toEqual({ ok: true, data: { total: 1, commands: [

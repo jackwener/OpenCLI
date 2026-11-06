@@ -21,6 +21,13 @@ export function locatePostCards(document) {
   const linksIn = root => Array.from(root.querySelectorAll('a[href]')).filter(link => identity(link) && visible(link));
   const identitiesIn = root => new Set(linksIn(root).map(identity));
   const cards = Array.from(scope.querySelectorAll(selector)).filter(visible);
+  // SDUi activity pages (#2651) render neither legacy card classes nor
+  // permalinks; each post is a component keyed by its feed type. A node that
+  // wraps two or more such components is the list, not a post.
+  const sdui = Array.from(scope.querySelectorAll('[id*="FeedType_CREATOR_PROFILE_ALL_CONTENT_VIEW"], [componentkey*="FeedType_CREATOR_PROFILE_ALL_CONTENT_VIEW"]')).filter(visible);
+  for (const node of sdui) {
+    if (sdui.filter(other => other !== node && node.contains(other)).length < 2) cards.push(node);
+  }
   const links = linksIn(scope).filter(link => !link.closest('nav, aside, [role="navigation"], [role="complementary"]'));
   let unmatchedPermalinks = 0;
   for (const link of links) {

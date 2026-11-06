@@ -6,6 +6,7 @@ import { DEFAULT_DAEMON_PORT } from '../constants.js';
 import { BrowserConnectError } from '../errors.js';
 import { PKG_VERSION } from '../version.js';
 import { waitForBridgeReady } from './bridge-readiness.js';
+import { isDaemonStale } from './daemon-version.js';
 import { fetchDaemonStatus, getDaemonHealth, requestDaemonShutdown, type DaemonHealth, type DaemonStatus } from './daemon-transport.js';
 
 export interface DaemonLaunchSpec {
@@ -99,7 +100,7 @@ export async function ensureBrowserBridgeReady(
 
   const health = await getDaemonHealth({ contextId, preferredContextId });
   const daemonVersion = health.status?.daemonVersion;
-  const isStale = !!health.status && (!daemonVersion || daemonVersion !== PKG_VERSION);
+  const isStale = isDaemonStale(health.status, PKG_VERSION);
   let staleDaemonReplaced = false;
 
   if (isStale) {

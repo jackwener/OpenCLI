@@ -1,8 +1,9 @@
 import { fetchRankedRedditSearch } from './web-search.js';
 import { log } from '@jackwener/opencli/logger';
 import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
-import { BROWSER_JSON_SNIFF_FN, throwIfLoginWall } from '@jackwener/opencli/utils';
+import { throwIfLoginWall } from '@jackwener/opencli/utils';
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { redditFetchJson, throwRedditFetchFailure } from './api.js';
 
 function buildRedditSearchPath(kwargs) {
     const query = String(kwargs.query ?? '');
@@ -76,6 +77,9 @@ function mapRedditSearchRow(child, index) {
 }
 
 function mapSearchResult(result) {
+    if (result?.kind === 'fetch-failed') {
+        throwRedditFetchFailure(result.failure, result.where);
+    }
     if (result?.kind === 'auth') {
         throw new AuthRequiredError('reddit.com', result.detail);
     }
@@ -131,7 +135,7 @@ cli({
         await page.goto('https://www.reddit.com');
         const requestPath = buildRedditSearchPath(kwargs);
         const rawResult = await page.evaluate(`(async () => {
-      ${BROWSER_JSON_SNIFF_FN}
+      const redditFetchJson = ${redditFetchJson.toString()};
       try {
         const fetchRankedRedditSearch = ${fetchRankedRedditSearch.toString()};
         return await fetchRankedRedditSearch(${JSON.stringify(String(kwargs.query ?? ''))}, ${JSON.stringify(String(kwargs.subreddit ?? '').trim())}, ${JSON.stringify(String(kwargs.sort ?? 'relevance'))}, ${JSON.stringify(String(kwargs.time ?? 'all'))}, ${limit}, ${JSON.stringify(requestPath)});

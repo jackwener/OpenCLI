@@ -37,6 +37,24 @@ async function runAndRead(
 }
 
 describe('downloadArticle', () => {
+  it.each(['$&', '$`', "$'", '$$'])(
+    'preserves replacement token %s literally in restored code blocks', async (token) => {
+      const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'opencli-article-code-'));
+      tempDirs.push(tempDir);
+      const code = `console.log("${token}");`;
+      const result = await downloadArticle({
+        title: 'Literal code',
+        contentHtml: '<p>before</p><p>CODEBLOCK-PLACEHOLDER-0</p><p>after</p>',
+        codeBlocks: [{ lang: 'javascript', code }],
+      }, { output: tempDir, downloadImages: false });
+      const markdown = fs.readFileSync(result[0].saved, 'utf8');
+      expect(markdown).toContain('```javascript\n' + code + '\n```');
+      expect(markdown).not.toContain('CODEBLOCK-PLACEHOLDER-0');
+      expect(markdown.match(/before/g)).toHaveLength(1);
+      expect(markdown.match(/after/g)).toHaveLength(1);
+    },
+  );
+
   it('returns the saved markdown file path on success', async () => {
     const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'opencli-article-'));
     tempDirs.push(tempDir);

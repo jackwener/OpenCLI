@@ -23,6 +23,7 @@
 | `opencli twitter likes` | |
 | `opencli twitter lists` | |
 | `opencli twitter list-tweets` | |
+| `opencli twitter list-members` | List the member accounts of a Twitter/X list (cursor-paginated, `--limit` default 100) |
 | `opencli twitter list-create` | Create a Twitter/X list via GraphQL and return the created list id |
 | `opencli twitter list-delete` | Delete a Twitter/X list you own after explicit confirmation |
 | `opencli twitter list-add` | |
@@ -72,6 +73,7 @@ opencli twitter download --tweet-url https://x.com/jack/status/20 --output ./twi
 # Create a list and then manage members (requires login)
 opencli twitter list-create "AI research" --description "Papers and labs" --mode private
 opencli twitter list-delete 123456789 --confirm true
+opencli twitter list-members 123456789 --limit 500
 opencli twitter list-add 123456789 alice
 opencli twitter list-add-batch 123456789 "@alice,@bob" --interval 5
 opencli twitter list-remove 123456789 alice

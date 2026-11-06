@@ -15,6 +15,24 @@ function restoreGlobals() {
 describe('jd item adapter', () => {
     const command = getRegistry().get('jd/item');
 
+    it('detects the login redirect through the real injected page scripts', async () => {
+        const dom = new JSDOM('<html><head><title>京东-欢迎登录</title></head><body></body></html>', {
+            url: 'https://passport.jd.com/new/login.aspx?ReturnUrl=https%3A%2F%2Fitem.jd.com%2F100328272886.html',
+        });
+        const previousLocation = globalThis.location;
+        globalThis.window = dom.window;
+        globalThis.document = dom.window.document;
+        globalThis.location = dom.window.location;
+        try {
+            const page = { evaluate: vi.fn(async (script) => (0, eval)(script)), goto: vi.fn(), wait: vi.fn() };
+            await expect(command.func(page, { sku: '100328272886', images: 0 })).rejects.toBeInstanceOf(AuthRequiredError);
+        }
+        finally {
+            restoreGlobals();
+            globalThis.location = previousLocation;
+        }
+    });
+
     it('fails fast when JD blocks the item page', async () => {
         const page = {
             evaluate: vi.fn()

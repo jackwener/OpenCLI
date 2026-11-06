@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { JSDOM } from 'jsdom';
 
 import { ArgumentError, AuthRequiredError } from '@jackwener/opencli/errors';
 import { __test__ } from './search.js';
@@ -10,6 +11,8 @@ const {
     decodeLinkedinRedirect,
     looksLinkedInAuthWallText,
     enrichJobDetails,
+    findJobDescriptionRoot,
+    buildVoyagerUrl,
     EXPERIENCE_LEVELS,
     JOB_TYPES,
     DATE_POSTED,
@@ -136,6 +139,7 @@ describe('linkedin enrichJobDetails (silent failure fix)', () => {
         const page = makeFakePage({
             evaluateResults: [
                 false, // auth wall probe
+                true, // description wait
                 undefined, // expand-show-more click result (ignored)
                 { description: '', applyUrl: '' },
             ],
@@ -152,6 +156,7 @@ describe('linkedin enrichJobDetails (silent failure fix)', () => {
         const page = makeFakePage({
             evaluateResults: [
                 false, // auth wall probe
+                true, // description wait
                 undefined,
                 { description: '  An interesting role  ', applyUrl: 'https://example.com/apply' },
             ],
@@ -171,10 +176,12 @@ describe('linkedin enrichJobDetails (silent failure fix)', () => {
             evaluateResults: [
                 // Row 1 (success)
                 false,
+                true,
                 undefined,
                 { description: 'Good', applyUrl: 'https://a.example/' },
                 // Row 3 (success — row 2 had no URL so didn't navigate)
                 false,
+                true,
                 undefined,
                 { description: 'Also good', applyUrl: 'https://b.example/' },
             ],
@@ -198,5 +205,104 @@ describe('linkedin enrichJobDetails (silent failure fix)', () => {
         await expect(enrichJobDetails(page, [
             { rank: 1, title: 'Needs Auth', company: 'X', url: 'https://www.linkedin.com/jobs/view/4' },
         ])).rejects.toBeInstanceOf(AuthRequiredError);
+    });
+});
+
+function voyagerSearchInput(overrides = {}) {
+    return {
+        keywords: 'accountant',
+        location: '',
+        companyIds: [],
+        experienceLevels: [],
+        jobTypes: [],
+        datePostedValues: [],
+        remoteTypes: [],
+        ...overrides,
+    };
+}
+
+// The query value LinkedIn sees after one round of URL decoding.
+function decodedQuery(apiPath) {
+    return new URL('https://www.linkedin.com' + apiPath).searchParams.get('query');
+}
+
+describe('linkedin voyager search Rest.li escaping (#2714)', () => {
+    it('keeps the comma in a "City, Country" location inside the value', () => {
+        const url = buildVoyagerUrl(voyagerSearchInput({ location: 'São Paulo, Brazil' }), 0, 10);
+        expect(url).toContain('location:S%C3%A3o%20Paulo%252C%20Brazil');
+        const query = decodedQuery(url);
+        expect(query).toBe('(origin:JOB_SEARCH_PAGE_OTHER_ENTRY,keywords:accountant,'
+            + 'locationUnion:(seoLocation:(location:São Paulo%2C Brazil)),spellCorrectionEnabled:true)');
+    });
+
+    it('escapes a literal %2C so it is not read back as a comma', () => {
+        const query = decodedQuery(buildVoyagerUrl(voyagerSearchInput({
+            keywords: 'growth 100%2C',
+            location: 'Austin %2C TX',
+        }), 0, 10));
+        expect(query).toContain('keywords:growth 100%252C,');
+        expect(query).toContain('location:Austin %252C TX)');
+    });
+
+    it('escapes parentheses, colons and apostrophes in keywords', () => {
+        const query = decodedQuery(buildVoyagerUrl(voyagerSearchInput({
+            keywords: "O'Reilly (C++): staff",
+        }), 0, 10));
+        expect(query).toContain('keywords:O%27Reilly %28C++%29%3A staff,');
+    });
+
+    it('leaves the Rest.li structure and filters unescaped', () => {
+        const url = buildVoyagerUrl(voyagerSearchInput({
+            location: 'Seattle, WA',
+            jobTypes: ['F', 'C'],
+        }), 25, 10);
+        expect(url).toContain('query=(origin:JOB_SEARCH_PAGE_JOB_FILTER,keywords:accountant,locationUnion:(seoLocation:(location:');
+        expect(url).toContain(',selectedFilters:(jobType:List(F,C)),spellCorrectionEnabled:true)&start=25');
+    });
+});
+
+describe('linkedin job description lookup (localized UI, #2714)', () => {
+    const descriptionText = (html) => {
+        const root = findJobDescriptionRoot(new JSDOM(html).window.document);
+        return root ? (root.id || root.className) : null;
+    };
+
+    it('uses the most specific container led by the English heading', () => {
+        expect(descriptionText(`
+          <main><div><h1>Accountant</h1><div class="outer">
+            <div class="about"><h2>About the job</h2><p>Reconcile ledgers.</p></div>
+          </div></div></main>`)).toBe('about');
+    });
+
+    it('falls back to the description container when the heading is localized', () => {
+        expect(descriptionText(`
+          <main><h1>Contador</h1>
+            <div class="jobs-description__content"><div id="job-details">
+              <h2>Sobre a vaga</h2><p>Conciliar contas.</p>
+            </div></div>
+          </main>`)).toBe('jobs-description__content');
+    });
+
+    it('returns null while no description is rendered', () => {
+        expect(descriptionText('<main><h1>Contador</h1><div id="job-details"></div></main>')).toBeNull();
+    });
+
+    it('does not need English text for the description wait', async () => {
+        const page = {
+            goto: vi.fn(async () => undefined),
+            wait: vi.fn(async (options) => {
+                if (typeof options === 'object' && options.text) throw new Error('Text not found: ' + options.text);
+            }),
+            evaluate: vi.fn()
+                .mockResolvedValueOnce(false) // auth wall probe
+                .mockResolvedValueOnce(true) // description wait
+                .mockResolvedValueOnce(undefined) // expand
+                .mockResolvedValueOnce({ description: 'Sobre a vaga Conciliar contas.', applyUrl: '' }),
+        };
+        const out = await enrichJobDetails(page, [
+            { rank: 1, title: 'Contador', company: 'X', url: 'https://www.linkedin.com/jobs/view/5' },
+        ]);
+        expect(out[0]).toMatchObject({ description: 'Sobre a vaga Conciliar contas.', detail_error: null });
+        expect(page.wait).not.toHaveBeenCalledWith(expect.objectContaining({ text: expect.anything() }));
     });
 });

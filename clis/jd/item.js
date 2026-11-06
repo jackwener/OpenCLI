@@ -6,6 +6,7 @@
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { detectJdGate } from './page-state.js';
 function normalizePositiveInt(value, fallback) {
     const n = Number(value);
     return Number.isFinite(n) && n >= 0 ? Math.floor(n) : fallback;
@@ -518,14 +519,12 @@ function extractSpecs() {
     }
     return specs;
 }
-function detectJdPageState(expectedSku) {
-    const href = location.href;
-    const title = document.title || '';
-    const bodyText = document.body?.innerText || document.body?.textContent || '';
+// `gate` is detectJdGate()'s result, passed in because this function is
+// serialized into the page and cannot reach module imports there.
+function detectJdPageState(expectedSku, gate) {
+    const { href, title, bodyText, isLoginPage, hasSecurityChallenge } = gate;
     const hasProductMarker = Boolean(document.querySelector('.product-title, .sku-title, #spec-list, #J-detail, #SPXQ-title, [class*="_gallery_"]'));
     const text = `${title}\n${bodyText}`;
-    const isLoginPage = /passport\.jd\.com|\/login\.aspx/.test(href) || /京东-欢迎登录|京东登录/.test(title);
-    const hasSecurityChallenge = /risk_handler|安全验证|安全校验|完成安全验证|滑块|captcha|访问过于频繁|验证中心|京东验证/.test(`${href}\n${text}`);
     const loginOnlyWithoutProduct = /请登录|登录/.test(text) && !hasProductMarker;
     const looksBlocked = isLoginPage || hasSecurityChallenge || loginOnlyWithoutProduct;
     const onExpectedItemUrl = new RegExp(`item\.jd\.com/${expectedSku}\.html`).test(href);
@@ -572,8 +571,9 @@ cli({
             await page.wait(2);
         }
         const initialState = await page.evaluate(`(() => {
+          const detectJdGate = ${detectJdGate.toString()};
           const detectJdPageState = ${detectJdPageState.toString()};
-          return detectJdPageState(${JSON.stringify(sku)});
+          return detectJdPageState(${JSON.stringify(sku)}, detectJdGate());
         })()`).catch(() => null);
         if (!initialState?.looksBlocked) {
             await page.evaluate(`
@@ -650,8 +650,9 @@ cli({
         const fetchJdPrice = ${fetchJdPrice.toString()};
         const extractSpecsFromText = ${extractSpecsFromText.toString()};
         const extractSpecs = ${extractSpecs.toString()};
+        const detectJdGate = ${detectJdGate.toString()};
         const detectJdPageState = ${detectJdPageState.toString()};
-        const pageState = detectJdPageState(${JSON.stringify(sku)});
+        const pageState = detectJdPageState(${JSON.stringify(sku)}, detectJdGate());
         const normalizePriceText = ${normalizePriceText.toString()};
         const extractPriceFromDom = ${extractPriceFromDom.toString()};
         const apiPrice = await fetchJdPrice(${JSON.stringify(sku)});
@@ -726,5 +727,5 @@ export const __test__ = {
     extractPriceFromDom,
     extractSpecsFromText,
     extractSpecs,
-    detectJdPageState,
+    detectJdPageState: (expectedSku) => detectJdPageState(expectedSku, detectJdGate()),
 };

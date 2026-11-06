@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { JSDOM } from 'jsdom';
 import { CommandExecutionError } from '@jackwener/opencli/errors';
 import { getRegistry } from '@jackwener/opencli/registry';
 import { __test__, parseCreatorNoteIdsFromHtml, parseCreatorNotesText } from './creator-notes.js';
@@ -171,6 +172,79 @@ describe('xiaohongshu creator-notes', () => {
             .mockResolvedValueOnce(false);
 
         await expect(cmd.func(page, { limit: 20 })).rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
+    const impression = (id) => `{"noteId":"${id}","type":"normal"}`.replace(/"/g, '&quot;');
+    // Sanitized shape of the current note-manager card (#2707).
+    const CURRENT_CARD_HTML = `
+      <div class="note-card" data-impression="${impression('6954f5e3000000001f0079f9')}">
+        <div class="note-card__cover"><img src=""></div>
+        <div class="note-card__info">
+          <div class="note-card__title">冬日穿搭分享</div>
+          <div class="note-card__time">发布于 2026年01月01日 10:30</div>
+          <div class="note-card__stats">
+            <span class="note-card__stat"><i></i>40104</span>
+            <span class="note-card__stat"><i></i>2430</span>
+            <span class="note-card__stat"><i></i>692</span>
+            <span class="note-card__stat"><i></i>511</span>
+            <span class="note-card__stat"><i></i>37</span>
+          </div>
+        </div>
+      </div>`;
+    const LEGACY_CARD_HTML = `
+      <div class="note" data-impression="${impression('69a1b2c3000000001f00aaaa')}">
+        <div class="title">旧版卡片</div>
+        <div class="time_status">发布于 2025年12月31日 08:00</div>
+        <div class="icon_list"><span class="icon">10</span><span class="icon">2</span><span class="icon">3</span><span class="icon">4</span><span class="icon">0</span></div>
+      </div>`;
+    function extractCardsFrom(html) {
+        const dom = new JSDOM(`<body>${html}</body>`, { url: 'https://creator.xiaohongshu.com/new/note-manager' });
+        try {
+            return Function('document', `return ${__test__.EXTRACT_NOTE_MANAGER_CARDS_JS}`)(dom.window.document);
+        }
+        finally {
+            dom.window.close();
+        }
+    }
+
+    it.each([
+        ['current .note-card', CURRENT_CARD_HTML, { id: '6954f5e3000000001f0079f9', title: '冬日穿搭分享', date: '2026年01月01日 10:30', metrics: [40104, 2430, 692, 511, 37] }],
+        ['legacy div.note', LEGACY_CARD_HTML, { id: '69a1b2c3000000001f00aaaa', title: '旧版卡片', date: '2025年12月31日 08:00', metrics: [10, 2, 3, 4, 0] }],
+    ])('extracts note-manager cards from the %s render', (_name, html, expected) => {
+        expect(extractCardsFrom(html)).toEqual([expected]);
+    });
+
+    it('returns rows from current note-manager cards when capture and direct API both fail', async () => {
+        const cmd = getRegistry().get('xiaohongshu/creator-notes');
+        const dom = new JSDOM(`<body>${CURRENT_CARD_HTML}</body>`, { url: 'https://creator.xiaohongshu.com/new/note-manager' });
+        const page = createPageMock(undefined);
+        page.evaluate = vi.fn(async (script) => {
+            const source = String(script);
+            if (source.includes('function extractNoteManagerCards')) {
+                return Function('document', `return ${source}`)(dom.window.document);
+            }
+            if (source.includes('window.__xhsCapture ||')) return '{}';
+            if (source.includes("'HTTP ' + resp.status")) return { error: 'HTTP 406' };
+            return undefined;
+        });
+        try {
+            const rows = await cmd.func(page, { limit: 5 });
+            expect(page.goto).toHaveBeenLastCalledWith('https://creator.xiaohongshu.com/new/note-manager');
+            expect(rows).toEqual([{
+                rank: 1,
+                id: '6954f5e3000000001f0079f9',
+                title: '冬日穿搭分享',
+                date: '2026年01月01日 10:30',
+                views: 40104,
+                likes: 692,
+                collects: 511,
+                comments: 2430,
+                url: 'https://creator.xiaohongshu.com/statistics/note-detail?noteId=6954f5e3000000001f0079f9',
+            }]);
+        }
+        finally {
+            dom.window.close();
+        }
     });
 
 });

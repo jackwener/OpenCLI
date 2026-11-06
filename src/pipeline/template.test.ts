@@ -82,6 +82,31 @@ describe('evalExpr', () => {
   it('handles || combined with pipe filter', () => {
     expect(evalExpr("item.a || item.b | upper", { item: { b: 'hello' } })).toBe('HELLO');
   });
+  it.each(["'a|b'", '"a|b"', '`a|${item.suffix}`'])('preserves pipes in the string expression %s', (expr) => {
+    expect(evalExpr(expr, { item: { suffix: 'b' } })).toBe('a|b');
+  });
+  it('preserves escaped quotes before literal pipes', () => {
+    expect(evalExpr("'a\\'|b' | upper", {})).toBe("A'|B");
+  });
+  it('supports a quoted pipe as a join separator in a rendered template', () => {
+    expect(render("tags: ${{ item.tags | join('|') }}", { item: { tags: ['a', 'b'] } })).toBe('tags: a|b');
+  });
+  it('chains filters whose arguments contain pipes', () => {
+    expect(evalExpr("item.title | replace('|', '-') | upper", { item: { title: 'a|b' } })).toBe('A-B');
+  });
+  it('keeps nested bitwise OR inside the JavaScript expression', () => {
+    expect(evalExpr('(item.mask | 1)', { item: { mask: 2 } })).toBe(3);
+  });
+  it('preserves regular expression alternatives', () => {
+    expect(evalExpr('/a|b/.test(item.title)', { item: { title: 'b' } })).toBe(true);
+    expect(evalExpr('/a|b/.test(item.title)', { item: { title: 'c' } })).toBe(false);
+  });
+  it('allows a quoted pipe fallback before an outer filter', () => {
+    expect(evalExpr("(item.title || 'a|b') | upper", { item: {} })).toBe('A|B');
+  });
+  it('retains legacy unquoted slash filter arguments', () => {
+    expect(evalExpr('item.parts | join(/)', { item: { parts: ['a', 'b'] } })).toBe('a/b');
+  });
   it('resolves simple path', () => {
     expect(evalExpr('item.title', { item: { title: 'Test' } })).toBe('Test');
   });

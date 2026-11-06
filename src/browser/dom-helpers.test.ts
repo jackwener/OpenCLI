@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { autoScrollJs, waitForCaptureJs, waitForSelectorJs } from './dom-helpers.js';
+import { JSDOM } from 'jsdom';
+import { autoScrollJs, pressKeyJs, waitForCaptureJs, waitForSelectorJs } from './dom-helpers.js';
 
 describe('autoScrollJs', () => {
   it('returns early without error when document.body is null', async () => {
@@ -12,6 +13,39 @@ describe('autoScrollJs', () => {
     await expect(eval(code)).resolves.not.toThrow();
     g.document = origDoc;
     delete g.window;
+  });
+});
+
+describe('pressKeyJs', () => {
+  function pressIn(key: string, modifiers: string[] = []) {
+    const dom = new JSDOM('<input id="q">', { runScripts: 'outside-only' });
+    const input = dom.window.document.getElementById('q') as HTMLInputElement;
+    input.focus();
+    const seen: Array<Record<string, unknown>> = [];
+    for (const type of ['keydown', 'keypress', 'keyup']) {
+      input.addEventListener(type, (e) => {
+        const k = e as KeyboardEvent;
+        seen.push({ type, key: k.key, code: k.code, keyCode: k.keyCode, charCode: k.charCode, ctrlKey: k.ctrlKey });
+      });
+    }
+    dom.window.eval(pressKeyJs(key, modifiers));
+    return seen;
+  }
+
+  it('fires keydown / keypress / keyup with real Enter key fields (#2751)', () => {
+    expect(pressIn('Enter')).toEqual([
+      { type: 'keydown', key: 'Enter', code: 'Enter', keyCode: 13, charCode: 0, ctrlKey: false },
+      { type: 'keypress', key: 'Enter', code: 'Enter', keyCode: 13, charCode: 13, ctrlKey: false },
+      { type: 'keyup', key: 'Enter', code: 'Enter', keyCode: 13, charCode: 0, ctrlKey: false },
+    ]);
+  });
+
+  it('skips keypress for non-text keys and shortcut chords', () => {
+    expect(pressIn('Escape').map(e => e.type)).toEqual(['keydown', 'keyup']);
+    expect(pressIn('a', ['Ctrl'])).toEqual([
+      { type: 'keydown', key: 'a', code: 'KeyA', keyCode: 65, charCode: 0, ctrlKey: true },
+      { type: 'keyup', key: 'a', code: 'KeyA', keyCode: 65, charCode: 0, ctrlKey: true },
+    ]);
   });
 });
 

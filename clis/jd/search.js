@@ -1,5 +1,8 @@
+import { CommandExecutionError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { clampInt, requireNonEmptyQuery } from '../_shared/common.js';
+import { detectJdGate, jdGateError } from './page-state.js';
+
 cli({
     site: 'jd',
     name: 'search',
@@ -21,11 +24,24 @@ cli({
         await page.autoScroll({ times: 2, delayMs: 1500 });
         const data = await page.evaluate(`
       (async () => {
+        const detectJdGate = ${detectJdGate.toString()};
         const normalize = v => (v || '').replace(/\\s+/g, ' ').trim();
+        // Only consult the gate when no product rendered: a normal results
+        // page also carries a "你好，请登录" header link.
+        const gateIfEmpty = () => {
+          if (document.querySelectorAll('div[data-sku]').length > 0) return null;
+          const gate = detectJdGate();
+          return gate.isLoginPage || gate.hasSecurityChallenge
+            ? { href: gate.href, isLoginPage: gate.isLoginPage, hasSecurityChallenge: gate.hasSecurityChallenge }
+            : null;
+        };
         for (let i = 0; i < 20; i++) {
           if (document.querySelectorAll('div[data-sku]').length > 0) break;
+          if (gateIfEmpty()) break;
           await new Promise(r => setTimeout(r, 500));
         }
+        const gate = gateIfEmpty();
+        if (gate) return { gate };
         const items = document.querySelectorAll('div[data-sku]');
         const results = [];
         for (const el of items) {
@@ -58,9 +74,14 @@ cli({
           });
           if (results.length >= ${limit}) break;
         }
-        return results;
+        return { items: results };
       })()
     `);
-        return Array.isArray(data) ? data : [];
+        const gateError = jdGateError(data?.gate, 'JD search');
+        if (gateError) throw gateError;
+        if (!Array.isArray(data?.items)) {
+            throw new CommandExecutionError(`Unexpected JD search payload: ${JSON.stringify(data)}`);
+        }
+        return data.items;
     },
 });

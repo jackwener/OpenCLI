@@ -3,6 +3,7 @@
  */
 
 import { execFileSync, spawn } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
@@ -131,7 +132,8 @@ export async function httpDownload(
     requestHeaders['Cookie'] = cookies;
   }
 
-  const tempPath = `${destPath}.tmp`;
+  // Keep each in-flight download isolated, including its failure cleanup.
+  const tempPath = path.join(path.dirname(destPath), `.opencli-download-${randomUUID()}.tmp`);
 
   const cleanupTempFile = async () => {
     try {
@@ -352,7 +354,9 @@ export async function ytdlpDownload(
     });
 
     proc.on('close', (code) => {
-      if (code === 0 && fs.existsSync(destPath)) {
+      if (code !== 0) {
+        resolve({ success: false, size: 0, error: errorOutput.slice(0, 200) || `Exit code ${code}` });
+      } else if (fs.existsSync(destPath)) {
         const stats = fs.statSync(destPath);
         resolve({ success: true, size: stats.size });
       } else {

@@ -133,6 +133,43 @@ describe('download helpers', { retry: process.platform === 'win32' ? 2 : 0 }, ()
     expect(fs.readFileSync(destPath, 'utf8')).toBe('ok');
   });
 
+  it.each(['complete', 'disconnect'])('isolates concurrent downloads when the second response will %s', async (outcome) => {
+    let finishFirst: (() => void) | undefined;
+    const baseUrl = await startServer((req, res) => {
+      if (req.url === '/first') {
+        res.write('first-');
+        finishFirst = () => res.end('complete');
+      } else if (outcome === 'complete') {
+        res.end('second-complete');
+      } else {
+        req.socket.destroy();
+      }
+    });
+    const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'opencli-dl-concurrent-'));
+    tempDirs.push(tempDir);
+    const destPath = path.join(tempDir, 'file.txt');
+    const first = httpDownload(`${baseUrl}/first`, destPath);
+
+    let second;
+    try {
+      // Let the first response reach disk, then complete the second while it is open.
+      await vi.waitFor(() => {
+        expect(fs.readdirSync(tempDir).some((file) => fs.statSync(path.join(tempDir, file)).size > 0)).toBe(true);
+      });
+      second = await httpDownload(`${baseUrl}/second`, destPath);
+      if (outcome === 'complete') expect(fs.readFileSync(destPath, 'utf8')).toBe('second-complete');
+      else expect(fs.existsSync(destPath)).toBe(false);
+    } finally {
+      finishFirst?.();
+    }
+
+    expect(await first).toEqual({ success: true, size: 14 });
+    if (outcome === 'complete') expect(second).toEqual({ success: true, size: 15 });
+    else expect(second).toMatchObject({ success: false, size: 0, error: expect.any(String) });
+    expect(fs.readFileSync(destPath, 'utf8')).toBe('first-complete');
+    expect(fs.readdirSync(tempDir)).toEqual(['file.txt']);
+  });
+
   it.skipIf(process.platform === 'win32')('writes the Netscape cookie file with 0o600 owner-only permissions', async () => {
     const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'opencli-dl-'));
     tempDirs.push(tempDir);

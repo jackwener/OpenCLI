@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   canonicalizeLinkedInThreadUrl,
   decodeLinkedInSafetyUrl,
+  escapeRestliValue,
   looksLinkedInAuthWall,
   normalizeWhitespace,
   unwrapEvaluateResult,
@@ -18,6 +19,12 @@ describe('linkedin shared helpers', () => {
     const sessionOnly = { session: 'site:linkedin:1' };
     expect(unwrapEvaluateResult(raw)).toBe(raw);
     expect(unwrapEvaluateResult(sessionOnly)).toBe(sessionOnly);
+  });
+
+  it('escapes Rest.li reserved characters and its % escape inside values', () => {
+    expect(escapeRestliValue("São Paulo, Brazil")).toBe('São Paulo%2C Brazil');
+    expect(escapeRestliValue("O'Reilly (C++): 100%2C")).toBe('O%27Reilly %28C++%29%3A 100%252C');
+    expect(escapeRestliValue(undefined)).toBe('');
   });
 
   it('returns null and scalar evaluate payloads unchanged', () => {

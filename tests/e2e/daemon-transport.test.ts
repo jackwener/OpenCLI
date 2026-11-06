@@ -13,6 +13,7 @@
  * - extension disconnect after dispatch yields command_result_unknown
  * - a stale preferred profile falls back to the only connected profile
  * - /status resolves multi-profile ambiguity through preferredContextId
+ * - a legacy `localhost` extension dialing [::1] reaches the same daemon
  * - graceful shutdown flushes structured 503s instead of dropping sockets
  *
  * Requires port 19825 (the fixed bridge port); lives in the e2e-fixed-port
@@ -21,7 +22,7 @@
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { spawn, type ChildProcess } from 'node:child_process';
-import { createConnection } from 'node:net';
+import { createConnection, createServer } from 'node:net';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import WebSocket from 'ws';
@@ -53,8 +54,8 @@ class FakeExtension {
     data: { echo: cmd.action },
   });
 
-  async connect(contextId: string, version = '1.0.22'): Promise<void> {
-    const ws = new WebSocket(`ws://127.0.0.1:${PORT}/ext`, {
+  async connect(contextId: string, version = '1.0.22', host = '127.0.0.1'): Promise<void> {
+    const ws = new WebSocket(`ws://${host}:${PORT}/ext`, {
       headers: { origin: 'chrome-extension://e2e-fake-extension' },
     });
     this.ws = ws;
@@ -131,6 +132,15 @@ function isPortBusy(): Promise<boolean> {
     const socket = createConnection({ port: PORT, host: '127.0.0.1' });
     socket.once('connect', () => { socket.destroy(); resolve(true); });
     socket.once('error', () => resolve(false));
+  });
+}
+
+/** Whether this host can bind the IPv6 loopback at all (CI containers may not). */
+function hasIpv6Loopback(): Promise<boolean> {
+  return new Promise((resolve) => {
+    const probe = createServer();
+    probe.once('error', () => resolve(false));
+    probe.listen(0, '::1', () => probe.close(() => resolve(true)));
   });
 }
 
@@ -315,6 +325,26 @@ describe('daemon transport contracts (real daemon)', () => {
     } finally {
       first.close();
       second.close();
+    }
+  });
+
+  it('accepts a legacy localhost extension on [::1] into the same daemon (#2690)', async () => {
+    if (guard()) return;
+    if (!await hasIpv6Loopback()) {
+      console.warn('skipped — host has no IPv6 loopback');
+      return;
+    }
+    const ping = await fetch(`http://[::1]:${PORT}/ping`, { signal: AbortSignal.timeout(2_000) });
+    expect(ping.status).toBe(200);
+    const ext = new FakeExtension();
+    // Extensions <= 1.0.26 dial ws://localhost, which IPv6-preferring hosts resolve to ::1.
+    await ext.connect('ctx-ipv6', '1.0.26', '[::1]');
+    try {
+      const { status, result } = await postCommand({ id: cmdId(), action: 'exec', code: '1', session: 's', surface: 'browser', contextId: 'ctx-ipv6' });
+      expect(status).toBe(200);
+      expect(result.ok).toBe(true);
+    } finally {
+      ext.close();
     }
   });
 

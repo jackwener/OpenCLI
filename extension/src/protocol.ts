@@ -124,7 +124,12 @@ export interface Result {
 
 /** Default daemon port */
 export const DAEMON_PORT = 19825;
-export const DAEMON_HOST = 'localhost';
+/**
+ * Must equal DAEMON_HOST in src/constants.ts (the address the daemon binds).
+ * Never `localhost`: IPv6-preferring hosts (notably Windows) resolve it to
+ * ::1 first, so the ping and WebSocket can miss the daemon (#2690, #2762).
+ */
+export const DAEMON_HOST = '127.0.0.1';
 export const DAEMON_WS_URL = `ws://${DAEMON_HOST}:${DAEMON_PORT}/ext`;
 /** Lightweight health-check endpoint — probed before each WebSocket attempt. */
 export const DAEMON_PING_URL = `http://${DAEMON_HOST}:${DAEMON_PORT}/ping`;

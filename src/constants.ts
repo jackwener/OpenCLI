@@ -5,10 +5,19 @@
 /** Default daemon port for HTTP/WebSocket communication with browser extension */
 export const DEFAULT_DAEMON_PORT = 19825;
 
+/**
+ * Loopback address the daemon binds and every client dials: the CLI transport
+ * here and the Browser Bridge extension (mirrored as DAEMON_HOST in
+ * extension/src/protocol.ts). An IP literal on purpose: `localhost` resolves
+ * to ::1 first on IPv6-preferring hosts (notably Windows), so a client dialing
+ * `localhost` can miss a daemon listening on 127.0.0.1 (#2690, #2762).
+ */
+export const DAEMON_HOST = '127.0.0.1';
+
 export function unsupportedDaemonPortEnvMessage(value?: string): string {
   const suffix = value ? ` (received ${value})` : '';
   return `OPENCLI_DAEMON_PORT is no longer supported${suffix}. ` +
-    `The OpenCLI Chrome extension can only connect to localhost:${DEFAULT_DAEMON_PORT}. ` +
+    `The OpenCLI Chrome extension can only connect to ${DAEMON_HOST}:${DEFAULT_DAEMON_PORT}. ` +
     'Unset OPENCLI_DAEMON_PORT and rerun opencli.';
 }
 

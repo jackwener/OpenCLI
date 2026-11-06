@@ -20,6 +20,7 @@ function createPage(payload) {
   return {
     goto: vi.fn().mockResolvedValue(undefined),
     evaluate: vi.fn().mockResolvedValue(payload),
+    sleep: vi.fn().mockResolvedValue(undefined),
   };
 }
 
@@ -156,6 +157,77 @@ describe('facebook search', () => {
     await expect(__test__.searchFacebook(page, { query: '  ', limit: 3 })).rejects.toBeInstanceOf(ArgumentError);
     await expect(__test__.searchFacebook(page, { query: 'ok', limit: 0 })).rejects.toBeInstanceOf(ArgumentError);
     expect(page.goto).not.toHaveBeenCalled();
+  });
+
+  const resultRows = (n) => Array.from({ length: n }, (_, i) => ({
+    index: i + 1,
+    title: `Result ${i}`,
+    text: 'text',
+    url: `https://www.facebook.com/result-${i}`,
+  }));
+  const okPayload = (n) => ({ status: 'ok', rows: resultRows(n) });
+  const noRows = { status: 'no_rows', rows: [], diagnostics: { anchorCount: 0 } };
+
+  it('keeps polling while the /search/top SPA is still rendering (#2650)', async () => {
+    const page = createPage(okPayload(3));
+    page.evaluate
+      .mockResolvedValueOnce(noRows)
+      .mockResolvedValueOnce(okPayload(1))
+      .mockResolvedValueOnce(okPayload(3));
+    const rows = await __test__.searchFacebook(page, { query: 'q', limit: 3 });
+    expect(rows).toEqual(resultRows(3));
+    expect(page.evaluate).toHaveBeenCalledTimes(3);
+    expect(page.sleep).toHaveBeenCalledTimes(2);
+    expect(page.sleep).toHaveBeenCalledWith(2);
+  });
+
+  it('returns on the first poll once the requested limit is visible (#2650)', async () => {
+    const page = createPage(okPayload(10));
+    const result = await __test__.searchFacebook(page, { query: 'q', limit: 10 });
+    expect(result).toHaveLength(10);
+    expect(page.evaluate).toHaveBeenCalledTimes(1);
+    expect(page.sleep).not.toHaveBeenCalled();
+  });
+
+  it('does not return a partial first render; waits until the row count stops changing (#2650)', async () => {
+    const page = createPage(okPayload(7));
+    page.evaluate
+      .mockResolvedValueOnce(okPayload(1))
+      .mockResolvedValueOnce(okPayload(1))
+      .mockResolvedValueOnce(okPayload(4))
+      .mockResolvedValueOnce(okPayload(7));
+    const rows = await __test__.searchFacebook(page, { query: 'q', limit: 10 });
+    expect(rows).toHaveLength(7);
+    // 1,1 (one stable poll) -> 4 -> 7 -> 7 -> 7 (two stable polls) => stop
+    expect(page.evaluate).toHaveBeenCalledTimes(6);
+  });
+
+  it('stops at the bounded deadline and maps the last payload to typed errors (#2650)', async () => {
+    const empty = createPage({ status: 'no_rows', rows: [], diagnostics: {} });
+    await expect(__test__.searchFacebook(empty, { query: 'q', limit: 5 })).rejects.toBeInstanceOf(EmptyResultError);
+    expect(empty.evaluate).toHaveBeenCalledTimes(15);
+    expect(empty.sleep).toHaveBeenCalledTimes(14);
+    const drift = createPage({ status: 'no_rows', rows: [], diagnostics: { anchorCount: 40, mainTextLength: 800 } });
+    await expect(__test__.searchFacebook(drift, { query: 'q', limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
+    expect(drift.evaluate).toHaveBeenCalledTimes(15);
+  });
+
+  it('short-circuits polling on auth walls and malformed payloads (#2650)', async () => {
+    const auth = createPage({ status: 'auth', rows: [] });
+    await expect(__test__.searchFacebook(auth, { query: 'q', limit: 5 })).rejects.toBeInstanceOf(AuthRequiredError);
+    expect(auth.evaluate).toHaveBeenCalledTimes(1);
+    const malformed = createPage({ rows: null });
+    await expect(__test__.searchFacebook(malformed, { query: 'q', limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
+    expect(malformed.evaluate).toHaveBeenCalledTimes(1);
+    expect(auth.sleep).not.toHaveBeenCalled();
+  });
+
+  it('does not retry navigation at the adapter level; rejected navigation is a typed failure', async () => {
+    const page = createPage(okPayload(1));
+    page.goto.mockRejectedValueOnce(new Error('Navigation rejected.'));
+    await expect(__test__.searchFacebook(page, { query: 'q', limit: 1 })).rejects.toBeInstanceOf(CommandExecutionError);
+    expect(page.goto).toHaveBeenCalledTimes(1);
+    expect(page.evaluate).not.toHaveBeenCalled();
   });
 
   it('maps auth, empty, drift, and malformed payloads to typed errors', async () => {

@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { buildUserByScreenNameQueryUrl, looksLikePrivateTwitterTimeline, normalizeTwitterScreenName, resolveTwitterQueryId, sanitizeQueryId, extractMedia, unwrapBrowserResult, describeTwitterApiError } from './shared.js';
+import { buildUserByScreenNameQueryUrl, looksLikePrivateTwitterTimeline, normalizeTwitterScreenName, resolveLoggedInTwitterUser, resolveTwitterQueryId, sanitizeQueryId, extractMedia, unwrapBrowserResult, describeTwitterApiError } from './shared.js';
 import { DEFAULT_MAX_PAGINATION_PAGES, appendJsonlRows, ensureParentDir, loadJsonlArchiveState, removeResumeFile, resolveMaxPages, resolveOptionalFilePath } from './archive.js';
 import { TWITTER_BEARER_TOKEN, applyTopByEngagement } from './utils.js';
 const LIKES_QUERY_ID = 'CDWHmpZeSdIJ3HGeRbNm0w';
@@ -234,23 +234,8 @@ cli({
         if (!ct0)
             throw new AuthRequiredError('x.com', 'Not logged into x.com (no ct0 cookie)');
         // If no username provided, detect the logged-in user.
-        // Bridge wraps primitive page.evaluate returns as { session, data:<value> };
-        // unwrap so the href string is usable downstream.
         if (!username) {
-            // Force a navigation to the home surface so the AppTabBar sidebar
-            // is rendered; the framework pre-nav lands on bare x.com which
-            // does not always expose AppTabBar_Profile_Link.
-            await page.goto('https://x.com/home');
-            await page.wait({ selector: '[data-testid="primaryColumn"]' });
-            const href = unwrapBrowserResult(await page.evaluate(`() => {
-        const link = document.querySelector('a[data-testid="AppTabBar_Profile_Link"]');
-        return link ? link.getAttribute('href') : null;
-      }`));
-            if (!href || typeof href !== 'string')
-                throw new AuthRequiredError('x.com', 'Could not detect logged-in user. Are you logged in?');
-            username = normalizeTwitterScreenName(href);
-            if (!username)
-                throw new AuthRequiredError('x.com', 'Could not detect logged-in user. Are you logged in?');
+            username = (await resolveLoggedInTwitterUser(page)).screenName;
         }
         const likesQueryId = await resolveTwitterQueryId(page, 'Likes', LIKES_QUERY_ID);
         const userByScreenNameQueryId = await resolveTwitterQueryId(page, 'UserByScreenName', USER_BY_SCREEN_NAME_QUERY_ID);

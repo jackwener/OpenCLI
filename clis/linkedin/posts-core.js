@@ -107,6 +107,7 @@ export function buildPostsScript() {
       || /^[A-Z][A-Za-z ]+\s+and\s+\d[\d,.]*\s+others$/i.test(line);
     const readBody = (root, lines) => {
       const selectors = [
+        '[data-testid="expandable-text-box"]',
         '.feed-shared-update-v2__description',
         '.update-components-text',
         '.feed-shared-text',
@@ -180,15 +181,29 @@ export function buildPostsScript() {
       const rawText = clean(rawFullText);
       if (!rawText || rawText.length < 20) continue;
       const permalink = root.querySelector('a[href*="/feed/update/"], a[href*="/posts/"], a[href*="/pulse/"]');
-      const url = permalink?.href ? new URL(permalink.href, location.origin).toString() : '';
+      // SDUi cards carry no permalink anchor; use the post URN only when the
+      // card's own component key or id actually contains one.
+      const sduiUrn = ((root.getAttribute('componentkey') || '') + ' ' + (root.id || '')).match(/urn:li:(?:activity|ugcPost|share):\d+/);
+      const url = permalink?.href ? new URL(permalink.href, location.origin).toString()
+        : sduiUrn ? 'https://www.linkedin.com/feed/update/' + sduiUrn[0] + '/' : '';
       const authorLink = root.querySelector('a[href*="/in/"], a[href*="/company/"]');
       const lines = rawFullText.split(/\n+/).map(clean).filter(Boolean);
       const author = clean(authorLink?.innerText || authorLink?.textContent || '')
         || lines.find((line) => line && !/^feed post/i.test(line) && !/verified|you|senior|engineer|developer/i.test(line)) || '';
       const timestamp = (rawText.match(/\b\d+\s*(?:s|m|h|d|w|mo|yr|min)\b/i) || [''])[0];
-      const reactions = parseReactionText(rawText);
-      const comments = parseMetric((rawText.match(/(\d[\d,.]*\s*(?:k|m)?\s+comments?)/i) || [''])[0]);
-      const reposts = parseMetric((rawText.match(/(\d[\d,.]*\s*(?:k|m)?\s+reposts?)/i) || [''])[0]);
+      // SDUi action buttons are labelled "Reaction…", "Comment…", "Repost…"
+      // and show the count as their text; fall back to the card text.
+      const buttonCount = (label) => {
+        for (const button of root.querySelectorAll('button[aria-label]')) {
+          if (!clean(button.getAttribute('aria-label')).toLowerCase().startsWith(label)) continue;
+          const text = clean(button.innerText || button.textContent || '');
+          if (/\d/.test(text)) return parseMetric(text);
+        }
+        return 0;
+      };
+      const reactions = buttonCount('reaction') || parseReactionText(rawText);
+      const comments = buttonCount('comment') || parseMetric((rawText.match(/(\d[\d,.]*\s*(?:k|m)?\s+comments?)/i) || [''])[0]);
+      const reposts = buttonCount('repost') || parseMetric((rawText.match(/(\d[\d,.]*\s*(?:k|m)?\s+reposts?)/i) || [''])[0]);
       const impressions = parseMetric((rawText.match(/(\d[\d,.]*\s*(?:k|m)?\s+impressions?)/i) || [''])[0]);
       const body = readBody(root, lines);
       const mediaData = readMedia(root);

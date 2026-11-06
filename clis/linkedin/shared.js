@@ -11,6 +11,15 @@ export function normalizeWhitespace(value) {
   return String(value ?? '').replace(/[\u00a0\u202f]+/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
+// Rest.li 2.0 treats ( ) , : ' as structure and % as its escape character, so
+// free-text values (keywords, locations) must have them percent-escaped before
+// they go into a Rest.li query. LinkedIn URL-decodes the query parameter before
+// parsing Rest.li structure, so the escaped value must then be URL-encoded again
+// (a comma ends up on the wire as %252C). See #2714.
+export function escapeRestliValue(value) {
+  return String(value ?? '').replace(/[%(),:']/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase());
+}
+
 function isLinkedInHost(hostname) {
   const host = String(hostname || '').toLowerCase();
   return host === 'linkedin.com' || host.endsWith('.linkedin.com');

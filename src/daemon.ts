@@ -17,12 +17,13 @@
  * Lifecycle:
  *   - Auto-spawned by opencli on first browser command
  *   - Persistent — stays alive until explicit shutdown, SIGTERM, or uninstall
- *   - Listens on localhost:19825
+ *   - Listens on 127.0.0.1:19825 (plus [::1]:19825 for legacy `localhost` clients)
  */
 
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import { createServer as createNetServer } from 'node:net';
 import { WebSocketServer, WebSocket, type RawData } from 'ws';
-import { DEFAULT_DAEMON_PORT, isIgnorableDaemonPortEnv, unsupportedDaemonPortEnvMessage } from './constants.js';
+import { DAEMON_HOST, DEFAULT_DAEMON_PORT, isIgnorableDaemonPortEnv, unsupportedDaemonPortEnvMessage } from './constants.js';
 import { EXIT_CODES } from './errors.js';
 import { log } from './logger.js';
 import { PKG_VERSION } from './version.js';
@@ -645,8 +646,24 @@ wss.on('connection', (ws: WebSocket) => {
 
 // ─── Start ───────────────────────────────────────────────────────────
 
-httpServer.listen(PORT, '127.0.0.1', () => {
-  log.info(`[daemon] Listening on http://127.0.0.1:${PORT}`);
+// Browser Bridge extensions up to 1.0.26 dial `ws://localhost`, which
+// IPv6-preferring hosts resolve to ::1 first (#2690). Accept the IPv6 loopback
+// too and hand its sockets to the same HTTP server, so routing, the WebSocket
+// upgrade and the security checks stay single-sourced. Strictly `::1`, never
+// `::` (that would listen on every interface). Best effort: a host without
+// IPv6, or a foreign listener on [::1]:PORT, must not take the daemon down.
+const ipv6LoopbackServer = createNetServer((socket) => httpServer.emit('connection', socket));
+ipv6LoopbackServer.on('error', (err: NodeJS.ErrnoException) => {
+  log.warn(`[daemon] Not listening on [::1]:${PORT} (${err.code ?? err.message}); IPv4 loopback only.`);
+});
+
+httpServer.listen(PORT, DAEMON_HOST, () => {
+  log.info(`[daemon] Listening on http://${DAEMON_HOST}:${PORT}`);
+  // Only after the authoritative IPv4 bind succeeded: if another daemon owns
+  // the port, the EADDRINUSE handler below exits before touching ::1.
+  ipv6LoopbackServer.listen(PORT, '::1', () => {
+    log.info(`[daemon] Also listening on http://[::1]:${PORT}`);
+  });
 });
 
 httpServer.on('error', (err: NodeJS.ErrnoException) => {
@@ -681,6 +698,7 @@ function shutdown(): void {
   }
   pending.clear();
   for (const profile of extensionProfiles.values()) profile.ws.close();
+  if (ipv6LoopbackServer.listening) ipv6LoopbackServer.close();
   // Let the rejection responses flush before exiting — a synchronous
   // process.exit() would kill the queued microtasks that write them.
   httpServer.close(() => process.exit(EXIT_CODES.SUCCESS));
