@@ -1,0 +1,25 @@
+{
+  "complete": true,
+  "uniPay": {
+    "loading": false,
+    "order_id": "test-order-1"
+  },
+  "orderInfo": {
+    "product_code": "alipay_cloud_space",
+    "real_amount": "0.00",
+    "total_amount": "0.00",
+    "skuInfo": {
+      "version": {
+        "value": "public_cloudd_cd_cn_free_bag"
+      }
+    },
+    "expand_info": {
+      "buyType": 2,
+      "businessType": 1,
+      "provider": "alipay",
+      "duration": 1,
+      "spaceId": "env-example-alipay",
+      "spaceName": "demo"
+    }
+  }
+}
