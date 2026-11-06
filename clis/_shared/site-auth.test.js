@@ -36,6 +36,25 @@ describe('site auth command helper', () => {
     });
   });
 
+  it('passes declared session cookie names through to auth status metadata', () => {
+    registerSiteAuthCommands({
+      site: 'auth-helper-session-cookies',
+      domain: 'example.com',
+      loginUrl: 'https://example.com/login',
+      sessionCookies: ['sid'],
+      verify: async () => ({ username: 'alice' }),
+    });
+    registerSiteAuthCommands({
+      site: 'auth-helper-no-session-cookies',
+      domain: 'example.com',
+      loginUrl: 'https://example.com/login',
+      verify: async () => ({ username: 'alice' }),
+    });
+
+    expect(getRegistry().get('auth-helper-session-cookies/whoami')?.authStatus?.sessionCookies).toEqual(['sid']);
+    expect(getRegistry().get('auth-helper-no-session-cookies/whoami')?.authStatus).not.toHaveProperty('sessionCookies');
+  });
+
   it('whoami returns normalized identity without opening login', async () => {
     registerSiteAuthCommands({
       site: 'auth-helper-whoami',
