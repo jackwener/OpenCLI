@@ -155,18 +155,17 @@ describe('twitter reply command', () => {
             .mockRejectedValueOnce(new Error('Selector not found: [data-testid="tweetTextarea_0"]'))
             .mockResolvedValue(undefined);
         const page = createPageMock([
-            { ok: true }, // click target tweet page Reply button
             { ok: true }, // insert reply text
             { ok: true }, // click composer Reply button
             { ok: true, message: 'Reply posted successfully.' }, // submit completed
-        ], { wait });
+        ], { wait, evaluateOnce: vi.fn().mockResolvedValue({ ok: true }) });
 
         const url = 'https://x.com/_kop6/status/2040254679301718161?s=20';
         const result = await cmd.func(page, { url, text: 'fallback reply' });
 
         expect(page.goto).toHaveBeenNthCalledWith(1, 'https://x.com/compose/post?in_reply_to=2040254679301718161', { waitUntil: 'load', settleMs: 2500 });
-        expect(page.goto).toHaveBeenNthCalledWith(2, url, { waitUntil: 'load', settleMs: 2500 });
-        expect(page.evaluate.mock.calls[0][0]).toContain('[data-testid="reply"]');
+        expect(page.goto).toHaveBeenNthCalledWith(2, 'https://x.com/i/status/2040254679301718161', { waitUntil: 'load', settleMs: 2500 });
+        expect(page.evaluateOnce).toHaveBeenCalledTimes(1);
         expect(wait).toHaveBeenLastCalledWith({ selector: '[data-testid="tweetTextarea_0"]', timeout: 15 });
         expect(result).toEqual([{ status: 'success', message: 'Reply posted successfully.', text: 'fallback reply' }]);
     });
@@ -345,6 +344,187 @@ describe('twitter reply command', () => {
             .toBe('https://x.com/compose/post?in_reply_to=2040254679301718161');
         expect(__test__.buildReplyComposerUrl('https://x.com/i/status/2040318731105313143'))
             .toBe('https://x.com/compose/post?in_reply_to=2040318731105313143');
+    });
+});
+
+describe('twitter reply fallback DOM', () => {
+    const targetId = '2040254679301718161';
+    const targetUrl = `https://x.com/target/status/${targetId}`;
+    const tweet = (id, extra = '', action = '') => `<article data-testid="tweet">
+        <a href="/author/status/${id}"><time>timestamp</time></a>
+        ${extra}${action || `<button data-testid="reply" data-open-id="${id}">Reply</button>`}
+    </article>`;
+
+    // Execute the exact opening, typing, submit and confirmation scripts through
+    // command entry. Only the browser bridge and the failed direct route are fake.
+    async function runFallback(html, { onTick, location, loseOpeningResponse = false, url = targetUrl } = {}) {
+        const dom = new JSDOM('<!doctype html><body></body>', {
+            url: 'https://x.com/home', runScripts: 'outside-only',
+        });
+        let elapsed = 0;
+        let submits = 0;
+        const openings = [];
+        const openedAt = [];
+        dom.window.HTMLElement.prototype.getClientRects = function () {
+            for (let el = this; el; el = el.parentElement) {
+                if (el.hidden || el.getAttribute('aria-hidden') === 'true'
+                    || el.style.display === 'none' || el.style.visibility === 'hidden') return [];
+            }
+            return [{ width: 10, height: 10 }];
+        };
+        dom.window.setTimeout = (callback, ms) => {
+            elapsed += Number(ms) || 0;
+            onTick?.(elapsed, dom.window.document);
+            queueMicrotask(callback);
+            return 0;
+        };
+        dom.window.document.execCommand = (_command, _ui, text) => {
+            dom.window.document.activeElement.innerText = text;
+            return true;
+        };
+        dom.window.document.addEventListener('click', event => {
+            const opening = event.target.closest('[data-testid="reply"]');
+            if (opening) {
+                openings.push(opening.getAttribute('data-open-id'));
+                openedAt.push(elapsed);
+                dom.window.document.body.insertAdjacentHTML('beforeend', `<div role="dialog">
+                    <div data-testid="tweetTextarea_0" contenteditable="true" tabindex="0"></div>
+                    <button data-testid="tweetButton">Submit reply</button></div>`);
+            }
+            if (event.target.closest('[data-testid="tweetButton"]')) {
+                submits += 1;
+                dom.window.document.body.insertAdjacentHTML('beforeend',
+                    '<div role="alert">Your post was sent <a href="/me/status/999">View</a></div>');
+            }
+        });
+        let navigation = 0;
+        let waited = false;
+        const page = createPageMock([], {
+            goto: vi.fn(async destination => {
+                navigation += 1;
+                dom.reconfigure({ url: navigation === 1 ? 'https://x.com/home' : location || destination });
+                dom.window.document.body.innerHTML = navigation === 1
+                    ? '<div role="dialog"><div role="progressbar"></div></div>' : html;
+            }),
+            wait: vi.fn(async () => {
+                if (!waited) {
+                    waited = true;
+                    throw new Error('Selector not found: [data-testid="tweetTextarea_0"]');
+                }
+                expect(dom.window.document.querySelector('[data-testid="tweetTextarea_0"]')).not.toBeNull();
+            }),
+            evaluateOnce: vi.fn(async script => {
+                const result = await dom.window.eval(script);
+                if (loseOpeningResponse) throw new Error('Cannot find default execution context');
+                return result;
+            }),
+            evaluate: vi.fn(async script => dom.window.eval(script)),
+        });
+        try {
+            const result = await getRegistry().get('twitter/reply').func(page, { url, text: 'fixture reply' })
+                .then(value => ({ value }), error => ({ error }));
+            return { ...result, page, openings, openedAt, submits, elapsed };
+        } finally {
+            dom.window.close();
+        }
+    }
+
+    it('waits for the target article while ignoring the first background Reply action', async () => {
+        let added = false;
+        const result = await runFallback(tweet('111'), {
+            onTick: (ms, document) => {
+                if (ms >= 750 && !added) {
+                    added = true;
+                    document.body.insertAdjacentHTML('beforeend', tweet(targetId));
+                }
+            },
+        });
+        expect(result.error).toBeUndefined();
+        expect(result.openings).toEqual([targetId]);
+        expect(result.openedAt).toEqual([750]);
+        expect(result.submits).toBe(1);
+        expect(result.page.evaluateOnce).toHaveBeenCalledTimes(1);
+    });
+
+    it('waits for the target action to become enabled', async () => {
+        const html = tweet(targetId, '', `<button data-testid="reply" data-open-id="${targetId}" disabled>Reply</button>`);
+        const result = await runFallback(html, {
+            onTick: (ms, document) => { if (ms >= 500) document.querySelector('[data-testid="reply"]').disabled = false; },
+        });
+        expect(result.openings).toEqual([targetId]);
+        expect(result.openedAt).toEqual([500]);
+        expect(result.submits).toBe(1);
+    });
+
+    it('waits for a delayed Reply button on an already rendered target article', async () => {
+        let added = false;
+        const result = await runFallback(tweet(targetId, '', '<div>Actions loading</div>'), {
+            onTick: (ms, document) => {
+                if (ms >= 1000 && !added) {
+                    added = true;
+                    document.querySelector('article').insertAdjacentHTML('beforeend',
+                        `<button data-testid="reply" data-open-id="${targetId}">Reply</button>`);
+                }
+            },
+        });
+        expect(result.openings).toEqual([targetId]);
+        expect(result.openedAt).toEqual([1000]);
+        expect(result.submits).toBe(1);
+    });
+
+    it('ignores quoted Reply actions even when they precede the target action', async () => {
+        const quote = `<div role="link" tabindex="0"><a href="/quoted/status/222"><time>quoted</time></a>
+            <button data-testid="reply" data-open-id="222">Reply to quote</button></div>`;
+        const result = await runFallback(tweet(targetId, quote));
+        expect(result.openings).toEqual([targetId]);
+        expect(result.submits).toBe(1);
+    });
+
+    it.each([
+        ['missing target', tweet('111')],
+        ['quoted target without a nested article', tweet('111', `<div role="link" tabindex="0"><a href="/target/status/${targetId}"><time>quote</time></a></div>`)],
+        ['nested quoted article', tweet('111', `<div data-testid="quoteTweet">${tweet(targetId)}</div>`)],
+        ['hidden ancestor', `<div hidden>${tweet(targetId)}</div>`],
+        ['aria-hidden ancestor', `<div aria-hidden="true">${tweet(targetId)}</div>`],
+        ['CSS-hidden ancestor', `<div style="display:none">${tweet(targetId)}</div>`],
+        ['duplicate target articles', tweet(targetId) + tweet(targetId)],
+        ['two own timestamps', tweet(targetId, '<a href="/other/status/333"><time>other</time></a>')],
+        ['duplicate actions, only one enabled', tweet(targetId, '', `<button data-testid="reply" disabled>Disabled</button><button data-testid="reply" data-open-id="${targetId}">Reply</button>`)],
+        ['unexpected dialog', tweet(targetId) + '<div role="dialog">Another composer</div>'],
+    ])('refuses %s without typing or submitting', async (_name, html) => {
+        const result = await runFallback(html);
+        expect(result.error).toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('unique ready Reply action') });
+        expect(result.openings).toEqual([]);
+        expect(result.submits).toBe(0);
+        expect(result.page.evaluate).not.toHaveBeenCalled();
+        expect(result.elapsed).toBe(15_000);
+        expect(result.page.evaluateOnce).toHaveBeenCalledTimes(1);
+    });
+
+    it.each(['https://x.com/home', 'https://x.com/other/status/111', `https://example.com/target/status/${targetId}`])(
+        'refuses a redirected page at %s despite a matching background article', async location => {
+            const result = await runFallback(tweet(targetId), { location });
+            expect(result.error).toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('page changed') });
+            expect(result.openings).toEqual([]);
+            expect(result.submits).toBe(0);
+            expect(result.page.evaluate).not.toHaveBeenCalled();
+        }
+    );
+
+    it('canonicalizes an accepted alias and removes query/hash before fallback navigation', async () => {
+        const result = await runFallback(tweet(targetId), { url: `https://mobile.twitter.com/target/status/${targetId}?s=20#fragment` });
+        expect(result.page.goto).toHaveBeenLastCalledWith(`https://x.com/i/status/${targetId}`, { waitUntil: 'load', settleMs: 2500 });
+        expect(result.openings).toEqual([targetId]);
+    });
+
+    it('does not replay opening or continue typing/upload/submission after a lost opening response', async () => {
+        const result = await runFallback(tweet(targetId), { loseOpeningResponse: true });
+        expect(result.error?.message).toBe('Cannot find default execution context');
+        expect(result.openings).toEqual([targetId]);
+        expect(result.page.evaluateOnce).toHaveBeenCalledTimes(1);
+        expect(result.page.evaluate).not.toHaveBeenCalled();
+        expect(result.page.setFileInput).not.toHaveBeenCalled();
+        expect(result.submits).toBe(0);
     });
 });
 
