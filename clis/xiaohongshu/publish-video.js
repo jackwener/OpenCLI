@@ -7,6 +7,10 @@
  * silently attaching a different one. Shared field filling, upload, submit
  * and verification live in publish-helpers.js.
  *
+ * A --cover flag is intentionally absent: the current creator center no
+ * longer exposes a custom-cover upload entry (verified 2026-11-06; the panel
+ * only offers 智能推荐封面 / 重新生成 / 应用 and no image file input exists).
+ *
  * Usage:
  *   opencli xiaohongshu publish-video --title "标题(20字内)" "正文内容" \
  *     --video /path/to/video.mp4 \
@@ -34,9 +38,7 @@ import {
 const PUBLISH_VIDEO_URL = 'https://creator.xiaohongshu.com/publish/publish?from=menu_left&target=video';
 const MAX_TITLE_LEN = 20;
 const VIDEO_MAX_BYTES = 300 * 1024 * 1024;
-const COVER_MAX_BYTES = 20 * 1024 * 1024;
 const VIDEO_ACCEPTED_MIMES = ['video/mp4', 'video/quicktime'];
-const COVER_ACCEPTED_MIMES = ['image/jpeg', 'image/png'];
 
 /** Discover the video-accepting file input on the publish page. */
 async function videoInputSelector(page) {
@@ -54,76 +56,6 @@ async function videoInputSelector(page) {
         return inputs.length ? 'input[type="file"]' : null;
       })()
     `));
-}
-
-/**
- * Upload a custom cover image. Every stage is a postcondition: a requested
- * cover that cannot be applied aborts the publish instead of degrading to the
- * auto-generated frame.
- */
-async function uploadCustomCover(page, coverPath) {
-    const opened = (await clickByText(page, '编辑封面', 3_000)).ok
-        || (await clickByText(page, '设置封面', 3_000)).ok
-        || (await clickByText(page, '修改封面', 3_000)).ok;
-    if (!opened) throw new CommandExecutionError('Cover editor could not be opened (编辑封面 not found).');
-    await page.wait({ time: 1.5 });
-
-    const uploadClicked = (await clickByText(page, '上传封面', 3_000)).ok
-        || (await clickByText(page, '本地上传', 3_000)).ok
-        || (await clickByText(page, '上传图片', 3_000)).ok;
-    if (!uploadClicked) throw new CommandExecutionError('Cover upload entry (上传封面) not found.');
-    await page.wait({ time: 2 });
-
-    const imgSel = unwrapBrowserResult(await page.evaluate(`
-      (() => {
-        const explicit = document.querySelector('input[aria-label="上传封面图片"]');
-        if (explicit) {
-          explicit.setAttribute('data-opencli-cover', '1');
-          return 'input[data-opencli-cover="1"]';
-        }
-        const inputs = Array.from(document.querySelectorAll('input[type="file"]'));
-        // Only an input that explicitly accepts images (or is labeled for the
-        // cover) qualifies; a generic fallback could target the video input.
-        const target = inputs.find((el) => {
-          const accept = String(el.getAttribute('accept') || '').toLowerCase();
-          const aria = String(el.getAttribute('aria-label') || '');
-          return /image|\\.png|\\.jpg|\\.jpeg/.test(accept) || /封面/.test(aria);
-        });
-        if (!target) return null;
-        target.setAttribute('data-opencli-cover', '1');
-        return 'input[data-opencli-cover="1"]';
-      })()
-    `));
-    if (!imgSel) throw new CommandExecutionError('Cover file input not found.');
-
-    const uploaded = await uploadFiles(page, [coverPath], imgSel);
-    if (!uploaded?.ok) {
-        throw new CommandExecutionError(`Cover upload failed: ${uploaded?.error || 'unknown'}.`);
-    }
-    await page.wait({ time: 4 });
-
-    const confirmed = (await clickByText(page, '完成', 4_000)).ok
-        || (await clickByText(page, '确定', 2_000)).ok
-        || (await clickByText(page, '确认', 2_000)).ok;
-    if (!confirmed) throw new CommandExecutionError('Cover could not be confirmed (完成 not found).');
-    await page.wait({ time: 1.5 });
-
-    // The confirm click proves nothing by itself: after confirming a cover
-    // dialog, no modal may remain open on the editor page. Matching by
-    // dialog text is not enough (wording varies), so any visible dialog
-    // fails the cover application.
-    const dialogClosed = unwrapBrowserResult(await page.evaluate(`
-      (() => {
-        const visible = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
-        const overlay = [...document.querySelectorAll('[role="dialog"], [class*="dialog"], [class*="modal"], [class*="overlay"]')]
-          .filter(visible)
-          .find((el) => el.innerText && el.innerText.trim().length > 0);
-        return !overlay;
-      })()
-    `));
-    if (!dialogClosed) {
-        throw new CommandExecutionError('Cover dialog stayed open after confirming; the custom cover was not applied.');
-    }
 }
 
 function normalizeTopicName(raw) {
@@ -283,7 +215,6 @@ cli({
         { name: 'content', required: true, positional: true, help: '笔记正文' },
         { name: 'title', required: true, help: '笔记标题 (最多20字)' },
         { name: 'video', required: true, help: '视频文件路径 (.mp4/.mov，视频内容以文件实际类型校验)' },
-        { name: 'cover', required: false, help: '可选：自定义封面图片路径 (.png/.jpg)' },
         { name: 'topics', required: false, help: '话题标签，逗号分隔，不含 # 号；无法精确匹配时整体失败' },
         { name: 'draft', type: 'bool', default: false, help: '保存为草稿，不直接发布' },
     ],
@@ -301,13 +232,6 @@ cli({
             maxBytes: VIDEO_MAX_BYTES,
             label: 'Video',
         });
-        const cover = kwargs.cover
-            ? validateMediaFile(kwargs.cover, {
-                accepted: COVER_ACCEPTED_MIMES,
-                maxBytes: COVER_MAX_BYTES,
-                label: 'Cover',
-            })
-            : null;
         const topics = kwargs.topics
             ? String(kwargs.topics).split(',').map((s) => s.trim()).filter(Boolean)
             : [];
@@ -326,10 +250,6 @@ cli({
         }
         await waitForVideoReady(page);
 
-        if (cover) {
-            await uploadCustomCover(page, cover.absPath);
-        }
-
         await fillField(page, TITLE_SELECTORS, title, 'title');
         await page.wait({ time: 0.5 });
         await fillField(page, BODY_SELECTORS, String(kwargs.content ?? '').trim(), 'content');
@@ -347,7 +267,6 @@ cli({
                 detail: [
                     `"${title}"`,
                     path.basename(video.absPath),
-                    cover ? `封面:${path.basename(cover.absPath)}` : '',
                     addedTopics.length ? `话题: ${addedTopics.join(' ')}` : '',
                     successMsg || '',
                 ].filter(Boolean).join(' · '),

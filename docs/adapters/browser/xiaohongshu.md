@@ -17,7 +17,7 @@
 | `opencli xiaohongshu liked` | List liked notes (`/user/profile/<id>?tab=liked&subTab=note`) |
 | `opencli xiaohongshu download` | Download images and videos from a note |
 | `opencli xiaohongshu publish` | Publish image-text notes (creator center UI automation) |
-| `opencli xiaohongshu publish-video` | Publish video notes with optional cover, exact topics, AI-content declaration and scheduled publish |
+| `opencli xiaohongshu publish-video` | Publish video notes with exact topics; declaration and scheduled publish follow in a separate change |
 | `opencli xiaohongshu delete-note` | Verify or delete a published creator-center note by exact note ID |
 | `opencli xiaohongshu comment` | Post a top-level comment on a note through the page's own signed request layer (requires `--execute`) |
 | `opencli xiaohongshu comment-delete` | Delete one of your own comments on a note (requires `--execute`) |
@@ -63,10 +63,10 @@ opencli xiaohongshu download "https://xhslink.com/..."
 # Publish an ordinary image-text note
 opencli xiaohongshu publish "正文内容" --title "标题" --images ./a.jpg,./b.png
 
-# Publish a video note with an AI-content declaration and a scheduled time
+# Publish a video note (topics must match exactly or the publish aborts)
 opencli xiaohongshu publish-video "正文内容" --title "标题" \
-  --video ./note.mp4 --cover ./cover.png \
-  --topics 梦核,怀旧 --declaration ai --schedule "2026-11-02 21:30"
+  --video ./note.mp4 \
+  --topics 梦核,怀旧
 
 # Publish a text-image note; split multiple cards with ||| and use \n for card line breaks
 opencli xiaohongshu publish "正文内容" --title "标题" --card-text "第一张\\n第二行|||第二张" --card-style 边框

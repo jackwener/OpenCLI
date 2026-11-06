@@ -42339,12 +42339,6 @@
         "help": "视频文件路径 (.mp4/.mov，视频内容以文件实际类型校验)"
       },
       {
-        "name": "cover",
-        "type": "str",
-        "required": false,
-        "help": "可选：自定义封面图片路径 (.png/.jpg)"
-      },
-      {
         "name": "topics",
         "type": "str",
         "required": false,

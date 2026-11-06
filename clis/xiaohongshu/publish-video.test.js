@@ -46,7 +46,7 @@ function createVideoPage(conditional, overrides = {}) {
 }
 
 /** Evaluate-responder for a full happy-path publish run. */
-function happyPathResponder({ topicChipsAfter = ['梦核'], finalUrl = 'https://creator.xiaohongshu.com/publish/success', coverDialogClosed = true } = {}) {
+function happyPathResponder({ topicChipsAfter = ['梦核'], finalUrl = 'https://creator.xiaohongshu.com/publish/success' } = {}) {
     let topicReadCount = 0;
     return (code) => {
         if (code.includes('data-opencli-video-input')) {
@@ -72,7 +72,6 @@ function happyPathResponder({ topicChipsAfter = ['梦核'], finalUrl = 'https://
         if (code.includes('xhs-publish-btn')) return { ok: true, via: 'method', name: '_onPublish' };
         if (code.includes('__opencli_xhs_click_label')) return { ok: true, text: 'clicked' };
         if (code.includes('data-opencli-cover')) return 'input[data-opencli-cover="1"]';
-        if (code.includes('[role="dialog"]') && code.includes('overlay')) return coverDialogClosed;
         if (code.includes('location.href')) return finalUrl;
         if (code.includes('发布成功')) return '发布成功';
         return undefined;
@@ -95,15 +94,6 @@ describe('xiaohongshu publish-video', () => {
         const cmd = getRegistry().get('xiaohongshu/publish-video');
         const page = createVideoPage(() => undefined);
         await expect(cmd.func(page, { content: '正文', title: '标题', video: fake }))
-            .rejects.toBeInstanceOf(ArgumentError);
-        expect(page.goto).not.toHaveBeenCalled();
-    });
-
-    it('rejects a cover whose bytes are not jpeg/png before navigating', async () => {
-        const badCover = writeMedia('cover.png', Array.from(Buffer.from('not an image at all')));
-        const cmd = getRegistry().get('xiaohongshu/publish-video');
-        const page = createVideoPage(() => undefined);
-        await expect(cmd.func(page, { content: '正文', title: '标题', video: videoPath, cover: badCover }))
             .rejects.toBeInstanceOf(ArgumentError);
         expect(page.goto).not.toHaveBeenCalled();
     });
@@ -140,25 +130,6 @@ describe('xiaohongshu publish-video', () => {
         });
         await expect(cmd.func(page, { content: '正文', title: '标题', video: videoPath }))
             .rejects.toThrow(/could not be verified/i);
-    });
-
-    it('applies a requested cover and publishes', async () => {
-        const cmd = getRegistry().get('xiaohongshu/publish-video');
-        const coverPath = writeMedia('cover.jpg', JPG_BYTES);
-        const page = createVideoPage(happyPathResponder());
-        const rows = await cmd.func(page, { content: '正文', title: '标题', video: videoPath, cover: coverPath });
-        expect(rows[0].status).toContain('发布成功');
-        expect(rows[0].detail).toContain(`封面:${path.basename(coverPath)}`);
-        expect(page.setFileInput).toHaveBeenCalledTimes(2);
-    });
-
-    it('fails closed when the cover dialog stays open after confirming', async () => {
-        const cmd = getRegistry().get('xiaohongshu/publish-video');
-        const coverPath = writeMedia('cover.jpg', JPG_BYTES);
-        const page = createVideoPage(happyPathResponder({ coverDialogClosed: false }));
-        await expect(cmd.func(page, { content: '正文', title: '标题', video: videoPath, cover: coverPath }))
-            .rejects.toThrow(/cover was not applied/i);
-        expect(page.evaluate.mock.calls.some(([c]) => String(c).includes('xhs-publish-btn'))).toBe(false);
     });
 
     it('treats a post-submit bounce to login as failure, not success', async () => {
