@@ -12,6 +12,17 @@ export interface DashPositionalManifestEntry {
 
 const ROOT_VALUE_FLAGS: ReadonlySet<string> = new Set(['--profile']);
 
+/** Identify the offline trace namespace after supported root options. */
+export function isTraceInvocation(argv: readonly string[]): boolean {
+  let index = 0;
+  while (index < argv.length) {
+    if (argv[index] === '--profile') index += 2;
+    else if (argv[index].startsWith('--profile=')) index++;
+    else return argv[index] === 'trace';
+  }
+  return false;
+}
+
 type OptionValueMode = 'none' | 'required' | 'optional';
 type OptionParse = { values: string[]; nextIndex: number };
 

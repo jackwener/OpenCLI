@@ -73,6 +73,7 @@ describe('createProgram root help descriptions', () => {
     expect(descriptionFor(program, 'adapter')).toBe('check, eject, init, reset, status, test');
     expect(descriptionFor(program, 'profile')).toBe('list, rename, use');
     expect(descriptionFor(program, 'daemon')).toBe('restart, status, stop');
+    expect(descriptionFor(program, 'trace')).toBe('list, show');
     expect(descriptionFor(program, 'external')).toBeUndefined();
   });
 
