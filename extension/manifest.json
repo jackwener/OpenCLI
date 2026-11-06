@@ -9,6 +9,7 @@
     "cookies",
     "activeTab",
     "alarms",
+    "idle",
     "storage",
     "tabGroups",
     "downloads"
