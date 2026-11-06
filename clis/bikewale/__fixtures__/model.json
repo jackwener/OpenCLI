@@ -1,0 +1,1261 @@
+{
+ "modelPage": {
+  "modelDetails": {
+   "keySpecs": [
+    {
+     "title": "Fuel Type",
+     "identifier": "383",
+     "keySpecsValue": [
+      {
+       "text": "Petrol"
+      }
+     ],
+     "itemMasterId": 0
+    }
+   ],
+   "seoName": "Hunter 350",
+   "userReportedMileage": 0,
+   "araiMileage": 0,
+   "overallRating": 0,
+   "reviewsCount": 0,
+   "hostUrl": "https://imgd.aeplcdn.com/",
+   "isNewlyLaunched": false,
+   "isPrimeAlternativeSlot": false,
+   "extraSpecs": [],
+   "isSponsoredElectricModel": false,
+   "makeId": 11,
+   "makeName": "Royal Enfield",
+   "subMakeId": 0,
+   "fuelTypeId": 1,
+   "defaultVariant": 20579,
+   "topVariant": 0,
+   "launchedOn": "04/26/2025 00:00:00",
+   "discontinuedOn": "01/01/0001 00:00:00",
+   "modelAggregateRating": 4.7,
+   "modelReviewCount": 409,
+   "bodyStyleId": 13,
+   "rootMaskingName": "hunter-350",
+   "rootId": 0,
+   "brochurePath": "f/brochure/11/3295/18dkcdl.pdf",
+   "segmentId": 0,
+   "isElectricVehicle": false,
+   "showFullDate": false,
+   "isBS6Phase2BadgeValid": false,
+   "subStatus": 1,
+   "isBookingCampaignAvailable": false,
+   "showUnveiledOnFullDate": false,
+   "modelRatingCount": 1584,
+   "faceliftContextPills": [],
+   "faceliftContext": {},
+   "makeMaskingName": "royalenfield",
+   "modelId": 3295,
+   "modelName": "Hunter 350",
+   "modelMaskingName": "hunter-350",
+   "imagePath": "/n/cw/ec/201293/hunter-350-right-side-view-15.png?isig=0",
+   "status": 2,
+   "isFeaturedModel": false
+  },
+  "versions": [
+   {
+    "versionId": 20579,
+    "versionName": "Standard",
+    "versionMaskingName": "standard",
+    "basicSpecs": [
+     {
+      "itemId": 412,
+      "value": "Disc Brakes",
+      "itemName": "Front Brake Type",
+      "unitType": "",
+      "customTypeId": 908,
+      "description": "Most vehicles feature a disc brake at the front although some commuter segment products come with a drum setup.",
+      "dataTypeId": 4
+     },
+     {
+      "itemId": 422,
+      "value": "Spoke Wheels",
+      "itemName": "Wheel Type",
+      "unitType": "",
+      "customTypeId": 847,
+      "description": "Spoke wheels (great for rough roads) or alloy wheels (stylish, low-maintenance, supports tubeless tires).",
+      "dataTypeId": 4
+     }
+    ],
+    "differentSpecs": [
+     {
+      "itemId": 640,
+      "value": "Single Channel ABS",
+      "itemName": "Braking System",
+      "unitType": "",
+      "customTypeId": 1271,
+      "description": "Braking system is used to reduce the speed of the vehicle or bring it to a standstill.",
+      "dataTypeId": 4
+     },
+     {
+      "itemId": 414,
+      "value": "Drum",
+      "itemName": "Rear Brake Type",
+      "unitType": "",
+      "customTypeId": 912,
+      "description": "Most vehicles come with a drum brake setup at the back although higher spec models feature a disc brake at the rear.",
+      "dataTypeId": 4
+     },
+     {
+      "itemId": 420,
+      "value": "Tubed",
+      "itemName": "Tyre Type",
+      "unitType": "",
+      "customTypeId": 849,
+      "description": "Tyre types are divided into two - Tubeless and Tube Type.",
+      "dataTypeId": 4
+     },
+     {
+      "itemId": 783,
+      "value": "Halogen Bulb",
+      "itemName": "Headlight Type",
+      "unitType": "",
+      "customTypeId": 1955,
+      "description": "The type of headlamp (halogen, LED, projector) affects brightness and visibility",
+      "dataTypeId": 4
+     },
+     {
+      "itemId": 604,
+      "value": "Optional",
+      "itemName": "Mobile Phone Connectivity",
+      "unitType": "",
+      "customTypeId": 4805,
+      "description": "Connects the smartphone to the instrument cluster to offer access to features such as incoming calls, messages, and music",
+      "dataTypeId": 4
+     },
+     {
+      "itemId": 605,
+      "value": "Optional",
+      "itemName": "GPS & Navigation",
+      "unitType": "",
+      "customTypeId": 4807,
+      "description": "Provides real-time directions and location tracking on the vehicle’s console.",
+      "dataTypeId": 4
+     }
+    ],
+    "specsSummary": [
+     {
+      "itemId": 412,
+      "value": "Disc",
+      "itemName": "Front Brake Type",
+      "unitType": "",
+      "customTypeId": 908,
+      "description": "Most vehicles feature a disc brake at the front although some commuter segment products come with a drum setup.",
+      "DataTypeId": 4,
+      "isHighlighted": false
+     },
+     {
+      "itemId": 422,
+      "value": "Spoke",
+      "itemName": "Wheel Type",
+      "unitType": "",
+      "customTypeId": 847,
+      "description": "Spoke wheels (great for rough roads) or alloy wheels (stylish, low-maintenance, supports tubeless tires).",
+      "DataTypeId": 4,
+      "isHighlighted": false
+     },
+     {
+      "itemId": 434,
+      "value": "Self Start",
+      "itemName": "Start Type",
+      "unitType": "",
+      "customTypeId": 853,
+      "description": "How the engine starts: electric (self-start), kick start, or both.",
+      "DataTypeId": 4,
+      "isHighlighted": false
+     },
+     {
+      "itemId": 449,
+      "value": "",
+      "itemName": "Antilock Braking System",
+      "unitType": "",
+      "customTypeId": 0,
+      "description": "",
+      "DataTypeId": 2,
+      "isHighlighted": false
+     },
+     {
+      "itemId": 375,
+      "value": "349.34",
+      "itemName": "Displacement",
+      "unitType": "cc",
+      "customTypeId": 0,
+      "description": "Engine displacement is the measure of the cylinder volume swept by the pistons of an internal combustion engine. It indicates the engine size",
+      "DataTypeId": 3,
+      "isHighlighted": false
+     },
+     {
+      "itemId": 406,
+      "value": "36.2",
+      "itemName": "Mileage - ARAI",
+      "unitType": "kmpl",
+      "customTypeId": 0,
+      "description": "ARAI certified fuel economy that has been tested under controlled conditions.",
+      "DataTypeId": 3,
+      "isHighlighted": false
+     },
+     {
+      "itemId": 671,
+      "value": "35",
+      "itemName": "Mileage - Owner Reported",
+      "unitType": "kmpl",
+      "customTypeId": 0,
+      "description": "This is the fuel economy registered by Bikewale followers.",
+      "DataTypeId": 3,
+      "isHighlighted": false
+     },
+     {
+      "itemId": 650,
+      "value": "5 Speed Manual",
+      "itemName": "Transmission",
+      "unitType": "",
+      "customTypeId": 0,
+      "description": "",
+      "DataTypeId": 5,
+      "isHighlighted": false
+     },
+     {
+      "itemId": 397,
+      "value": "181",
+      "itemName": "Kerb Weight",
+      "unitType": "kg",
+      "customTypeId": 0,
+      "description": "Kerb weight of the motorcycle is the total weight of a vehicle that is ready for operation. It includes all standard equipment and necessary consumables.",
+      "DataTypeId": 3,
+      "isHighlighted": false
+     },
+     {
+      "itemId": 404,
+      "value": "13",
+      "itemName": "Fuel Tank Capacity",
+      "unitType": "litres",
+      "customTypeId": 0,
+      "description": "The capacity of a vehicle to store fuel.",
+      "DataTypeId": 3,
+      "isHighlighted": false
+     },
+     {
+      "itemId": 403,
+      "value": "790",
+      "itemName": "Seat Height",
+      "unitType": "mm",
+      "customTypeId": 0,
+      "description": "The seat height is the height of the rider's saddle from the ground.",
+      "DataTypeId": 3,
+      "isHighlighted": false
+     },
+     {
+      "itemId": 454,
+      "value": "20.2",
+      "itemName": "Max Power(bhp)",
+      "unitType": "bhp",
+      "customTypeId": -1,
+      "description": "Maximum Power rating is used to quote the performance of an engine. Maximum Power is the peak power that an internal combustion motor produces and it arrives in a specific RPM range.",
+      "DataTypeId": 3,
+      "isHighlighted": false
+     },
+     {
+      "itemId": 394,
+      "value": "130",
+      "itemName": "Top Speed",
+      "unitType": "kmph",
+      "customTypeId": 0,
+      "description": "The maximum speed that a vehicle can achieve.",
+      "DataTypeId": 3,
+      "isHighlighted": false
+     },
+     {
+      "itemId": 521,
+      "value": "BS6 Phase 2B",
+      "itemName": "Emission Standard",
+      "unitType": "",
+      "customTypeId": 3257,
+      "description": "Emission standards indicate the output from the exhaust that is permissible in a country.",
+      "DataTypeId": 4,
+      "isHighlighted": false
+     },
+     {
+      "itemId": 414,
+      "value": "Drum",
+      "itemName": "Rear Brake Type",
+      "unitType": "",
+      "customTypeId": 912,
+      "description": "Most vehicles come with a drum brake setup at the back although higher spec models feature a disc brake at the rear.",
+      "DataTypeId": 4,
+      "isHighlighted": false
+     }
+    ],
+    "features": [],
+    "featureSpecs": [],
+    "isJustLaunched": false,
+    "isSpecialVersion": false,
+    "trimId": 0,
+    "sortOrder": 0,
+    "colorPhotos": [
+     {
+      "modelId": 0,
+      "versionId": 0,
+      "id": 31211,
+      "name": "Factory Black",
+      "imagePath": "/n/9utq5fb_1830355.jpg",
+      "hexCode": "0B0C0D"
+     }
+    ],
+    "is360Available": false,
+    "modelImages": [],
+    "makeId": 11,
+    "makeName": "Royal Enfield",
+    "subMakeId": 0,
+    "fuelTypeId": 0,
+    "priceOverview": {
+     "formattedPrice": "₹ 1,37,648",
+     "priceLabel": "Avg. Ex-Showroom price",
+     "priceSuffix": "Onwards",
+     "pricePrefix": "",
+     "labelColor": "price-label-text--grey text-light-grey ",
+     "priceStatus": 3,
+     "price": 137648,
+     "exShowRoomPrice": 0,
+     "colorType": 0,
+     "nearByCityId": 0,
+     "onRoadPrice": 0
+    },
+    "defaultVariant": 0,
+    "topVariant": 0,
+    "bodyStyleId": 0,
+    "rootId": 0,
+    "segmentId": 0,
+    "isElectricVehicle": false,
+    "showFullDate": false,
+    "isBS6Phase2BadgeValid": false,
+    "subStatus": 0,
+    "isBookingCampaignAvailable": false,
+    "showUnveiledOnFullDate": false,
+    "faceliftContextPills": [],
+    "faceliftContext": {},
+    "makeMaskingName": "royalenfield",
+    "modelId": 3295,
+    "modelName": "Hunter 350",
+    "modelMaskingName": "hunter-350",
+    "imagePath": "/n/cw/ec/1/versions/royalenfield-hunter-350-standard1745757843659.jpg",
+    "status": 2,
+    "isFeaturedModel": false
+   },
+   {
+    "versionId": 23764,
+    "versionName": "Base Premium",
+    "versionMaskingName": "base-premium",
+    "basicSpecs": [
+     {
+      "itemId": 412,
+      "value": "Disc Brakes",
+      "itemName": "Front Brake Type",
+      "unitType": "",
+      "customTypeId": 908,
+      "description": "Most vehicles feature a disc brake at the front although some commuter segment products come with a drum setup.",
+      "dataTypeId": 4
+     },
+     {
+      "itemId": 422,
+      "value": "Alloy Wheels",
+      "itemName": "Wheel Type",
+      "unitType": "",
+      "customTypeId": 846,
+      "description": "Spoke wheels (great for rough roads) or alloy wheels (stylish, low-maintenance, supports tubeless tires).",
+      "dataTypeId": 4
+     }
+    ],
+    "differentSpecs": [
+     {
+      "itemId": 640,
+      "value": "Single Channel ABS",
+      "itemName": "Braking System",
+      "unitType": "",
+      "customTypeId": 1271,
+      "description": "Braking system is used to reduce the speed of the vehicle or bring it to a standstill.",
+      "dataTypeId": 4
+     },
+     {
+      "itemId": 414,
+      "value": "Drum",
+      "itemName": "Rear Brake Type",
+      "unitType": "",
+      "customTypeId": 912,
+      "description": "Most vehicles come with a drum brake setup at the back although higher spec models feature a disc brake at the rear.",
+      "dataTypeId": 4
+     },
+     {
+      "itemId": 420,
+      "value": "Tubeless",
+      "itemName": "Tyre Type",
+      "unitType": "",
+      "customTypeId": 848,
+      "description": "Tyre types are divided into two - Tubeless and Tube Type.",
+      "dataTypeId": 4
+     },
+     {
+      "itemId": 783,
+      "value": "Halogen Bulb",
+      "itemName": "Headlight Type",
+      "unitType": "",
+      "customTypeId": 1955,
+      "description": "The type of headlamp (halogen, LED, projector) affects brightness and visibility",
+      "dataTypeId": 4
+     },
+     {
+      "itemId": 604,
+      "value": "Bluetooth",
+      "itemName": "Mobile Phone Connectivity",
+      "unitType": "",
+      "customTypeId": 4346,
+      "description": "Connects the smartphone to the instrument cluster to offer access to features such as incoming calls, messages, and music",
+      "dataTypeId": 4
+     },
+     {
+      "itemId": 605,
+      "value": "Turn by Turn Navigation",
+      "itemName": "GPS & Navigation",
+      "unitType": "",
+      "customTypeId": 4358,
+      "description": "Provides real-time directions and location tracking on the vehicle’s console.",
+      "dataTypeId": 4
+     }
+    ],
+    "specsSummary": [
+     {
+      "itemId": 412,
+      "value": "Disc",
+      "itemName": "Front Brake Type",
+      "unitType": "",
+      "customTypeId": 908,
+      "description": "Most vehicles feature a disc brake at the front although some commuter segment products come with a drum setup.",
+      "DataTypeId": 4,
+      "isHighlighted": false
+     },
+     {
+      "itemId": 422,
+      "value": "Alloy",
+      "itemName": "Wheel Type",
+      "unitType": "",
+      "customTypeId": 846,
+      "description": "Spoke wheels (great for rough roads) or alloy wheels (stylish, low-maintenance, supports tubeless tires).",
+      "DataTypeId": 4,
+      "isHighlighted": false
+     },
+     {
+      "itemId": 434,
+      "value": "Self Start",
+      "itemName": "Start Type",
+      "unitType": "",
+      "customTypeId": 853,
+      "description": "How the engine starts: electric (self-start), kick start, or both.",
+      "DataTypeId": 4,
+      "isHighlighted": false
+     },
+     {
+      "itemId": 449,
+      "value": "",
+      "itemName": "Antilock Braking System",
+      "unitType": "",
+      "customTypeId": 0,
+      "description": "",
+      "DataTypeId": 2,
+      "isHighlighted": false
+     },
+     {
+      "itemId": 375,
+      "value": "349.34",
+      "itemName": "Displacement",
+      "unitType": "cc",
+      "customTypeId": 0,
+      "description": "Engine displacement is the measure of the cylinder volume swept by the pistons of an internal combustion engine. It indicates the engine size",
+      "DataTypeId": 3,
+      "isHighlighted": false
+     },
+     {
+      "itemId": 406,
+      "value": "36.2",
+      "itemName": "Mileage - ARAI",
+      "unitType": "kmpl",
+      "customTypeId": 0,
+      "description": "ARAI certified fuel economy that has been tested under controlled conditions.",
+      "DataTypeId": 3,
+      "isHighlighted": false
+     },
+     {
+      "itemId": 671,
+      "value": "35",
+      "itemName": "Mileage - Owner Reported",
+      "unitType": "kmpl",
+      "customTypeId": 0,
+      "description": "This is the fuel economy registered by Bikewale followers.",
+      "DataTypeId": 3,
+      "isHighlighted": false
+     },
+     {
+      "itemId": 650,
+      "value": "5 Speed Manual",
+      "itemName": "Transmission",
+      "unitType": "",
+      "customTypeId": 0,
+      "description": "",
+      "DataTypeId": 5,
+      "isHighlighted": false
+     },
+     {
+      "itemId": 397,
+      "value": "181",
+      "itemName": "Kerb Weight",
+      "unitType": "kg",
+      "customTypeId": 0,
+      "description": "Kerb weight of the motorcycle is the total weight of a vehicle that is ready for operation. It includes all standard equipment and necessary consumables.",
+      "DataTypeId": 3,
+      "isHighlighted": false
+     },
+     {
+      "itemId": 404,
+      "value": "13",
+      "itemName": "Fuel Tank Capacity",
+      "unitType": "litres",
+      "customTypeId": 0,
+      "description": "The capacity of a vehicle to store fuel.",
+      "DataTypeId": 3,
+      "isHighlighted": false
+     },
+     {
+      "itemId": 403,
+      "value": "790",
+      "itemName": "Seat Height",
+      "unitType": "mm",
+      "customTypeId": 0,
+      "description": "The seat height is the height of the rider's saddle from the ground.",
+      "DataTypeId": 3,
+      "isHighlighted": false
+     },
+     {
+      "itemId": 454,
+      "value": "20.2",
+      "itemName": "Max Power(bhp)",
+      "unitType": "bhp",
+      "customTypeId": -1,
+      "description": "Maximum Power rating is used to quote the performance of an engine. Maximum Power is the peak power that an internal combustion motor produces and it arrives in a specific RPM range.",
+      "DataTypeId": 3,
+      "isHighlighted": false
+     },
+     {
+      "itemId": 394,
+      "value": "130",
+      "itemName": "Top Speed",
+      "unitType": "kmph",
+      "customTypeId": 0,
+      "description": "The maximum speed that a vehicle can achieve.",
+      "DataTypeId": 3,
+      "isHighlighted": false
+     },
+     {
+      "itemId": 521,
+      "value": "BS6 Phase 2B",
+      "itemName": "Emission Standard",
+      "unitType": "",
+      "customTypeId": 3257,
+      "description": "Emission standards indicate the output from the exhaust that is permissible in a country.",
+      "DataTypeId": 4,
+      "isHighlighted": false
+     },
+     {
+      "itemId": 414,
+      "value": "Drum",
+      "itemName": "Rear Brake Type",
+      "unitType": "",
+      "customTypeId": 912,
+      "description": "Most vehicles come with a drum brake setup at the back although higher spec models feature a disc brake at the rear.",
+      "DataTypeId": 4,
+      "isHighlighted": false
+     }
+    ],
+    "features": [],
+    "featureSpecs": [],
+    "isJustLaunched": false,
+    "isSpecialVersion": false,
+    "trimId": 0,
+    "sortOrder": 0,
+    "colorPhotos": [
+     {
+      "modelId": 0,
+      "versionId": 0,
+      "id": 35540,
+      "name": "Tarmac Black",
+      "imagePath": "/n/v0ddg8b_1924324.jpg",
+      "hexCode": "0A1728"
+     }
+    ],
+    "is360Available": false,
+    "modelImages": [],
+    "makeId": 11,
+    "makeName": "Royal Enfield",
+    "subMakeId": 0,
+    "fuelTypeId": 0,
+    "priceOverview": {
+     "formattedPrice": "₹ 1,49,900",
+     "priceLabel": "Avg. Ex-Showroom price",
+     "priceSuffix": "Onwards",
+     "pricePrefix": "",
+     "labelColor": "price-label-text--grey text-light-grey ",
+     "priceStatus": 3,
+     "price": 149900,
+     "exShowRoomPrice": 0,
+     "colorType": 0,
+     "nearByCityId": 0,
+     "onRoadPrice": 0
+    },
+    "defaultVariant": 0,
+    "topVariant": 0,
+    "bodyStyleId": 0,
+    "rootId": 0,
+    "segmentId": 0,
+    "isElectricVehicle": false,
+    "showFullDate": false,
+    "isBS6Phase2BadgeValid": false,
+    "subStatus": 0,
+    "isBookingCampaignAvailable": false,
+    "showUnveiledOnFullDate": false,
+    "faceliftContextPills": [],
+    "faceliftContext": {},
+    "makeMaskingName": "royalenfield",
+    "modelId": 3295,
+    "modelName": "Hunter 350",
+    "modelMaskingName": "hunter-350",
+    "imagePath": "/n/cw/ec/1/versions/royalenfield-hunter-350-base-premium1775645346262.jpg",
+    "status": 2,
+    "isFeaturedModel": false
+   },
+   {
+    "versionId": 20587,
+    "versionName": "Mid",
+    "versionMaskingName": "mid",
+    "basicSpecs": [
+     {
+      "itemId": 412,
+      "value": "Disc Brakes",
+      "itemName": "Front Brake Type",
+      "unitType": "",
+      "customTypeId": 908,
+      "description": "Most vehicles feature a disc brake at the front although some commuter segment products come with a drum setup.",
+      "dataTypeId": 4
+     },
+     {
+      "itemId": 422,
+      "value": "Alloy Wheels",
+      "itemName": "Wheel Type",
+      "unitType": "",
+      "customTypeId": 846,
+      "description": "Spoke wheels (great for rough roads) or alloy wheels (stylish, low-maintenance, supports tubeless tires).",
+      "dataTypeId": 4
+     }
+    ],
+    "differentSpecs": [
+     {
+      "itemId": 640,
+      "value": "Dual Channel ABS",
+      "itemName": "Braking System",
+      "unitType": "",
+      "customTypeId": 1272,
+      "description": "Braking system is used to reduce the speed of the vehicle or bring it to a standstill.",
+      "dataTypeId": 4
+     },
+     {
+      "itemId": 414,
+      "value": "Disc",
+      "itemName": "Rear Brake Type",
+      "unitType": "",
+      "customTypeId": 911,
+      "description": "Most vehicles come with a drum brake setup at the back although higher spec models feature a disc brake at the rear.",
+      "dataTypeId": 4
+     },
+     {
+      "itemId": 420,
+      "value": "Tubeless",
+      "itemName": "Tyre Type",
+      "unitType": "",
+      "customTypeId": 848,
+      "description": "Tyre types are divided into two - Tubeless and Tube Type.",
+      "dataTypeId": 4
+     },
+     {
+      "itemId": 783,
+      "value": "LED",
+      "itemName": "Headlight Type",
+      "unitType": "",
+      "customTypeId": 1957,
+      "description": "The type of headlamp (halogen, LED, projector) affects brightness and visibility",
+      "dataTypeId": 4
+     },
+     {
+      "itemId": 604,
+      "value": "Bluetooth",
+      "itemName": "Mobile Phone Connectivity",
+      "unitType": "",
+      "customTypeId": 4346,
+      "description": "Connects the smartphone to the instrument cluster to offer access to features such as incoming calls, messages, and music",
+      "dataTypeId": 4
+     },
+     {
+      "itemId": 605,
+      "value": "Turn by Turn Navigation",
+      "itemName": "GPS & Navigation",
+      "unitType": "",
+      "customTypeId": 4358,
+      "description": "Provides real-time directions and location tracking on the vehicle’s console.",
+      "dataTypeId": 4
+     }
+    ],
+    "specsSummary": [
+     {
+      "itemId": 412,
+      "value": "Disc",
+      "itemName": "Front Brake Type",
+      "unitType": "",
+      "customTypeId": 908,
+      "description": "Most vehicles feature a disc brake at the front although some commuter segment products come with a drum setup.",
+      "DataTypeId": 4,
+      "isHighlighted": false
+     },
+     {
+      "itemId": 422,
+      "value": "Alloy",
+      "itemName": "Wheel Type",
+      "unitType": "",
+      "customTypeId": 846,
+      "description": "Spoke wheels (great for rough roads) or alloy wheels (stylish, low-maintenance, supports tubeless tires).",
+      "DataTypeId": 4,
+      "isHighlighted": false
+     },
+     {
+      "itemId": 434,
+      "value": "Self Start",
+      "itemName": "Start Type",
+      "unitType": "",
+      "customTypeId": 853,
+      "description": "How the engine starts: electric (self-start), kick start, or both.",
+      "DataTypeId": 4,
+      "isHighlighted": false
+     },
+     {
+      "itemId": 449,
+      "value": "",
+      "itemName": "Antilock Braking System",
+      "unitType": "",
+      "customTypeId": 0,
+      "description": "",
+      "DataTypeId": 2,
+      "isHighlighted": false
+     },
+     {
+      "itemId": 375,
+      "value": "349.34",
+      "itemName": "Displacement",
+      "unitType": "cc",
+      "customTypeId": 0,
+      "description": "Engine displacement is the measure of the cylinder volume swept by the pistons of an internal combustion engine. It indicates the engine size",
+      "DataTypeId": 3,
+      "isHighlighted": false
+     },
+     {
+      "itemId": 406,
+      "value": "36.2",
+      "itemName": "Mileage - ARAI",
+      "unitType": "kmpl",
+      "customTypeId": 0,
+      "description": "ARAI certified fuel economy that has been tested under controlled conditions.",
+      "DataTypeId": 3,
+      "isHighlighted": false
+     },
+     {
+      "itemId": 671,
+      "value": "35",
+      "itemName": "Mileage - Owner Reported",
+      "unitType": "kmpl",
+      "customTypeId": 0,
+      "description": "This is the fuel economy registered by Bikewale followers.",
+      "DataTypeId": 3,
+      "isHighlighted": false
+     },
+     {
+      "itemId": 650,
+      "value": "5 Speed Manual",
+      "itemName": "Transmission",
+      "unitType": "",
+      "customTypeId": 0,
+      "description": "",
+      "DataTypeId": 5,
+      "isHighlighted": false
+     },
+     {
+      "itemId": 397,
+      "value": "181",
+      "itemName": "Kerb Weight",
+      "unitType": "kg",
+      "customTypeId": 0,
+      "description": "Kerb weight of the motorcycle is the total weight of a vehicle that is ready for operation. It includes all standard equipment and necessary consumables.",
+      "DataTypeId": 3,
+      "isHighlighted": false
+     },
+     {
+      "itemId": 404,
+      "value": "13",
+      "itemName": "Fuel Tank Capacity",
+      "unitType": "litres",
+      "customTypeId": 0,
+      "description": "The capacity of a vehicle to store fuel.",
+      "DataTypeId": 3,
+      "isHighlighted": false
+     },
+     {
+      "itemId": 403,
+      "value": "790",
+      "itemName": "Seat Height",
+      "unitType": "mm",
+      "customTypeId": 0,
+      "description": "The seat height is the height of the rider's saddle from the ground.",
+      "DataTypeId": 3,
+      "isHighlighted": false
+     },
+     {
+      "itemId": 454,
+      "value": "20.2",
+      "itemName": "Max Power(bhp)",
+      "unitType": "bhp",
+      "customTypeId": -1,
+      "description": "Maximum Power rating is used to quote the performance of an engine. Maximum Power is the peak power that an internal combustion motor produces and it arrives in a specific RPM range.",
+      "DataTypeId": 3,
+      "isHighlighted": false
+     },
+     {
+      "itemId": 394,
+      "value": "130",
+      "itemName": "Top Speed",
+      "unitType": "kmph",
+      "customTypeId": 0,
+      "description": "The maximum speed that a vehicle can achieve.",
+      "DataTypeId": 3,
+      "isHighlighted": false
+     },
+     {
+      "itemId": 521,
+      "value": "BS6 Phase 2B",
+      "itemName": "Emission Standard",
+      "unitType": "",
+      "customTypeId": 3257,
+      "description": "Emission standards indicate the output from the exhaust that is permissible in a country.",
+      "DataTypeId": 4,
+      "isHighlighted": false
+     },
+     {
+      "itemId": 414,
+      "value": "Disc",
+      "itemName": "Rear Brake Type",
+      "unitType": "",
+      "customTypeId": 911,
+      "description": "Most vehicles come with a drum brake setup at the back although higher spec models feature a disc brake at the rear.",
+      "DataTypeId": 4,
+      "isHighlighted": false
+     }
+    ],
+    "features": [],
+    "featureSpecs": [],
+    "isJustLaunched": false,
+    "isSpecialVersion": false,
+    "trimId": 0,
+    "sortOrder": 0,
+    "colorPhotos": [
+     {
+      "modelId": 0,
+      "versionId": 0,
+      "id": 33784,
+      "name": "Graphite Grey",
+      "imagePath": "/n/l1kunib_1906123.png",
+      "hexCode": "494E52"
+     },
+     {
+      "modelId": 0,
+      "versionId": 0,
+      "id": 31215,
+      "name": "Dapper Grey",
+      "imagePath": "/n/o1vq5fb_1830359.jpg",
+      "hexCode": "43474C"
+     },
+     {
+      "modelId": 0,
+      "versionId": 0,
+      "id": 31213,
+      "name": "Rio White",
+      "imagePath": "/n/q0uq5fb_1830357.jpg",
+      "hexCode": "F1F0EC"
+     }
+    ],
+    "is360Available": false,
+    "modelImages": [],
+    "makeId": 11,
+    "makeName": "Royal Enfield",
+    "subMakeId": 0,
+    "fuelTypeId": 0,
+    "priceOverview": {
+     "formattedPrice": "₹ 1,65,139",
+     "priceLabel": "Avg. Ex-Showroom price",
+     "priceSuffix": "Onwards",
+     "pricePrefix": "",
+     "labelColor": "price-label-text--grey text-light-grey ",
+     "priceStatus": 3,
+     "price": 165139,
+     "exShowRoomPrice": 0,
+     "colorType": 0,
+     "nearByCityId": 0,
+     "onRoadPrice": 0
+    },
+    "defaultVariant": 0,
+    "topVariant": 0,
+    "bodyStyleId": 0,
+    "rootId": 0,
+    "segmentId": 0,
+    "isElectricVehicle": false,
+    "showFullDate": false,
+    "isBS6Phase2BadgeValid": false,
+    "subStatus": 0,
+    "isBookingCampaignAvailable": false,
+    "showUnveiledOnFullDate": false,
+    "faceliftContextPills": [],
+    "faceliftContext": {},
+    "makeMaskingName": "royalenfield",
+    "modelId": 3295,
+    "modelName": "Hunter 350",
+    "modelMaskingName": "hunter-350",
+    "imagePath": "/n/cw/ec/1/versions/royalenfield-hunter-350-mid1745757872948.jpg",
+    "status": 2,
+    "isFeaturedModel": false
+   },
+   {
+    "versionId": 20589,
+    "versionName": "Top",
+    "versionMaskingName": "top",
+    "basicSpecs": [
+     {
+      "itemId": 412,
+      "value": "Disc Brakes",
+      "itemName": "Front Brake Type",
+      "unitType": "",
+      "customTypeId": 908,
+      "description": "Most vehicles feature a disc brake at the front although some commuter segment products come with a drum setup.",
+      "dataTypeId": 4
+     },
+     {
+      "itemId": 422,
+      "value": "Alloy Wheels",
+      "itemName": "Wheel Type",
+      "unitType": "",
+      "customTypeId": 846,
+      "description": "Spoke wheels (great for rough roads) or alloy wheels (stylish, low-maintenance, supports tubeless tires).",
+      "dataTypeId": 4
+     }
+    ],
+    "differentSpecs": [
+     {
+      "itemId": 640,
+      "value": "Dual Channel ABS",
+      "itemName": "Braking System",
+      "unitType": "",
+      "customTypeId": 1272,
+      "description": "Braking system is used to reduce the speed of the vehicle or bring it to a standstill.",
+      "dataTypeId": 4
+     },
+     {
+      "itemId": 414,
+      "value": "Disc",
+      "itemName": "Rear Brake Type",
+      "unitType": "",
+      "customTypeId": 911,
+      "description": "Most vehicles come with a drum brake setup at the back although higher spec models feature a disc brake at the rear.",
+      "dataTypeId": 4
+     },
+     {
+      "itemId": 420,
+      "value": "Tubeless",
+      "itemName": "Tyre Type",
+      "unitType": "",
+      "customTypeId": 848,
+      "description": "Tyre types are divided into two - Tubeless and Tube Type.",
+      "dataTypeId": 4
+     },
+     {
+      "itemId": 783,
+      "value": "LED",
+      "itemName": "Headlight Type",
+      "unitType": "",
+      "customTypeId": 1957,
+      "description": "The type of headlamp (halogen, LED, projector) affects brightness and visibility",
+      "dataTypeId": 4
+     },
+     {
+      "itemId": 604,
+      "value": "Bluetooth",
+      "itemName": "Mobile Phone Connectivity",
+      "unitType": "",
+      "customTypeId": 4346,
+      "description": "Connects the smartphone to the instrument cluster to offer access to features such as incoming calls, messages, and music",
+      "dataTypeId": 4
+     },
+     {
+      "itemId": 605,
+      "value": "Turn by Turn Navigation",
+      "itemName": "GPS & Navigation",
+      "unitType": "",
+      "customTypeId": 4358,
+      "description": "Provides real-time directions and location tracking on the vehicle’s console.",
+      "dataTypeId": 4
+     }
+    ],
+    "specsSummary": [
+     {
+      "itemId": 412,
+      "value": "Disc",
+      "itemName": "Front Brake Type",
+      "unitType": "",
+      "customTypeId": 908,
+      "description": "Most vehicles feature a disc brake at the front although some commuter segment products come with a drum setup.",
+      "DataTypeId": 4,
+      "isHighlighted": false
+     },
+     {
+      "itemId": 422,
+      "value": "Alloy",
+      "itemName": "Wheel Type",
+      "unitType": "",
+      "customTypeId": 846,
+      "description": "Spoke wheels (great for rough roads) or alloy wheels (stylish, low-maintenance, supports tubeless tires).",
+      "DataTypeId": 4,
+      "isHighlighted": false
+     },
+     {
+      "itemId": 434,
+      "value": "Self Start",
+      "itemName": "Start Type",
+      "unitType": "",
+      "customTypeId": 853,
+      "description": "How the engine starts: electric (self-start), kick start, or both.",
+      "DataTypeId": 4,
+      "isHighlighted": false
+     },
+     {
+      "itemId": 449,
+      "value": "",
+      "itemName": "Antilock Braking System",
+      "unitType": "",
+      "customTypeId": 0,
+      "description": "",
+      "DataTypeId": 2,
+      "isHighlighted": false
+     },
+     {
+      "itemId": 375,
+      "value": "349.34",
+      "itemName": "Displacement",
+      "unitType": "cc",
+      "customTypeId": 0,
+      "description": "Engine displacement is the measure of the cylinder volume swept by the pistons of an internal combustion engine. It indicates the engine size",
+      "DataTypeId": 3,
+      "isHighlighted": false
+     },
+     {
+      "itemId": 406,
+      "value": "36.2",
+      "itemName": "Mileage - ARAI",
+      "unitType": "kmpl",
+      "customTypeId": 0,
+      "description": "ARAI certified fuel economy that has been tested under controlled conditions.",
+      "DataTypeId": 3,
+      "isHighlighted": false
+     },
+     {
+      "itemId": 671,
+      "value": "35",
+      "itemName": "Mileage - Owner Reported",
+      "unitType": "kmpl",
+      "customTypeId": 0,
+      "description": "This is the fuel economy registered by Bikewale followers.",
+      "DataTypeId": 3,
+      "isHighlighted": false
+     },
+     {
+      "itemId": 650,
+      "value": "5 Speed Manual",
+      "itemName": "Transmission",
+      "unitType": "",
+      "customTypeId": 0,
+      "description": "",
+      "DataTypeId": 5,
+      "isHighlighted": false
+     },
+     {
+      "itemId": 397,
+      "value": "181",
+      "itemName": "Kerb Weight",
+      "unitType": "kg",
+      "customTypeId": 0,
+      "description": "Kerb weight of the motorcycle is the total weight of a vehicle that is ready for operation. It includes all standard equipment and necessary consumables.",
+      "DataTypeId": 3,
+      "isHighlighted": false
+     },
+     {
+      "itemId": 404,
+      "value": "13",
+      "itemName": "Fuel Tank Capacity",
+      "unitType": "litres",
+      "customTypeId": 0,
+      "description": "The capacity of a vehicle to store fuel.",
+      "DataTypeId": 3,
+      "isHighlighted": false
+     },
+     {
+      "itemId": 403,
+      "value": "790",
+      "itemName": "Seat Height",
+      "unitType": "mm",
+      "customTypeId": 0,
+      "description": "The seat height is the height of the rider's saddle from the ground.",
+      "DataTypeId": 3,
+      "isHighlighted": false
+     },
+     {
+      "itemId": 454,
+      "value": "20.2",
+      "itemName": "Max Power(bhp)",
+      "unitType": "bhp",
+      "customTypeId": -1,
+      "description": "Maximum Power rating is used to quote the performance of an engine. Maximum Power is the peak power that an internal combustion motor produces and it arrives in a specific RPM range.",
+      "DataTypeId": 3,
+      "isHighlighted": false
+     },
+     {
+      "itemId": 394,
+      "value": "130",
+      "itemName": "Top Speed",
+      "unitType": "kmph",
+      "customTypeId": 0,
+      "description": "The maximum speed that a vehicle can achieve.",
+      "DataTypeId": 3,
+      "isHighlighted": false
+     },
+     {
+      "itemId": 521,
+      "value": "BS6 Phase 2B",
+      "itemName": "Emission Standard",
+      "unitType": "",
+      "customTypeId": 3257,
+      "description": "Emission standards indicate the output from the exhaust that is permissible in a country.",
+      "DataTypeId": 4,
+      "isHighlighted": false
+     },
+     {
+      "itemId": 414,
+      "value": "Disc",
+      "itemName": "Rear Brake Type",
+      "unitType": "",
+      "customTypeId": 911,
+      "description": "Most vehicles come with a drum brake setup at the back although higher spec models feature a disc brake at the rear.",
+      "DataTypeId": 4,
+      "isHighlighted": false
+     }
+    ],
+    "features": [],
+    "featureSpecs": [],
+    "isJustLaunched": false,
+    "isSpecialVersion": false,
+    "trimId": 0,
+    "sortOrder": 0,
+    "colorPhotos": [
+     {
+      "modelId": 0,
+      "versionId": 0,
+      "id": 35544,
+      "name": "Mumbai Yellow",
+      "imagePath": "/n/zugdg8b_1924328.jpg",
+      "hexCode": "E9BB42,183963"
+     },
+     {
+      "modelId": 0,
+      "versionId": 0,
+      "id": 35542,
+      "name": "Moonshot White",
+      "imagePath": "/n/6y9dg8b_1924326.jpg",
+      "hexCode": "ECF1F6"
+     },
+     {
+      "modelId": 0,
+      "versionId": 0,
+      "id": 31219,
+      "name": "Tokyo Black",
+      "imagePath": "/n/7ncr5fb_1830363.jpg",
+      "hexCode": "D6DBD7,242529"
+     },
+     {
+      "modelId": 0,
+      "versionId": 0,
+      "id": 31217,
+      "name": "London Red",
+      "imagePath": "/n/zsar5fb_1830361.jpg",
+      "hexCode": "822124,100A0B"
+     },
+     {
+      "modelId": 0,
+      "versionId": 0,
+      "id": 31205,
+      "name": "Rebel Blue",
+      "imagePath": "/n/hu5q5fb_1830353.jpg",
+      "hexCode": "4488E6,FEFFFF"
+     }
+    ],
+    "is360Available": false,
+    "modelImages": [],
+    "makeId": 11,
+    "makeName": "Royal Enfield",
+    "subMakeId": 0,
+    "fuelTypeId": 0,
+    "priceOverview": {
+     "formattedPrice": "₹ 1,69,810",
+     "priceLabel": "Avg. Ex-Showroom price",
+     "priceSuffix": "Onwards",
+     "pricePrefix": "",
+     "labelColor": "price-label-text--grey text-light-grey ",
+     "priceStatus": 3,
+     "price": 169810,
+     "exShowRoomPrice": 0,
+     "colorType": 0,
+     "nearByCityId": 0,
+     "onRoadPrice": 0
+    },
+    "defaultVariant": 0,
+    "topVariant": 0,
+    "bodyStyleId": 0,
+    "rootId": 0,
+    "segmentId": 0,
+    "isElectricVehicle": false,
+    "showFullDate": false,
+    "isBS6Phase2BadgeValid": false,
+    "subStatus": 0,
+    "isBookingCampaignAvailable": false,
+    "showUnveiledOnFullDate": false,
+    "faceliftContextPills": [],
+    "faceliftContext": {},
+    "makeMaskingName": "royalenfield",
+    "modelId": 3295,
+    "modelName": "Hunter 350",
+    "modelMaskingName": "hunter-350",
+    "imagePath": "/n/cw/ec/1/versions/royalenfield-hunter-350-top1745757883986.jpg",
+    "status": 2,
+    "isFeaturedModel": false
+   }
+  ]
+ }
+}

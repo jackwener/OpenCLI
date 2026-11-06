@@ -1,0 +1,555 @@
+{
+ "homePage": {
+  "makeList": [
+   {
+    "makeId": 11,
+    "makeName": "Royal Enfield",
+    "maskingName": "royalenfield",
+    "logoPath": "/bw/makes/royal-enfield20200508193112.jpg",
+    "totalCount": 0,
+    "popularity": 1623450,
+    "isScooterOnlyMake": false
+   },
+   {
+    "makeId": 15,
+    "makeName": "TVS",
+    "maskingName": "tvs",
+    "logoPath": "/bw/makes/tvs20200508193203.jpg",
+    "totalCount": 0,
+    "popularity": 1567444,
+    "isScooterOnlyMake": false
+   },
+   {
+    "makeId": 1,
+    "makeName": "Bajaj",
+    "maskingName": "bajaj",
+    "logoPath": "/bw/makes/bajaj20200508192534.jpg",
+    "totalCount": 0,
+    "popularity": 1309490,
+    "isScooterOnlyMake": false
+   },
+   {
+    "makeId": 7,
+    "makeName": "Honda",
+    "maskingName": "honda",
+    "logoPath": "/bw/makes/honda20200511152343.jpg",
+    "totalCount": 0,
+    "popularity": 1099413,
+    "isScooterOnlyMake": false
+   },
+   {
+    "makeId": 13,
+    "makeName": "Yamaha",
+    "maskingName": "yamaha",
+    "logoPath": "/bw/makes/yamaha20200508193220.jpg",
+    "totalCount": 0,
+    "popularity": 883585,
+    "isScooterOnlyMake": false
+   },
+   {
+    "makeId": 6,
+    "makeName": "Hero",
+    "maskingName": "hero",
+    "logoPath": "/bw/makes/hero20200508192826.jpg",
+    "totalCount": 0,
+    "popularity": 866094,
+    "isScooterOnlyMake": false
+   },
+   {
+    "makeId": 9,
+    "makeName": "KTM",
+    "maskingName": "ktm",
+    "logoPath": "/bw/makes/ktm20200518163508.jpg",
+    "totalCount": 0,
+    "popularity": 569266,
+    "isScooterOnlyMake": false
+   },
+   {
+    "makeId": 22,
+    "makeName": "Triumph",
+    "maskingName": "triumph",
+    "logoPath": "/bw/makes/triumph20200508193154.jpg",
+    "totalCount": 0,
+    "popularity": 378217,
+    "isScooterOnlyMake": false
+   },
+   {
+    "makeId": 12,
+    "makeName": "Suzuki",
+    "maskingName": "suzuki",
+    "logoPath": "/bw/makes/suzuki20200508193118.jpg",
+    "totalCount": 0,
+    "popularity": 359041,
+    "isScooterOnlyMake": false
+   },
+   {
+    "makeId": 17,
+    "makeName": "Kawasaki",
+    "maskingName": "kawasaki",
+    "logoPath": "/n/cw/ec/17/brands/logos/kawasaki1656405887432.jpg?v=1656405887528",
+    "totalCount": 0,
+    "popularity": 312913,
+    "isScooterOnlyMake": false
+   },
+   {
+    "makeId": 88,
+    "makeName": "Ampere",
+    "maskingName": "ampere",
+    "logoPath": "/n/cw/ec/88/brands/logos/ampere1676540886338.jpg?v=1676540886396",
+    "totalCount": 0,
+    "popularity": 34844,
+    "isScooterOnlyMake": false
+   },
+   {
+    "makeId": 2,
+    "makeName": "Aprilia",
+    "maskingName": "aprilia",
+    "logoPath": "/bw/makes/aprilia20200508192455.jpg",
+    "totalCount": 0,
+    "popularity": 148636,
+    "isScooterOnlyMake": false
+   },
+   {
+    "makeId": 79,
+    "makeName": "Ather",
+    "maskingName": "ather",
+    "logoPath": "/n/cw/ec/79/brands/logos/ather1704450986845.jpg?v=1704450986888",
+    "totalCount": 0,
+    "popularity": 153419,
+    "isScooterOnlyMake": false
+   },
+   {
+    "makeId": 40,
+    "makeName": "Benelli",
+    "maskingName": "benelli",
+    "logoPath": "/bw/makes/benelli20200508192543.jpg",
+    "totalCount": 0,
+    "popularity": 39610,
+    "isScooterOnlyMake": false
+   },
+   {
+    "makeId": 93,
+    "makeName": "BGauss",
+    "maskingName": "bgauss",
+    "logoPath": "/n/cw/ec/93/brands/logos/bgauss1653632049216.jpg?v=1653632049325",
+    "totalCount": 0,
+    "popularity": 5043,
+    "isScooterOnlyMake": false
+   },
+   {
+    "makeId": 3,
+    "makeName": "BMW",
+    "maskingName": "bmw",
+    "logoPath": "/bw/makes/bmw20200508192553.jpg",
+    "totalCount": 0,
+    "popularity": 211100,
+    "isScooterOnlyMake": false
+   },
+   {
+    "makeId": 109,
+    "makeName": "Bounce",
+    "maskingName": "bounce",
+    "logoPath": "/n/cw/ec/109/brands/logos/bounce.jpg?v=1638948087344",
+    "totalCount": 0,
+    "popularity": 679,
+    "isScooterOnlyMake": false
+   },
+   {
+    "makeId": 169,
+    "makeName": "Brixton Motorcycles",
+    "maskingName": "brixton-motorcycles",
+    "logoPath": "/n/cw/ec/169/brands/logos/brixton-motorcycles1764061076847.jpg?v=1764061077018",
+    "totalCount": 0,
+    "popularity": 6000,
+    "isScooterOnlyMake": false
+   },
+   {
+    "makeId": 137,
+    "makeName": "BSA",
+    "maskingName": "bsa",
+    "logoPath": "/n/cw/ec/137/brands/logos/bsa1669793700190.jpg?v=1669793701134",
+    "totalCount": 0,
+    "popularity": 15398,
+    "isScooterOnlyMake": false
+   },
+   {
+    "makeId": 84,
+    "makeName": "CFMoto",
+    "maskingName": "cfmoto",
+    "logoPath": "/bw/makes/cfmoto20200508192601.jpg",
+    "totalCount": 0,
+    "popularity": 4146,
+    "isScooterOnlyMake": false
+   },
+   {
+    "makeId": 4,
+    "makeName": "Ducati",
+    "maskingName": "ducati",
+    "logoPath": "/bw/makes/ducati20200511152332.jpg",
+    "totalCount": 0,
+    "popularity": 77287,
+    "isScooterOnlyMake": false
+   },
+   {
+    "makeId": 89,
+    "makeName": "Evolet",
+    "maskingName": "evolet",
+    "logoPath": "/bw/makes/evolet20200508192755.jpg",
+    "totalCount": 0,
+    "popularity": 2511,
+    "isScooterOnlyMake": false
+   },
+   {
+    "makeId": 161,
+    "makeName": "Ferrato",
+    "maskingName": "ferrato",
+    "logoPath": "/n/cw/ec/161/brands/logos/ferrato1719308176440.jpg?v=1719308176587",
+    "totalCount": 0,
+    "popularity": 8590,
+    "isScooterOnlyMake": false
+   },
+   {
+    "makeId": 94,
+    "makeName": "Gemopai",
+    "maskingName": "gemopai",
+    "logoPath": "/bw/makes/gemopai20201014113421.jpg",
+    "totalCount": 0,
+    "popularity": 819,
+    "isScooterOnlyMake": false
+   },
+   {
+    "makeId": 5,
+    "makeName": "Harley-Davidson",
+    "maskingName": "harleydavidson",
+    "logoPath": "/bw/makes/harleydavidson20200508192816.jpg",
+    "totalCount": 0,
+    "popularity": 198710,
+    "isScooterOnlyMake": false
+   },
+   {
+    "makeId": 127,
+    "makeName": "Hop Electric",
+    "maskingName": "hop-electric",
+    "logoPath": "/n/cw/ec/127/brands/logos/hop-electric1663575682835.jpg?v=1663575682946",
+    "totalCount": 0,
+    "popularity": 2229,
+    "isScooterOnlyMake": false
+   },
+   {
+    "makeId": 23,
+    "makeName": "Husqvarna",
+    "maskingName": "husqvarna",
+    "logoPath": "/bw/makes/husqvarna20200508192901.jpg",
+    "totalCount": 0,
+    "popularity": 20519,
+    "isScooterOnlyMake": false
+   },
+   {
+    "makeId": 34,
+    "makeName": "Indian",
+    "maskingName": "indian",
+    "logoPath": "/bw/makes/indian20200508192932.jpg",
+    "totalCount": 0,
+    "popularity": 14023,
+    "isScooterOnlyMake": false
+   },
+   {
+    "makeId": 129,
+    "makeName": "iVOOMi",
+    "maskingName": "ivoomi",
+    "logoPath": "/n/cw/ec/129/brands/logos/ivoomi1663919980307.jpg?v=1663919980434",
+    "totalCount": 0,
+    "popularity": 718,
+    "isScooterOnlyMake": false
+   },
+   {
+    "makeId": 82,
+    "makeName": "Jawa",
+    "maskingName": "jawa",
+    "logoPath": "/bw/makes/jawa20200508192940.jpg",
+    "totalCount": 0,
+    "popularity": 212945,
+    "isScooterOnlyMake": false
+   },
+   {
+    "makeId": 97,
+    "makeName": "Joy e-bike",
+    "maskingName": "joyebike",
+    "logoPath": "/bw/makes/joy-ebike20210106103732.jpg",
+    "totalCount": 0,
+    "popularity": 4169,
+    "isScooterOnlyMake": false
+   },
+   {
+    "makeId": 115,
+    "makeName": "Keeway",
+    "maskingName": "keeway",
+    "logoPath": "/n/cw/ec/115/brands/logos/keeway1652859658203.jpg?v=1652859658281",
+    "totalCount": 0,
+    "popularity": 94618,
+    "isScooterOnlyMake": false
+   },
+   {
+    "makeId": 172,
+    "makeName": "Kinetic",
+    "maskingName": "kinetic",
+    "logoPath": "/n/cw/ec/172/brands/logos/kinetic1753860847959.jpg?v=1753860848056",
+    "totalCount": 0,
+    "popularity": 6285,
+    "isScooterOnlyMake": false
+   },
+   {
+    "makeId": 145,
+    "makeName": "Kinetic Green",
+    "maskingName": "kinetic-green",
+    "logoPath": "/n/cw/ec/145/brands/logos/kinetic-green1703595545682.jpg?v=1703595545797",
+    "totalCount": 0,
+    "popularity": 5965,
+    "isScooterOnlyMake": false
+   },
+   {
+    "makeId": 75,
+    "makeName": "Lambretta",
+    "maskingName": "lambretta",
+    "logoPath": "/bw/makes/lambretta20200508193016.jpg",
+    "totalCount": 0,
+    "popularity": 1392,
+    "isScooterOnlyMake": false
+   },
+   {
+    "makeId": 143,
+    "makeName": "Lectrix",
+    "maskingName": "lectrix",
+    "logoPath": "/n/cw/ec/143/brands/logos/lectrix1701693247050.jpg?v=1701693247166",
+    "totalCount": 0,
+    "popularity": 7907,
+    "isScooterOnlyMake": false
+   },
+   {
+    "makeId": 139,
+    "makeName": "Matter",
+    "maskingName": "matter",
+    "logoPath": "/n/cw/ec/139/brands/logos/matter1671004200585.jpg?v=1671004200714",
+    "totalCount": 0,
+    "popularity": 5491,
+    "isScooterOnlyMake": false
+   },
+   {
+    "makeId": 20,
+    "makeName": "Moto Guzzi",
+    "maskingName": "motoguzzi",
+    "logoPath": "/bw/makes/moto-guzzi20200518163528.jpg",
+    "totalCount": 0,
+    "popularity": 678,
+    "isScooterOnlyMake": false
+   },
+   {
+    "makeId": 117,
+    "makeName": "Moto Morini",
+    "maskingName": "motomorini",
+    "logoPath": "/n/cw/ec/117/brands/logos/moto-morini1656075183372.jpg?v=1656075183592",
+    "totalCount": 0,
+    "popularity": 8922,
+    "isScooterOnlyMake": false
+   },
+   {
+    "makeId": 74,
+    "makeName": "Norton",
+    "maskingName": "norton",
+    "logoPath": "/bw/makes/norton20200508193055.jpg",
+    "totalCount": 0,
+    "popularity": 15191,
+    "isScooterOnlyMake": false
+   },
+   {
+    "makeId": 171,
+    "makeName": "Numeros",
+    "maskingName": "numeros",
+    "logoPath": "/n/cw/ec/171/brands/logos/numeros-motors1744881200580.jpg?v=1744881200715",
+    "totalCount": 0,
+    "popularity": 624,
+    "isScooterOnlyMake": false
+   },
+   {
+    "makeId": 165,
+    "makeName": "Oben",
+    "maskingName": "oben",
+    "logoPath": "/n/cw/ec/165/brands/logos/oben1729678551458.jpg?v=1729678551676",
+    "totalCount": 0,
+    "popularity": 30369,
+    "isScooterOnlyMake": false
+   },
+   {
+    "makeId": 99,
+    "makeName": "Odysse",
+    "maskingName": "odysse",
+    "logoPath": "/bw/makes/odysse20210404205603.jpg",
+    "totalCount": 0,
+    "popularity": 3901,
+    "isScooterOnlyMake": false
+   },
+   {
+    "makeId": 73,
+    "makeName": "Okinawa",
+    "maskingName": "okinawa",
+    "logoPath": "/bw/makes/okinawa20200508193101.jpg",
+    "totalCount": 0,
+    "popularity": 7370,
+    "isScooterOnlyMake": false
+   },
+   {
+    "makeId": 101,
+    "makeName": "OLA",
+    "maskingName": "ola",
+    "logoPath": "/n/cw/ec/101/brands/logos/ola.jpg?v=1626954594142",
+    "totalCount": 0,
+    "popularity": 111834,
+    "isScooterOnlyMake": false
+   },
+   {
+    "makeId": 125,
+    "makeName": "OPG Mobility",
+    "maskingName": "opg-mobility",
+    "logoPath": "/n/cw/ec/125/brands/logos/opg-mobility1760164467722.jpg?v=1760164467979",
+    "totalCount": 0,
+    "popularity": 634,
+    "isScooterOnlyMake": false
+   },
+   {
+    "makeId": 92,
+    "makeName": "PURE EV",
+    "maskingName": "pureev",
+    "logoPath": "/bw/makes/pure-ev20201014113440.jpg",
+    "totalCount": 0,
+    "popularity": 4314,
+    "isScooterOnlyMake": false
+   },
+   {
+    "makeId": 133,
+    "makeName": "QJ Motor",
+    "maskingName": "qjmotor",
+    "logoPath": "/n/cw/ec/133/brands/logos/qj-motor1668684968240.jpg?v=1668684968454",
+    "totalCount": 0,
+    "popularity": 21165,
+    "isScooterOnlyMake": false
+   },
+   {
+    "makeId": 167,
+    "makeName": "Quantum Energy",
+    "maskingName": "quantum-energy",
+    "logoPath": "/n/cw/ec/167/brands/logos/quantum-energy1729848239115.jpg?v=1729848239363",
+    "totalCount": 0,
+    "popularity": 698,
+    "isScooterOnlyMake": false
+   },
+   {
+    "makeId": 190,
+    "makeName": "Raptee HV",
+    "maskingName": "raptee",
+    "logoPath": "/n/cw/ec/190/brands/logos/raptee1772373020239.jpg?v=1772373020599",
+    "totalCount": 0,
+    "popularity": 1548,
+    "isScooterOnlyMake": false
+   },
+   {
+    "makeId": 86,
+    "makeName": "Revolt",
+    "maskingName": "revolt",
+    "logoPath": "/bw/makes/revolt20200508193107.jpg",
+    "totalCount": 0,
+    "popularity": 18709,
+    "isScooterOnlyMake": false
+   },
+   {
+    "makeId": 163,
+    "makeName": "River",
+    "maskingName": "river",
+    "logoPath": "/n/cw/ec/163/brands/logos/river1722517943766.jpg?v=1722517943918",
+    "totalCount": 0,
+    "popularity": 32983,
+    "isScooterOnlyMake": false
+   },
+   {
+    "makeId": 103,
+    "makeName": "Simple Energy",
+    "maskingName": "simple-energy",
+    "logoPath": "/n/cw/ec/103/brands/logos/simple energy.jpg?v=1629381889557",
+    "totalCount": 0,
+    "popularity": 24888,
+    "isScooterOnlyMake": false
+   },
+   {
+    "makeId": 149,
+    "makeName": "Ultraviolette",
+    "maskingName": "ultraviolette",
+    "logoPath": "/n/cw/ec/149/brands/logos/ultraviolette1717678764197.jpg?v=1717678764292",
+    "totalCount": 0,
+    "popularity": 101503,
+    "isScooterOnlyMake": false
+   },
+   {
+    "makeId": 16,
+    "makeName": "Vespa",
+    "maskingName": "vespa",
+    "logoPath": "/bw/makes/vespa20200508193212.jpg",
+    "totalCount": 0,
+    "popularity": 27229,
+    "isScooterOnlyMake": false
+   },
+   {
+    "makeId": 121,
+    "makeName": "VIDA",
+    "maskingName": "vida",
+    "logoPath": "/n/cw/ec/121/brands/logos/vida1746594442420.jpg?v=1746594442614",
+    "totalCount": 0,
+    "popularity": 85874,
+    "isScooterOnlyMake": false
+   },
+   {
+    "makeId": 187,
+    "makeName": "Vinfast",
+    "maskingName": "vinfast",
+    "logoPath": "/n/cw/ec/187/brands/logos/vinfast1768545240033.jpg?v=1768545240141",
+    "totalCount": 0,
+    "popularity": 2183,
+    "isScooterOnlyMake": false
+   },
+   {
+    "makeId": 175,
+    "makeName": "VLF",
+    "maskingName": "vlf",
+    "logoPath": "/n/cw/ec/175/brands/logos/vlf1760088096424.jpg?v=1760088096660",
+    "totalCount": 0,
+    "popularity": 6708,
+    "isScooterOnlyMake": false
+   },
+   {
+    "makeId": 107,
+    "makeName": "Yezdi",
+    "maskingName": "yezdi",
+    "logoPath": "/n/cw/ec/107/brands/logos/yezdi.jpg?v=1642764859699",
+    "totalCount": 0,
+    "popularity": 166304,
+    "isScooterOnlyMake": false
+   },
+   {
+    "makeId": 14,
+    "makeName": "Yo",
+    "maskingName": "yo",
+    "logoPath": "/bw/makes/yo20200508193225.jpg",
+    "totalCount": 0,
+    "popularity": 1146,
+    "isScooterOnlyMake": false
+   },
+   {
+    "makeId": 131,
+    "makeName": "Zontes",
+    "maskingName": "zontes",
+    "logoPath": "/n/cw/ec/131/brands/logos/zontes1664543423629.jpg?v=1664543423714",
+    "totalCount": 0,
+    "popularity": 31088,
+    "isScooterOnlyMake": false
+   }
+  ]
+ }
+}
