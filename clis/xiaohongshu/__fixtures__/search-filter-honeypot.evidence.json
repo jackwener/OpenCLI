@@ -1,0 +1,1512 @@
+{
+ "captured": "2026-10-18",
+ "page": "https://www.xiaohongshu.com/search_result?keyword=<generic query>",
+ "client": "opencli 2.0.0 + Browser Bridge 1.0.24, window=background, visibilityState=visible",
+ "ancestors_of_filter_root": [
+  {
+   "tag": "DIV",
+   "class": "search-layout__top",
+   "opacity": "1",
+   "visibility": "visible",
+   "display": "flex"
+  },
+  {
+   "tag": "DIV",
+   "class": "search-layout",
+   "opacity": "1",
+   "visibility": "visible",
+   "display": "flex"
+  },
+  {
+   "tag": "DIV",
+   "class": "feeds-page",
+   "opacity": "1",
+   "visibility": "visible",
+   "display": "block"
+  },
+  {
+   "tag": "DIV",
+   "class": "with-side-bar main-content",
+   "opacity": "1",
+   "visibility": "visible",
+   "display": "block"
+  },
+  {
+   "tag": "DIV",
+   "class": "main-container",
+   "opacity": "1",
+   "visibility": "visible",
+   "display": "flex"
+  },
+  {
+   "tag": "DIV",
+   "class": "layout ai-layout limit",
+   "opacity": "1",
+   "visibility": "visible",
+   "display": "block"
+  },
+  {
+   "tag": "DIV",
+   "class": "ai-layout-active",
+   "opacity": "1",
+   "visibility": "visible",
+   "display": "block"
+  },
+  {
+   "tag": "BODY",
+   "class": "ai-layout-active",
+   "opacity": "1",
+   "visibility": "visible",
+   "display": "block"
+  },
+  {
+   "tag": "HTML",
+   "class": "ai-layout-active",
+   "opacity": "1",
+   "visibility": "visible",
+   "display": "block"
+  }
+ ],
+ "chips": [
+  {
+   "text": "综合",
+   "kind": "clone",
+   "attrs": {
+    "class": "tags active",
+    "button-hp-installed": "1",
+    "data-hp-kind": "xhs-filter-tag-综合",
+    "aria-hidden": "true",
+    "tabindex": "-1"
+   },
+   "computed": {
+    "display": "block",
+    "visibility": "visible",
+    "opacity": "1e-05",
+    "position": "absolute",
+    "zIndex": "-1",
+    "pointerEvents": "auto"
+   },
+   "rect": [
+    828,
+    187.2,
+    96,
+    40
+   ],
+   "center": [
+    876,
+    207
+   ],
+   "elementFromPoint": {
+    "rel": "other",
+    "hit": {
+     "tag": "SPAN",
+     "cls": "",
+     "hp": null
+    }
+   }
+  },
+  {
+   "text": "综合",
+   "kind": "real",
+   "attrs": {
+    "class": "tags active",
+    "data-hp-bound": "1"
+   },
+   "computed": {
+    "display": "flex",
+    "visibility": "visible",
+    "opacity": "1",
+    "position": "static",
+    "zIndex": "auto",
+    "pointerEvents": "auto"
+   },
+   "rect": [
+    828,
+    187.2,
+    96,
+    40
+   ],
+   "center": [
+    876,
+    207
+   ],
+   "elementFromPoint": {
+    "rel": "descendant",
+    "hit": {
+     "tag": "SPAN",
+     "cls": "",
+     "hp": null
+    }
+   }
+  },
+  {
+   "text": "最新",
+   "kind": "clone",
+   "attrs": {
+    "class": "tags",
+    "button-hp-installed": "1",
+    "data-hp-kind": "xhs-filter-tag-最新",
+    "aria-hidden": "true",
+    "tabindex": "-1"
+   },
+   "computed": {
+    "display": "block",
+    "visibility": "visible",
+    "opacity": "1e-05",
+    "position": "absolute",
+    "zIndex": "-1",
+    "pointerEvents": "auto"
+   },
+   "rect": [
+    936,
+    187.2,
+    96,
+    40
+   ],
+   "center": [
+    984,
+    207
+   ],
+   "elementFromPoint": {
+    "rel": "other",
+    "hit": {
+     "tag": "SPAN",
+     "cls": "",
+     "hp": null
+    }
+   }
+  },
+  {
+   "text": "最新",
+   "kind": "real",
+   "attrs": {
+    "class": "tags",
+    "data-hp-bound": "1"
+   },
+   "computed": {
+    "display": "flex",
+    "visibility": "visible",
+    "opacity": "1",
+    "position": "static",
+    "zIndex": "auto",
+    "pointerEvents": "auto"
+   },
+   "rect": [
+    936,
+    187.2,
+    96,
+    40
+   ],
+   "center": [
+    984,
+    207
+   ],
+   "elementFromPoint": {
+    "rel": "descendant",
+    "hit": {
+     "tag": "SPAN",
+     "cls": "",
+     "hp": null
+    }
+   }
+  },
+  {
+   "text": "最多点赞",
+   "kind": "clone",
+   "attrs": {
+    "class": "tags",
+    "button-hp-installed": "1",
+    "data-hp-kind": "xhs-filter-tag-最多点赞",
+    "aria-hidden": "true",
+    "tabindex": "-1"
+   },
+   "computed": {
+    "display": "block",
+    "visibility": "visible",
+    "opacity": "1e-05",
+    "position": "absolute",
+    "zIndex": "-1",
+    "pointerEvents": "auto"
+   },
+   "rect": [
+    1044,
+    187.2,
+    96,
+    40
+   ],
+   "center": [
+    1092,
+    207
+   ],
+   "elementFromPoint": {
+    "rel": "other",
+    "hit": {
+     "tag": "SPAN",
+     "cls": "",
+     "hp": null
+    }
+   }
+  },
+  {
+   "text": "最多点赞",
+   "kind": "real",
+   "attrs": {
+    "class": "tags",
+    "data-hp-bound": "1"
+   },
+   "computed": {
+    "display": "flex",
+    "visibility": "visible",
+    "opacity": "1",
+    "position": "static",
+    "zIndex": "auto",
+    "pointerEvents": "auto"
+   },
+   "rect": [
+    1044,
+    187.2,
+    96,
+    40
+   ],
+   "center": [
+    1092,
+    207
+   ],
+   "elementFromPoint": {
+    "rel": "descendant",
+    "hit": {
+     "tag": "SPAN",
+     "cls": "",
+     "hp": null
+    }
+   }
+  },
+  {
+   "text": "最多评论",
+   "kind": "clone",
+   "attrs": {
+    "class": "tags",
+    "button-hp-installed": "1",
+    "data-hp-kind": "xhs-filter-tag-最多评论",
+    "aria-hidden": "true",
+    "tabindex": "-1"
+   },
+   "computed": {
+    "display": "block",
+    "visibility": "visible",
+    "opacity": "1e-05",
+    "position": "absolute",
+    "zIndex": "-1",
+    "pointerEvents": "auto"
+   },
+   "rect": [
+    1152,
+    187.2,
+    96,
+    40
+   ],
+   "center": [
+    1200,
+    207
+   ],
+   "elementFromPoint": {
+    "rel": "other",
+    "hit": {
+     "tag": "SPAN",
+     "cls": "",
+     "hp": null
+    }
+   }
+  },
+  {
+   "text": "最多评论",
+   "kind": "real",
+   "attrs": {
+    "class": "tags",
+    "data-hp-bound": "1"
+   },
+   "computed": {
+    "display": "flex",
+    "visibility": "visible",
+    "opacity": "1",
+    "position": "static",
+    "zIndex": "auto",
+    "pointerEvents": "auto"
+   },
+   "rect": [
+    1152,
+    187.2,
+    96,
+    40
+   ],
+   "center": [
+    1200,
+    207
+   ],
+   "elementFromPoint": {
+    "rel": "descendant",
+    "hit": {
+     "tag": "SPAN",
+     "cls": "",
+     "hp": null
+    }
+   }
+  },
+  {
+   "text": "最多收藏",
+   "kind": "clone",
+   "attrs": {
+    "class": "tags",
+    "button-hp-installed": "1",
+    "data-hp-kind": "xhs-filter-tag-最多收藏",
+    "aria-hidden": "true",
+    "tabindex": "-1"
+   },
+   "computed": {
+    "display": "block",
+    "visibility": "visible",
+    "opacity": "1e-05",
+    "position": "absolute",
+    "zIndex": "-1",
+    "pointerEvents": "auto"
+   },
+   "rect": [
+    828,
+    237.2,
+    96,
+    40
+   ],
+   "center": [
+    876,
+    257
+   ],
+   "elementFromPoint": {
+    "rel": "other",
+    "hit": {
+     "tag": "SPAN",
+     "cls": "",
+     "hp": null
+    }
+   }
+  },
+  {
+   "text": "最多收藏",
+   "kind": "real",
+   "attrs": {
+    "class": "tags",
+    "data-hp-bound": "1"
+   },
+   "computed": {
+    "display": "flex",
+    "visibility": "visible",
+    "opacity": "1",
+    "position": "static",
+    "zIndex": "auto",
+    "pointerEvents": "auto"
+   },
+   "rect": [
+    828,
+    237.2,
+    96,
+    40
+   ],
+   "center": [
+    876,
+    257
+   ],
+   "elementFromPoint": {
+    "rel": "descendant",
+    "hit": {
+     "tag": "SPAN",
+     "cls": "",
+     "hp": null
+    }
+   }
+  },
+  {
+   "text": "不限",
+   "kind": "other",
+   "attrs": {
+    "class": "tags active"
+   },
+   "computed": {
+    "display": "flex",
+    "visibility": "visible",
+    "opacity": "1",
+    "position": "static",
+    "zIndex": "auto",
+    "pointerEvents": "auto"
+   },
+   "rect": [
+    828,
+    324.4,
+    96,
+    40
+   ],
+   "center": [
+    876,
+    344
+   ],
+   "elementFromPoint": {
+    "rel": "descendant",
+    "hit": {
+     "tag": "SPAN",
+     "cls": "",
+     "hp": null
+    }
+   }
+  },
+  {
+   "text": "视频",
+   "kind": "clone",
+   "attrs": {
+    "class": "tags",
+    "button-hp-installed": "1",
+    "data-hp-kind": "xhs-filter-tag-视频",
+    "aria-hidden": "true",
+    "tabindex": "-1"
+   },
+   "computed": {
+    "display": "block",
+    "visibility": "visible",
+    "opacity": "1e-05",
+    "position": "absolute",
+    "zIndex": "-1",
+    "pointerEvents": "auto"
+   },
+   "rect": [
+    936,
+    324.4,
+    96,
+    40
+   ],
+   "center": [
+    984,
+    344
+   ],
+   "elementFromPoint": {
+    "rel": "other",
+    "hit": {
+     "tag": "SPAN",
+     "cls": "",
+     "hp": null
+    }
+   }
+  },
+  {
+   "text": "视频",
+   "kind": "real",
+   "attrs": {
+    "class": "tags",
+    "data-hp-bound": "1"
+   },
+   "computed": {
+    "display": "flex",
+    "visibility": "visible",
+    "opacity": "1",
+    "position": "static",
+    "zIndex": "auto",
+    "pointerEvents": "auto"
+   },
+   "rect": [
+    936,
+    324.4,
+    96,
+    40
+   ],
+   "center": [
+    984,
+    344
+   ],
+   "elementFromPoint": {
+    "rel": "descendant",
+    "hit": {
+     "tag": "SPAN",
+     "cls": "",
+     "hp": null
+    }
+   }
+  },
+  {
+   "text": "图文",
+   "kind": "clone",
+   "attrs": {
+    "class": "tags",
+    "button-hp-installed": "1",
+    "data-hp-kind": "xhs-filter-tag-图文",
+    "aria-hidden": "true",
+    "tabindex": "-1"
+   },
+   "computed": {
+    "display": "block",
+    "visibility": "visible",
+    "opacity": "1e-05",
+    "position": "absolute",
+    "zIndex": "-1",
+    "pointerEvents": "auto"
+   },
+   "rect": [
+    1044,
+    324.4,
+    96,
+    40
+   ],
+   "center": [
+    1092,
+    344
+   ],
+   "elementFromPoint": {
+    "rel": "other",
+    "hit": {
+     "tag": "SPAN",
+     "cls": "",
+     "hp": null
+    }
+   }
+  },
+  {
+   "text": "图文",
+   "kind": "real",
+   "attrs": {
+    "class": "tags",
+    "data-hp-bound": "1"
+   },
+   "computed": {
+    "display": "flex",
+    "visibility": "visible",
+    "opacity": "1",
+    "position": "static",
+    "zIndex": "auto",
+    "pointerEvents": "auto"
+   },
+   "rect": [
+    1044,
+    324.4,
+    96,
+    40
+   ],
+   "center": [
+    1092,
+    344
+   ],
+   "elementFromPoint": {
+    "rel": "descendant",
+    "hit": {
+     "tag": "SPAN",
+     "cls": "",
+     "hp": null
+    }
+   }
+  },
+  {
+   "text": "不限",
+   "kind": "other",
+   "attrs": {
+    "class": "tags active"
+   },
+   "computed": {
+    "display": "flex",
+    "visibility": "visible",
+    "opacity": "1",
+    "position": "static",
+    "zIndex": "auto",
+    "pointerEvents": "auto"
+   },
+   "rect": [
+    828,
+    411.6,
+    96,
+    40
+   ],
+   "center": [
+    876,
+    432
+   ],
+   "elementFromPoint": {
+    "rel": "descendant",
+    "hit": {
+     "tag": "SPAN",
+     "cls": "",
+     "hp": null
+    }
+   }
+  },
+  {
+   "text": "一天内",
+   "kind": "clone",
+   "attrs": {
+    "class": "tags",
+    "button-hp-installed": "1",
+    "data-hp-kind": "xhs-filter-tag-一天内",
+    "aria-hidden": "true",
+    "tabindex": "-1"
+   },
+   "computed": {
+    "display": "block",
+    "visibility": "visible",
+    "opacity": "1e-05",
+    "position": "absolute",
+    "zIndex": "-1",
+    "pointerEvents": "auto"
+   },
+   "rect": [
+    936,
+    411.6,
+    96,
+    40
+   ],
+   "center": [
+    984,
+    432
+   ],
+   "elementFromPoint": {
+    "rel": "other",
+    "hit": {
+     "tag": "SPAN",
+     "cls": "",
+     "hp": null
+    }
+   }
+  },
+  {
+   "text": "一天内",
+   "kind": "real",
+   "attrs": {
+    "class": "tags",
+    "data-hp-bound": "1"
+   },
+   "computed": {
+    "display": "flex",
+    "visibility": "visible",
+    "opacity": "1",
+    "position": "static",
+    "zIndex": "auto",
+    "pointerEvents": "auto"
+   },
+   "rect": [
+    936,
+    411.6,
+    96,
+    40
+   ],
+   "center": [
+    984,
+    432
+   ],
+   "elementFromPoint": {
+    "rel": "descendant",
+    "hit": {
+     "tag": "SPAN",
+     "cls": "",
+     "hp": null
+    }
+   }
+  },
+  {
+   "text": "一周内",
+   "kind": "clone",
+   "attrs": {
+    "class": "tags",
+    "button-hp-installed": "1",
+    "data-hp-kind": "xhs-filter-tag-一周内",
+    "aria-hidden": "true",
+    "tabindex": "-1"
+   },
+   "computed": {
+    "display": "block",
+    "visibility": "visible",
+    "opacity": "1e-05",
+    "position": "absolute",
+    "zIndex": "-1",
+    "pointerEvents": "auto"
+   },
+   "rect": [
+    1044,
+    411.6,
+    96,
+    40
+   ],
+   "center": [
+    1092,
+    432
+   ],
+   "elementFromPoint": {
+    "rel": "other",
+    "hit": {
+     "tag": "SPAN",
+     "cls": "",
+     "hp": null
+    }
+   }
+  },
+  {
+   "text": "一周内",
+   "kind": "real",
+   "attrs": {
+    "class": "tags",
+    "data-hp-bound": "1"
+   },
+   "computed": {
+    "display": "flex",
+    "visibility": "visible",
+    "opacity": "1",
+    "position": "static",
+    "zIndex": "auto",
+    "pointerEvents": "auto"
+   },
+   "rect": [
+    1044,
+    411.6,
+    96,
+    40
+   ],
+   "center": [
+    1092,
+    432
+   ],
+   "elementFromPoint": {
+    "rel": "descendant",
+    "hit": {
+     "tag": "SPAN",
+     "cls": "",
+     "hp": null
+    }
+   }
+  },
+  {
+   "text": "半年内",
+   "kind": "clone",
+   "attrs": {
+    "class": "tags",
+    "button-hp-installed": "1",
+    "data-hp-kind": "xhs-filter-tag-半年内",
+    "aria-hidden": "true",
+    "tabindex": "-1"
+   },
+   "computed": {
+    "display": "block",
+    "visibility": "visible",
+    "opacity": "1e-05",
+    "position": "absolute",
+    "zIndex": "-1",
+    "pointerEvents": "auto"
+   },
+   "rect": [
+    1152,
+    411.6,
+    96,
+    40
+   ],
+   "center": [
+    1200,
+    432
+   ],
+   "elementFromPoint": {
+    "rel": "other",
+    "hit": {
+     "tag": "SPAN",
+     "cls": "",
+     "hp": null
+    }
+   }
+  },
+  {
+   "text": "半年内",
+   "kind": "real",
+   "attrs": {
+    "class": "tags",
+    "data-hp-bound": "1"
+   },
+   "computed": {
+    "display": "flex",
+    "visibility": "visible",
+    "opacity": "1",
+    "position": "static",
+    "zIndex": "auto",
+    "pointerEvents": "auto"
+   },
+   "rect": [
+    1152,
+    411.6,
+    96,
+    40
+   ],
+   "center": [
+    1200,
+    432
+   ],
+   "elementFromPoint": {
+    "rel": "descendant",
+    "hit": {
+     "tag": "SPAN",
+     "cls": "",
+     "hp": null
+    }
+   }
+  },
+  {
+   "text": "不限",
+   "kind": "other",
+   "attrs": {
+    "class": "tags active"
+   },
+   "computed": {
+    "display": "flex",
+    "visibility": "visible",
+    "opacity": "1",
+    "position": "static",
+    "zIndex": "auto",
+    "pointerEvents": "auto"
+   },
+   "rect": [
+    828,
+    498.8,
+    96,
+    40
+   ],
+   "center": [
+    876,
+    519
+   ],
+   "elementFromPoint": {
+    "rel": "descendant",
+    "hit": {
+     "tag": "SPAN",
+     "cls": "",
+     "hp": null
+    }
+   }
+  },
+  {
+   "text": "已看过",
+   "kind": "clone",
+   "attrs": {
+    "class": "tags",
+    "button-hp-installed": "1",
+    "data-hp-kind": "xhs-filter-tag-已看过",
+    "aria-hidden": "true",
+    "tabindex": "-1"
+   },
+   "computed": {
+    "display": "block",
+    "visibility": "visible",
+    "opacity": "1e-05",
+    "position": "absolute",
+    "zIndex": "-1",
+    "pointerEvents": "auto"
+   },
+   "rect": [
+    936,
+    498.8,
+    96,
+    40
+   ],
+   "center": [
+    984,
+    519
+   ],
+   "elementFromPoint": {
+    "rel": "other",
+    "hit": {
+     "tag": "SPAN",
+     "cls": "",
+     "hp": null
+    }
+   }
+  },
+  {
+   "text": "已看过",
+   "kind": "real",
+   "attrs": {
+    "class": "tags",
+    "data-hp-bound": "1"
+   },
+   "computed": {
+    "display": "flex",
+    "visibility": "visible",
+    "opacity": "1",
+    "position": "static",
+    "zIndex": "auto",
+    "pointerEvents": "auto"
+   },
+   "rect": [
+    936,
+    498.8,
+    96,
+    40
+   ],
+   "center": [
+    984,
+    519
+   ],
+   "elementFromPoint": {
+    "rel": "descendant",
+    "hit": {
+     "tag": "SPAN",
+     "cls": "",
+     "hp": null
+    }
+   }
+  },
+  {
+   "text": "未看过",
+   "kind": "clone",
+   "attrs": {
+    "class": "tags",
+    "button-hp-installed": "1",
+    "data-hp-kind": "xhs-filter-tag-未看过",
+    "aria-hidden": "true",
+    "tabindex": "-1"
+   },
+   "computed": {
+    "display": "block",
+    "visibility": "visible",
+    "opacity": "1e-05",
+    "position": "absolute",
+    "zIndex": "-1",
+    "pointerEvents": "auto"
+   },
+   "rect": [
+    1044,
+    498.8,
+    96,
+    40
+   ],
+   "center": [
+    1092,
+    519
+   ],
+   "elementFromPoint": {
+    "rel": "other",
+    "hit": {
+     "tag": "SPAN",
+     "cls": "",
+     "hp": null
+    }
+   }
+  },
+  {
+   "text": "未看过",
+   "kind": "real",
+   "attrs": {
+    "class": "tags",
+    "data-hp-bound": "1"
+   },
+   "computed": {
+    "display": "flex",
+    "visibility": "visible",
+    "opacity": "1",
+    "position": "static",
+    "zIndex": "auto",
+    "pointerEvents": "auto"
+   },
+   "rect": [
+    1044,
+    498.8,
+    96,
+    40
+   ],
+   "center": [
+    1092,
+    519
+   ],
+   "elementFromPoint": {
+    "rel": "descendant",
+    "hit": {
+     "tag": "SPAN",
+     "cls": "",
+     "hp": null
+    }
+   }
+  },
+  {
+   "text": "已关注",
+   "kind": "clone",
+   "attrs": {
+    "class": "tags",
+    "button-hp-installed": "1",
+    "data-hp-kind": "xhs-filter-tag-已关注",
+    "aria-hidden": "true",
+    "tabindex": "-1"
+   },
+   "computed": {
+    "display": "block",
+    "visibility": "visible",
+    "opacity": "1e-05",
+    "position": "absolute",
+    "zIndex": "-1",
+    "pointerEvents": "auto"
+   },
+   "rect": [
+    1152,
+    498.8,
+    96,
+    40
+   ],
+   "center": [
+    1200,
+    519
+   ],
+   "elementFromPoint": {
+    "rel": "other",
+    "hit": {
+     "tag": "SPAN",
+     "cls": "",
+     "hp": null
+    }
+   }
+  },
+  {
+   "text": "已关注",
+   "kind": "real",
+   "attrs": {
+    "class": "tags",
+    "data-hp-bound": "1"
+   },
+   "computed": {
+    "display": "flex",
+    "visibility": "visible",
+    "opacity": "1",
+    "position": "static",
+    "zIndex": "auto",
+    "pointerEvents": "auto"
+   },
+   "rect": [
+    1152,
+    498.8,
+    96,
+    40
+   ],
+   "center": [
+    1200,
+    519
+   ],
+   "elementFromPoint": {
+    "rel": "descendant",
+    "hit": {
+     "tag": "SPAN",
+     "cls": "",
+     "hp": null
+    }
+   }
+  },
+  {
+   "text": "不限",
+   "kind": "clone",
+   "attrs": {
+    "class": "tags active",
+    "button-hp-installed": "1",
+    "data-hp-kind": "xhs-filter-tag-不限",
+    "aria-hidden": "true",
+    "tabindex": "-1"
+   },
+   "computed": {
+    "display": "block",
+    "visibility": "visible",
+    "opacity": "1e-05",
+    "position": "absolute",
+    "zIndex": "-1",
+    "pointerEvents": "auto"
+   },
+   "rect": [
+    828,
+    586,
+    96,
+    40
+   ],
+   "center": [
+    876,
+    606
+   ],
+   "elementFromPoint": {
+    "rel": "other",
+    "hit": {
+     "tag": "SPAN",
+     "cls": "",
+     "hp": null
+    }
+   }
+  },
+  {
+   "text": "不限",
+   "kind": "real",
+   "attrs": {
+    "class": "tags active",
+    "data-hp-bound": "1"
+   },
+   "computed": {
+    "display": "flex",
+    "visibility": "visible",
+    "opacity": "1",
+    "position": "static",
+    "zIndex": "auto",
+    "pointerEvents": "auto"
+   },
+   "rect": [
+    828,
+    586,
+    96,
+    40
+   ],
+   "center": [
+    876,
+    606
+   ],
+   "elementFromPoint": {
+    "rel": "descendant",
+    "hit": {
+     "tag": "SPAN",
+     "cls": "",
+     "hp": null
+    }
+   }
+  },
+  {
+   "text": "同城",
+   "kind": "clone",
+   "attrs": {
+    "class": "tags",
+    "button-hp-installed": "1",
+    "data-hp-kind": "xhs-filter-tag-同城",
+    "aria-hidden": "true",
+    "tabindex": "-1"
+   },
+   "computed": {
+    "display": "block",
+    "visibility": "visible",
+    "opacity": "1e-05",
+    "position": "absolute",
+    "zIndex": "-1",
+    "pointerEvents": "auto"
+   },
+   "rect": [
+    936,
+    586,
+    96,
+    40
+   ],
+   "center": [
+    984,
+    606
+   ],
+   "elementFromPoint": {
+    "rel": "other",
+    "hit": {
+     "tag": "SPAN",
+     "cls": "",
+     "hp": null
+    }
+   }
+  },
+  {
+   "text": "同城",
+   "kind": "real",
+   "attrs": {
+    "class": "tags",
+    "data-hp-bound": "1"
+   },
+   "computed": {
+    "display": "flex",
+    "visibility": "visible",
+    "opacity": "1",
+    "position": "static",
+    "zIndex": "auto",
+    "pointerEvents": "auto"
+   },
+   "rect": [
+    936,
+    586,
+    96,
+    40
+   ],
+   "center": [
+    984,
+    606
+   ],
+   "elementFromPoint": {
+    "rel": "descendant",
+    "hit": {
+     "tag": "SPAN",
+     "cls": "",
+     "hp": null
+    }
+   }
+  },
+  {
+   "text": "附近",
+   "kind": "clone",
+   "attrs": {
+    "class": "tags",
+    "button-hp-installed": "1",
+    "data-hp-kind": "xhs-filter-tag-附近",
+    "aria-hidden": "true",
+    "tabindex": "-1"
+   },
+   "computed": {
+    "display": "block",
+    "visibility": "visible",
+    "opacity": "1e-05",
+    "position": "absolute",
+    "zIndex": "-1",
+    "pointerEvents": "auto"
+   },
+   "rect": [
+    1044,
+    586,
+    96,
+    40
+   ],
+   "center": [
+    1092,
+    606
+   ],
+   "elementFromPoint": {
+    "rel": "other",
+    "hit": {
+     "tag": "SPAN",
+     "cls": "",
+     "hp": null
+    }
+   }
+  },
+  {
+   "text": "附近",
+   "kind": "real",
+   "attrs": {
+    "class": "tags",
+    "data-hp-bound": "1"
+   },
+   "computed": {
+    "display": "flex",
+    "visibility": "visible",
+    "opacity": "1",
+    "position": "static",
+    "zIndex": "auto",
+    "pointerEvents": "auto"
+   },
+   "rect": [
+    1044,
+    586,
+    96,
+    40
+   ],
+   "center": [
+    1092,
+    606
+   ],
+   "elementFromPoint": {
+    "rel": "descendant",
+    "hit": {
+     "tag": "SPAN",
+     "cls": "",
+     "hp": null
+    }
+   }
+  },
+  {
+   "text": "重置",
+   "kind": "clone",
+   "attrs": {
+    "class": "operation",
+    "button-hp-installed": "1",
+    "data-hp-kind": "xhs-filter-op-重置",
+    "aria-hidden": "true",
+    "tabindex": "-1"
+   },
+   "computed": {
+    "display": "block",
+    "visibility": "visible",
+    "opacity": "1e-05",
+    "position": "absolute",
+    "zIndex": "-1",
+    "pointerEvents": "auto"
+   },
+   "rect": [
+    828,
+    650,
+    202,
+    40
+   ],
+   "center": [
+    929,
+    670
+   ],
+   "elementFromPoint": {
+    "rel": "other",
+    "hit": {
+     "tag": "DIV",
+     "cls": "operation",
+     "hp": "1"
+    }
+   }
+  },
+  {
+   "text": "重置",
+   "kind": "real",
+   "attrs": {
+    "class": "operation",
+    "data-hp-bound": "1"
+   },
+   "computed": {
+    "display": "flex",
+    "visibility": "visible",
+    "opacity": "1",
+    "position": "static",
+    "zIndex": "auto",
+    "pointerEvents": "auto"
+   },
+   "rect": [
+    828,
+    649,
+    202,
+    40
+   ],
+   "center": [
+    929,
+    669
+   ],
+   "elementFromPoint": {
+    "rel": "target",
+    "hit": {
+     "tag": "DIV",
+     "cls": "operation",
+     "hp": "1"
+    }
+   }
+  },
+  {
+   "text": "收起",
+   "kind": "clone",
+   "attrs": {
+    "class": "operation",
+    "button-hp-installed": "1",
+    "data-hp-kind": "xhs-filter-op-收起",
+    "aria-hidden": "true",
+    "tabindex": "-1"
+   },
+   "computed": {
+    "display": "block",
+    "visibility": "visible",
+    "opacity": "1e-05",
+    "position": "absolute",
+    "zIndex": "-1",
+    "pointerEvents": "auto"
+   },
+   "rect": [
+    1046,
+    650,
+    202,
+    40
+   ],
+   "center": [
+    1147,
+    670
+   ],
+   "elementFromPoint": {
+    "rel": "other",
+    "hit": {
+     "tag": "DIV",
+     "cls": "operation",
+     "hp": "1"
+    }
+   }
+  },
+  {
+   "text": "收起",
+   "kind": "real",
+   "attrs": {
+    "class": "operation",
+    "data-hp-bound": "1"
+   },
+   "computed": {
+    "display": "flex",
+    "visibility": "visible",
+    "opacity": "1",
+    "position": "static",
+    "zIndex": "auto",
+    "pointerEvents": "auto"
+   },
+   "rect": [
+    1046,
+    649,
+    202,
+    40
+   ],
+   "center": [
+    1147,
+    669
+   ],
+   "elementFromPoint": {
+    "rel": "target",
+    "hit": {
+     "tag": "DIV",
+     "cls": "operation",
+     "hp": "1"
+    }
+   }
+  }
+ ],
+ "honeypot_global": "window.__ed1a7dddf7c818e4bd (object keyed by hashed hit kind -> count)",
+ "sequence_fresh_page": [
+  {
+   "step": "page loaded, panel closed",
+   "global": {
+    "__ed1a7dddf7c818e4bd": {}
+   }
+  },
+  {
+   "step": "panel opened via trusted CDP click on .filter trigger (first click toggles nothing, second opens)",
+   "global": {
+    "__ed1a7dddf7c818e4bd": {}
+   },
+   "panel": "16 clones + 16 bound chips"
+  },
+  {
+   "step": "TRUSTED CDP click (Input.dispatchMouseEvent at chip center) on real chip 最新 [data-hp-bound]",
+   "result": "filter applied (chip active, results re-rendered)",
+   "global": {
+    "__ed1a7dddf7c818e4bd": {}
+   }
+  },
+  {
+   "step": "UNTRUSTED el.click() on real chip 最多点赞 [data-hp-bound]",
+   "result": "filter applied",
+   "global": {
+    "__ed1a7dddf7c818e4bd": {
+     "__3d26ad645ff8074da3": 1
+    }
+   }
+  }
+ ],
+ "sequence_first_page": [
+  {
+   "step": "untrusted el.click() on real active chip 综合",
+   "global": {
+    "__ed1a7dddf7c818e4bd": {
+     "__3d26ad645ff8074da3": 1
+    }
+   }
+  },
+  {
+   "step": "untrusted el.click() on its clone [data-hp-kind=xhs-filter-tag-综合]",
+   "global": {
+    "__ed1a7dddf7c818e4bd": {
+     "__3d26ad645ff8074da3": 1,
+     "__46ff420241ce944924": 1
+    }
+   },
+   "note": "second distinct key: clone hits and untrusted-real hits are recorded separately"
+  },
+  {
+   "step": "panel closed+reopened: re-rendered panel had 0 clones / 0 data-hp-bound; untrusted click there applied the filter and added NO hit",
+   "global": {
+    "__ed1a7dddf7c818e4bd": {
+     "__3d26ad645ff8074da3": 1,
+     "__46ff420241ce944924": 1
+    }
+   },
+   "note": "capture listener is per-node, installed on first render only"
+  }
+ ],
+ "framework_note": "page.click(\".tags\") retargets to the cursor:pointer ancestor .tag-container (#2071 heuristic; Vue exposes no React props) and clicks its center, which is empty space between chips — reported clicked:true/hit:target but applied nothing. Aiming at the label span (retarget stops at .tags) or using nativeClick(x,y) at the chip center works."
+}
