@@ -12,6 +12,8 @@
 | `opencli douyin drafts` | 获取草稿列表 |
 | `opencli douyin draft` | 上传视频并保存为草稿 |
 | `opencli douyin publish` | 定时发布视频到抖音 |
+| `opencli douyin publish-images <images>` | 多图图文：默认填写预览，显式 `--publish` 或 `--save-draft` 才提交 |
+| `opencli douyin publish-article <body-file>` | UTF-8 纯文本文章与封面：默认填写预览，不自动发布 |
 | `opencli douyin update` | 更新视频信息 |
 | `opencli douyin delete` | 删除作品 |
 | `opencli douyin stats` | 查询作品数据分析 |
@@ -68,6 +70,29 @@ opencli douyin profile -f json
 - Chrome running and **logged into** `creator.douyin.com`
 - The logged-in account must have access to Douyin Creator Center publishing features
 - [Browser Bridge extension](/guide/browser-bridge) installed
+
+## Image-text and articles
+
+```sh
+# These upload and prepare the editor, but do not click Publish or Save Draft.
+opencli douyin publish-images ./one.png,./two.jpg \
+  --title "图文标题" --caption "图文正文" --keep-tab true
+opencli douyin publish-article ./article.txt \
+  --title "文章标题" --summary "摘要" --cover ./cover.png --keep-tab true
+```
+
+Both default to **private** visibility. `--publish` authorizes one real
+submission; `--save-draft` selects “暂存离开”. They cannot be combined. Articles
+require a cover before either action. Preparation itself uploads files and may
+trigger the site's editor autosave; it is not a local-only dry run. Existing
+nonempty composers are not overwritten. An `uncertain` result must be checked
+manually, never blindly retried.
+
+Image-text supports 1–35 JPG/JPEG/PNG/WebP files, a 20-character title and
+1,000-character caption. Article bodies are UTF-8 plain-text files up to
+20,000 characters, with a 30-character title and optional 30-character summary.
+No video conversion is involved. See
+[publishing workflow and verification boundaries](../../developer/douyin-publishing.md).
 
 ## Notes
 

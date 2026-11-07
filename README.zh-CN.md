@@ -220,6 +220,9 @@ Browser Bridge daemon 与扩展的通信端口固定为 `localhost:19825`，不�
 
 精选清单 — **[→ 查看全部 100+ 站点和命令](./docs/adapters/index.md)**（小红书 / B站 / 知乎 / Twitter / Reddit / 抖音 / 微博 / 微信读书 / 小宇宙 / 1688 / 夸克 / Spotify / 牛客 / arxiv / Chess.com / Bilibili / 等）。
 
+抖音新增 `publish-images`（多图图文）与 `publish-article`（文章），默认仅填写预览、仅自己可见；
+显式 `--publish` 才提交。详见[图文与文章发布边界](./docs/adapters/browser/douyin.md#image-text-and-articles)。
+
 ## 下载支持
 
 OpenCLI 支持从各平台下载图片、视频和文章。
