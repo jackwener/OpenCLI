@@ -13,6 +13,53 @@ import {
 const COMPOSER_SELECTOR = '[data-testid="tweetTextarea_0"]';
 const SUBMIT_POLL_MS = 500;
 const SUBMIT_TIMEOUT_MS = 15_000;
+const OPEN_POLL_MS = 250;
+
+// Serialized into the page. Poll only before opening the composer; keep the
+// final target/action proof synchronous with the one opening click.
+async function openTargetReply(targetId, iterations, pollMs) {
+    const visible = (el) => !!el && el.isConnected
+        && !el.closest('[hidden], [aria-hidden="true"]')
+        && getComputedStyle(el).visibility !== 'hidden'
+        && (el.offsetParent !== null || el.getClientRects().length > 0);
+    const all = (root, selector) => Array.from(root.querySelectorAll(selector)).filter(visible);
+    const statusId = (value) => {
+        try {
+            const url = new URL(value, window.location.href);
+            const host = url.hostname.toLowerCase().replace(/^www\./, '');
+            if (url.protocol !== 'https:' || !['x.com', 'twitter.com', 'mobile.twitter.com'].includes(host)) return null;
+            return url.pathname.match(/^\/[^/]+\/status\/(\d+)\/?$/)?.[1] ?? null;
+        } catch { return null; }
+    };
+    const quoted = (el) => !!el.closest('[data-testid="quoteTweet"], [role="link"][tabindex="0"]');
+    const ownNode = (el, article) => !quoted(el)
+        && (!el.closest('article') || el.closest('article') === article);
+    for (let i = 0; i < iterations; i++) {
+        if (statusId(window.location.href) !== targetId) {
+            return { ok: false, message: 'The target tweet page changed before its Reply action was ready.' };
+        }
+        if (!all(document, '[role="dialog"]').length) {
+            const articles = all(document, 'article, [data-testid="tweet"]')
+                .filter(el => !quoted(el) && !el.parentElement?.closest('article, [data-testid="tweet"]'));
+            const targets = articles.filter(article => {
+                const links = all(article, 'time').filter(time => ownNode(time, article))
+                    .map(time => time.closest('a[href]')).filter(visible);
+                return links.length === 1 && statusId(links[0].href) === targetId;
+            });
+            if (targets.length === 1) {
+                const buttons = all(targets[0], '[data-testid="reply"]')
+                    .filter(button => ownNode(button, targets[0]));
+                if (buttons.length === 1 && !buttons[0].disabled
+                    && buttons[0].getAttribute('aria-disabled') !== 'true') {
+                    buttons[0].click();
+                    return { ok: true };
+                }
+            }
+        }
+        await new Promise(resolve => setTimeout(resolve, pollMs));
+    }
+    return { ok: false, message: 'Could not find a unique ready Reply action on the target tweet.' };
+}
 
 function buildReplyComposerUrl(rawUrl) {
     // Replaces the legacy local extractTweetId which used `/\/status\/(\d+)/`
@@ -65,16 +112,14 @@ async function openReplyComposer(page, rawUrl) {
     } catch {
         // X sometimes leaves /compose/post?in_reply_to=<id> on the Home
         // timeline behind a loading dialog. Fall back to the canonical tweet
-        // page and click the visible Reply action there.
-        await page.goto(rawUrl, { waitUntil: 'load', settleMs: 2500 });
-        const clicked = requireReplyActionResult(await page.evaluate(`(() => {
-            const visible = (el) => !!el && (el.offsetParent !== null || el.getClientRects().length > 0);
-            const buttons = Array.from(document.querySelectorAll('[data-testid="reply"]'));
-            const btn = buttons.find((el) => visible(el) && !el.disabled && el.getAttribute('aria-disabled') !== 'true');
-            if (!btn) return { ok: false, message: 'Could not find the reply button on the target tweet.' };
-            btn.click();
-            return { ok: true };
-        })()`), 'Twitter target reply click');
+        // page. Its article/action can hydrate later than the page load event.
+        const { id } = parseTweetUrl(rawUrl);
+        await page.goto(`https://x.com/i/status/${id}`, { waitUntil: 'load', settleMs: 2500 });
+        // Opening a dialog is not idempotent: evaluate() can replay a script on
+        // target-navigation errors. Do not replay an opening whose result is lost.
+        const clicked = requireReplyActionResult(await page.evaluateOnce(
+            `(${openTargetReply.toString()})(${JSON.stringify(id)},${Math.ceil(SUBMIT_TIMEOUT_MS / OPEN_POLL_MS)},${OPEN_POLL_MS})`
+        ), 'Twitter target reply click');
         if (!clicked?.ok) return clicked;
         await page.wait({ selector: COMPOSER_SELECTOR, timeout: 15 });
         return { ok: true };
