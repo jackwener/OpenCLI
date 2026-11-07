@@ -1,7 +1,7 @@
 /**
  * Xiaohongshu search — in-site navigation and DOM-based result extraction.
- * The previous Pinia store + XHR interception approach broke because
- * the API now returns empty items. Search results are read from rendered DOM elements.
+ * Result identity and ordering come from rendered cards; named interaction
+ * counts are enriched from the search responses the page naturally requests.
  * Ref: https://github.com/jackwener/opencli/issues/10
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
@@ -135,9 +135,11 @@ export function mergeHarvestedRow(acc, row, webHost = '') {
             changed = true;
         }
     }
-    if ((!prev.likes || prev.likes === '0') && row?.likes && row.likes !== '0') {
-        prev.likes = row.likes;
-        changed = true;
+    for (const field of ['likes', 'collects', 'comments']) {
+        if (!prev[field] && row?.[field]) {
+            prev[field] = row[field];
+            changed = true;
+        }
     }
     if (info.signed && !noteUrlInfo(prev.url, webHost).signed) {
         prev.url = url;
@@ -199,6 +201,46 @@ export function stripXhsAuthorDateSuffix(value) {
     return stripped || text;
 }
 
+function normalizeSearchCount(value) {
+    if (typeof value === 'number') {
+        return Number.isSafeInteger(value) && value >= 0 ? String(value) : '';
+    }
+    if (typeof value !== 'string') return '';
+    const count = value.trim();
+    return /^(?:\d+|\d{1,3}(?:,\d{3})+)(?:(?:\.\d+)?(?:万|亿|[kKmMwW]))?$/.test(count) ? count : '';
+}
+
+function applySearchMetrics(rows, captures) {
+    if (!Array.isArray(captures)) {
+        throw new CommandExecutionError('Unexpected Xiaohongshu search response captures; expected an array.');
+    }
+    const byId = new Map();
+    for (const response of captures) {
+        if (response?.success !== true || response.code !== 0 || !Array.isArray(response.data?.items)) continue;
+        for (const item of response.data.items) {
+            if (item?.model_type !== 'note' || typeof item.id !== 'string' || !/^[0-9a-f]{24}$/i.test(item.id)) continue;
+            const info = item.note_card?.interact_info;
+            if (!info || typeof info !== 'object' || Array.isArray(info)) continue;
+            const key = item.id.toLowerCase();
+            const metrics = byId.get(key) || {};
+            for (const [field, source] of [['likes', 'liked_count'], ['collects', 'collected_count'], ['comments', 'comment_count']]) {
+                const count = normalizeSearchCount(info[source]);
+                if (count !== '') metrics[field] = count;
+            }
+            byId.set(key, metrics);
+        }
+    }
+    return rows.map((row) => {
+        const metrics = byId.get(noteKeyFromUrl(row.url, 'www.xiaohongshu.com'));
+        return {
+            ...row,
+            likes: metrics?.likes ?? row.likes,
+            collects: metrics?.collects ?? row.collects ?? '',
+            comments: metrics?.comments ?? row.comments ?? '',
+        };
+    });
+}
+
 function extractSearchRows(webHost) {
     const normalizeUrl = (href) => {
         if (!href)
@@ -252,7 +294,11 @@ function extractSearchRows(webHost) {
             const nameChild = authorWrapEl.querySelector('.name');
             author = nameChild ? cleanText(nameChild.textContent || '') : stripXhsAuthorDateSuffix(authorWrapEl.textContent || '');
         }
-        const likesEl = el.querySelector('.count, .like-count, .like-wrapper .count');
+        // The generic .count switches to collections/comments on sorted pages.
+        // Only read a DOM count when the markup identifies its meaning.
+        const likesEl = el.querySelector('.like-count');
+        const collectsEl = el.querySelector('[id="note-page-collect-board-guide"] .count');
+        const collectText = cleanText(collectsEl?.textContent || '');
         // Prefer search_result link (preserves xsec_token) over generic /explore/ link
         const detailLinkEl = el.querySelector('a.cover.mask') ||
             el.querySelector('a[href*="/search_result/"]') ||
@@ -277,7 +323,9 @@ function extractSearchRows(webHost) {
         results.push({
             title,
             author,
-            likes: cleanText(likesEl?.textContent || '0'),
+            likes: normalizeSearchCount(likesEl?.textContent),
+            collects: collectText === '收藏' ? '0' : normalizeSearchCount(collectText),
+            comments: '',
             url,
             author_url: normalizeUrl(authorLinkEl?.getAttribute('href') || ''),
         });
@@ -481,10 +529,11 @@ function buildDirectSearchUrl(query) {
     return `${SEARCH_RESULT_URL}?keyword=${encodeURIComponent(query)}&source=web_search_result_notes`;
 }
 
-function buildApplySearchFiltersJs(requestedFilters) {
+function buildApplySearchFiltersJs(requestedFilters, clickedIndex = -1) {
     return `
       (async () => {
         const requestedFilters = ${JSON.stringify(requestedFilters)};
+        const clickedIndex = ${clickedIndex};
         const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
         const text = (element) => (element?.textContent || '').replace(/\\s+/g, '').trim();
         const visible = (element) => {
@@ -504,24 +553,33 @@ function buildApplySearchFiltersJs(requestedFilters) {
           Array.from(root.querySelectorAll(selector)).filter(visible);
         const authBlocked = () => /登录后查看搜索结果/.test(document.body?.innerText || '') ||
           visible(document.querySelector('#login-btn'));
+        const blocked = () => {
+          const bodyText = document.body?.innerText || document.body?.textContent || '';
+          if (window.location.pathname.startsWith('/website-login/captcha') ||
+              /请求太频繁|访问频次异常|安全限制|Requests too frequent|Scan with logged-in/i.test(bodyText))
+            return { status: 'security_block', detail: window.location.pathname };
+          if (authBlocked()) return { status: 'auth', detail: 'login_wall' };
+          return null;
+        };
         const locationBlocked = () => /请开启浏览器地理位置权限/.test(document.body?.innerText || '');
         const panels = () => visibleMatches(document, '.search-layout__top > .filter > .filter-panel, .filter.ai-chat-filter > .filter-panel');
         const triggers = () => visibleMatches(document, '.search-layout__top > .filter, .filter.ai-chat-filter');
 
-        const openPanel = async () => {
-          let clicked = false;
-          for (let attempt = 0; attempt < 16; attempt++) {
-            if (authBlocked()) return { status: 'auth', detail: 'login_wall' };
+        const openPanel = async (deadline = Date.now() + 1600) => {
+          const clicked = new WeakSet();
+          while (Date.now() < deadline) {
+            const wall = blocked();
+            if (wall) return wall;
             const currentPanels = panels();
             if (currentPanels.length === 1) return { status: 'ok', panel: currentPanels[0] };
             if (currentPanels.length > 1) return { status: 'layout', detail: 'ambiguous_filter_panel' };
             const currentTriggers = triggers();
             if (currentTriggers.length > 1) return { status: 'layout', detail: 'ambiguous_filter_trigger' };
-            if (!clicked && currentTriggers.length === 1) {
+            if (currentTriggers.length === 1 && !clicked.has(currentTriggers[0])) {
+              clicked.add(currentTriggers[0]);
               currentTriggers[0].click();
-              clicked = true;
             }
-            await sleep(100);
+            await sleep(Math.min(100, Math.max(0, deadline - Date.now())));
           }
           return { status: 'layout', detail: 'filter_panel_not_found' };
         };
@@ -562,7 +620,7 @@ function buildApplySearchFiltersJs(requestedFilters) {
           ]);
         };
 
-        for (const request of requestedFilters) {
+        for (const [index, request] of requestedFilters.entries()) {
           const opened = await openPanel();
           if (opened.status !== 'ok') return opened;
           let found = findOption(opened.panel, request);
@@ -571,23 +629,34 @@ function buildApplySearchFiltersJs(requestedFilters) {
             if (request.capability === 'account') return { status: 'capability', detail: found.detail };
             return found;
           }
-          if (isActive(found.option)) {
+          if (isActive(found.option) && index !== clickedIndex) {
             continue;
+          }
+          if (index < clickedIndex) return { status: 'inactive', detail: request.group + '/' + request.option };
+          if (index !== clickedIndex) {
+            const rect = found.option.getBoundingClientRect();
+            const x = Math.round(rect.left + rect.width / 2);
+            const y = Math.round(rect.top + rect.height / 2);
+            const hit = document.elementFromPoint(x, y);
+            if (!hit || !found.option.contains(hit)) return { status: 'layout', detail: 'hit_target_mismatch' };
+            return { status: 'click', index, x, y };
           }
 
           const clickedAt = Date.now();
-          found.option.click();
+          const activationDeadline = clickedAt + 2500;
           let becameActive = false;
-          while (Date.now() - clickedAt < 2500) {
-            if (authBlocked()) return { status: 'auth', detail: 'login_wall' };
+          while (Date.now() < activationDeadline) {
+            const wall = blocked();
+            if (wall) return wall;
             if (locationBlocked()) return { status: 'location', detail: 'geolocation_denied' };
-            const currentPanels = panels();
-            if (currentPanels.length === 1) {
-              found = findOption(currentPanels[0], request);
-              if (found.status === 'ok' && isActive(found.option)) {
-                becameActive = true;
-                break;
-              }
+            // Selecting a chip may close the panel and replace its trigger.
+            // Reacquire the rendered controls before checking the selection.
+            const reopened = await openPanel(activationDeadline);
+            if (reopened.status !== 'ok') return reopened;
+            found = findOption(reopened.panel, request);
+            if (found.status === 'ok' && isActive(found.option)) {
+              becameActive = true;
+              break;
             }
             await sleep(100);
           }
@@ -600,6 +669,8 @@ function buildApplySearchFiltersJs(requestedFilters) {
           let stableSamples = 0;
           let previousSnapshot = '';
           while (Date.now() - clickedAt < ${FILTER_SETTLE_SECONDS * 1000}) {
+            const wall = blocked();
+            if (wall) return wall;
             const currentSnapshot = snapshot();
             if (Date.now() - clickedAt >= 1500 && ready() && !busy()) {
               stableSamples = currentSnapshot === previousSnapshot ? stableSamples + 1 : 1;
@@ -615,11 +686,20 @@ function buildApplySearchFiltersJs(requestedFilters) {
           if (stableSamples < 3) {
             return { status: 'timeout', detail: request.group + '/' + request.option };
           }
-          const finalPanels = panels();
-          const finalFound = finalPanels.length === 1 ? findOption(finalPanels[0], request) : null;
+          const finalPanel = await openPanel();
+          if (finalPanel.status !== 'ok') return finalPanel;
+          const finalFound = findOption(finalPanel.panel, request);
           if (!finalFound || finalFound.status !== 'ok' || !isActive(finalFound.option)) {
             return { status: 'inactive', detail: request.group + '/' + request.option };
           }
+        }
+        // A later remount must not silently reset a filter applied earlier.
+        const finalPanel = await openPanel();
+        if (finalPanel.status !== 'ok') return finalPanel;
+        for (const request of requestedFilters) {
+          const found = findOption(finalPanel.panel, request);
+          if (found.status !== 'ok') return found;
+          if (!isActive(found.option)) return { status: 'inactive', detail: request.group + '/' + request.option };
         }
         return { status: 'ok' };
       })()
@@ -637,6 +717,9 @@ function requireFilterApplication(payload) {
     const detail = typeof result.detail === 'string' ? result.detail : 'unknown';
     if (result.status === 'auth') {
         throw new AuthRequiredError('www.xiaohongshu.com', 'Xiaohongshu search filters require a logged-in browser session');
+    }
+    if (result.status === 'security_block') {
+        throw new CliError('SECURITY_BLOCK', 'Xiaohongshu search was blocked by request-frequency or security controls.', 'Wait before retrying.');
     }
     if (result.status === 'timeout') {
         throw new TimeoutError(`xiaohongshu search filter ${detail}`, FILTER_SETTLE_SECONDS);
@@ -746,6 +829,7 @@ export function buildSearchExtractJs(webHost) {
     return `
       (() => {
         const stripXhsAuthorDateSuffix = ${stripXhsAuthorDateSuffix.toString()};
+        const normalizeSearchCount = ${normalizeSearchCount.toString()};
         const extractSearchRows = ${extractSearchRows.toString()};
         return extractSearchRows(${JSON.stringify(webHost)});
       })()
@@ -778,6 +862,7 @@ export function buildScrollHarvestJs(webHost, targetCount, options = {}) {
         const noteUrlInfo = ${noteUrlInfo.toString()};
         const mergeHarvestedRow = ${mergeHarvestedRow.toString()};
         const stripXhsAuthorDateSuffix = ${stripXhsAuthorDateSuffix.toString()};
+        const normalizeSearchCount = ${normalizeSearchCount.toString()};
         const extractSearchRows = ${extractSearchRows.toString()};
         const usableRowCount = ${usableRowCount.toString()};
         const shouldStopScrolling = ${shouldStopScrolling.toString()};
@@ -954,12 +1039,31 @@ async function collectSearchHarvest(page, limit, requestedFilters) {
     if (waitResult !== 'content') {
         throw new CommandExecutionError('Unexpected Xiaohongshu search wait payload shape.');
     }
-    requireFilterApplication(await page.evaluate(buildApplySearchFiltersJs(requestedFilters)));
+    let clickedIndex = -1;
+    while (true) {
+        const result = unwrapEvaluateResult(await page.evaluate(buildApplySearchFiltersJs(requestedFilters, clickedIndex)));
+        if (result?.status !== 'click') {
+            requireFilterApplication(result);
+            break;
+        }
+        if (!Number.isInteger(result.index) || result.index <= clickedIndex || result.index >= requestedFilters.length ||
+            !Number.isFinite(result.x) || !Number.isFinite(result.y)) {
+            throw new CommandExecutionError('Unexpected Xiaohongshu search filter click target.');
+        }
+        if (typeof page.nativeClick !== 'function') {
+            throw new CommandExecutionError('Xiaohongshu search filters require a trusted native click.');
+        }
+        // The site records synthetic chip clicks. Use the browser input path,
+        // then verify the selection on a newly acquired panel before harvesting.
+        await page.nativeClick(result.x, result.y);
+        clickedIndex = result.index;
+    }
     const harvestOptions = harvestOptionsForLimit(limit);
     const harvest = requireHarvestPayload(await page.evaluate(buildScrollHarvestJs('www.xiaohongshu.com', limit, harvestOptions)), 'www.xiaohongshu.com');
     if (harvest.diag.securityBlock) {
         throw new CliError('SECURITY_BLOCK', 'Xiaohongshu search was blocked by request-frequency or security controls.', 'Wait before retrying or use a different logged-in browser session.');
     }
+    harvest.rows = applySearchMetrics(harvest.rows, await page.getInterceptedRequests());
     return harvest;
 }
 
@@ -990,6 +1094,10 @@ function requireSearchEntry(payload, stage) {
  */
 async function openSearchResults(page, query) {
     await page.goto(EXPLORE_URL);
+    // Install after navigation, which discards in-page interceptors. Drain any
+    // previous document captures before submitting this search; never replay it.
+    await page.installInterceptor('/api/sns/web/v2/search/notes');
+    await page.getInterceptedRequests();
     const result = requireSearchEntry(await page.evaluate(buildInSiteSearchJs(query)), 'in-site search');
     if (result.status === 'ok') return;
     if (result.status !== 'layout') {
@@ -998,7 +1106,11 @@ async function openSearchResults(page, query) {
     const layoutDetail = result.detail;
     await page.goto(buildDirectSearchUrl(query));
     const landing = requireSearchEntry(await page.evaluate(buildAwaitDirectSearchJs(query)), 'direct result page');
-    if (landing.status === 'ok') return;
+    if (landing.status === 'ok') {
+        await page.installInterceptor('/api/sns/web/v2/search/notes');
+        await page.getInterceptedRequests();
+        return;
+    }
     throw new CommandExecutionError(
         `Xiaohongshu search failed: homepage search unavailable (${layoutDetail}) and the direct result page did not load (${landing.detail}).`,
     );
@@ -1077,7 +1189,7 @@ export const command = cli({
         { name: 'scope', type: 'string', default: 'all', choices: ['all', 'seen', 'unseen', 'following'], help: 'Search scope' },
         { name: 'location', type: 'string', default: 'all', choices: ['all', 'same-city', 'nearby'], help: 'Location distance' },
     ],
-    columns: ['rank', 'title', 'author', 'likes', 'published_at', 'url'],
+    columns: ['rank', 'title', 'author', 'likes', 'collects', 'comments', 'published_at', 'url'],
     func: async (page, kwargs) => {
         try {
             const limit = parseLimit(kwargs.limit);
@@ -1122,4 +1234,6 @@ export const __test__ = {
     buildDirectSearchUrl,
     harvestOptionsForLimit,
     stripXhsAuthorDateSuffix,
+    normalizeSearchCount,
+    applySearchMetrics,
 };

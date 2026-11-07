@@ -42440,6 +42440,8 @@
       "title",
       "author",
       "likes",
+      "collects",
+      "comments",
       "published_at",
       "url"
     ],

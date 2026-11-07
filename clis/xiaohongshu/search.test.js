@@ -83,7 +83,7 @@ function noteCard({ id, title = '', likes = '0', signed = false, host = 'www.xia
         <a class="cover mask" href="https://${host}/explore/${id}${token}"><span>${title}</span></a>
         <div class="title">${title}</div>
         <a class="author" href="/user/profile/author123"><span class="name">作者</span></a>
-        <span class="count">${likes}</span>
+        <span class="count like-count">${likes}</span>
       </section>
     `;
 }
@@ -110,9 +110,11 @@ function createFilterBehaviorPage(options = {}) {
     const state = Object.fromEntries(FILTER_FIXTURE.map(([group, choices]) => [group, choices[0]]));
     Object.assign(state, options.initial || {});
     const clicks = [];
+    const triggerEvents = [];
+    const harvestStates = [];
     let panelRenders = 0;
     let geometry = 1000;
-    const trigger = document.querySelector('.filter');
+    let trigger = document.querySelector('.filter');
     const main = document.querySelector('.search-layout__main');
     const feeds = document.querySelector('.feeds-container');
     markVisible(trigger);
@@ -141,7 +143,7 @@ function createFilterBehaviorPage(options = {}) {
         document.querySelector('.filter-panel')?.remove();
         const panel = document.createElement('div');
         panel.className = 'filter-panel';
-        for (const [groupLabel, choices] of FILTER_FIXTURE) {
+        for (const [groupIndex, [groupLabel, choices]] of FILTER_FIXTURE.entries()) {
             const group = document.createElement('div');
             group.className = 'filters';
             const label = document.createElement('span');
@@ -149,7 +151,7 @@ function createFilterBehaviorPage(options = {}) {
             group.append(label);
             const container = document.createElement('div');
             container.className = 'tag-container';
-            for (const choice of choices) {
+            for (const [choiceIndex, choice] of choices.entries()) {
                 if (options.missing === `${groupLabel}/${choice}`) continue;
                 const copies = options.ghosts || options.ambiguous === `${groupLabel}/${choice}` ? 2 : 1;
                 for (let copy = 0; copy < copies; copy++) {
@@ -158,6 +160,12 @@ function createFilterBehaviorPage(options = {}) {
                     const optionLabel = document.createElement('span');
                     optionLabel.textContent = choice;
                     option.append(optionLabel);
+                    // The native input stub dispatches events directly. A production
+                    // regression to synthetic option.click() must remain observable.
+                    option.click = () => {
+                        clicks.push('SYNTHETIC');
+                        option.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+                    };
                     if (options.ghosts && copy === 0) {
                         if (options.ghosts !== 'opacity') option.setAttribute('aria-hidden', 'true');
                         if (options.ghosts !== 'aria') option.style.opacity = '0.00001';
@@ -165,7 +173,14 @@ function createFilterBehaviorPage(options = {}) {
                     }
                     option.addEventListener('click', (event) => {
                         event.stopPropagation();
+                        if (!option.isConnected) {
+                            clicks.push('DETACHED');
+                            return;
+                        }
                         clicks.push(`${groupLabel}/${choice}`);
+                        const closeOnSelect = options.closeOnSelect === true ||
+                            options.closeOnSelect === `${groupLabel}/${choice}`;
+                        if (closeOnSelect) panel.remove();
                         if (options.locationDenied && groupLabel === '位置距离' && choice !== '不限') {
                             const toast = document.createElement('div');
                             toast.textContent = '请开启浏览器地理位置权限';
@@ -174,18 +189,46 @@ function createFilterBehaviorPage(options = {}) {
                         }
                         if (options.inactive === `${groupLabel}/${choice}`) return;
                         state[groupLabel] = choice;
-                        renderPanel();
+                        if (!closeOnSelect) renderPanel();
                         const loading = document.createElement('div');
                         loading.className = 'filter-loading';
                         loading.setAttribute('aria-busy', 'true');
                         main.append(loading);
                         setTimeout(() => {
                             renderResults(options.emptyOn === `${groupLabel}/${choice}`);
+                            if (options.resetOnSettle?.after === `${groupLabel}/${choice}`) {
+                                state[options.resetOnSettle.group] = options.resetOnSettle.value;
+                                if (document.querySelector('.filter-panel')) renderPanel();
+                            }
+                            if (options.wallOnSettle === 'captcha') {
+                                dom.window.history.pushState({}, '', '/website-login/captcha');
+                            }
+                            if (options.wallOnSettle === 'security') {
+                                const wall = document.createElement('div');
+                                wall.textContent = '请求太频繁，请稍后再试';
+                                document.body.append(wall);
+                            }
+                            if (options.wallOnSettle === 'login') {
+                                const login = document.createElement('button');
+                                login.id = 'login-btn';
+                                login.textContent = '登录';
+                                markVisible(login);
+                                document.body.append(login);
+                            }
+                            if (options.closeOnSettle) document.querySelector('.filter-panel')?.remove();
                         }, 300);
                     });
                     container.append(option);
                     markVisible(option);
                     markVisible(optionLabel);
+                    const rect = {
+                        left: 20 + choiceIndex * 120,
+                        top: 20 + groupIndex * 50,
+                        width: 100,
+                        height: 30,
+                    };
+                    option.getBoundingClientRect = () => rect;
+                    optionLabel.getBoundingClientRect = () => rect;
                 }
             }
             group.append(container);
@@ -198,13 +241,72 @@ function createFilterBehaviorPage(options = {}) {
         panelRenders++;
         markVisible(panel);
     };
-    trigger.addEventListener('click', () => {
-        const panel = document.querySelector('.filter-panel');
-        if (panel) panel.remove();
-        else renderPanel();
-    });
+    const bindTrigger = (element, remount = Boolean(options.remountOnOpen)) => {
+        let remountBeforeOpen = remount;
+        let openingTimer;
+        markVisible(element);
+        element.addEventListener('click', () => {
+            if (!element.isConnected) {
+                triggerEvents.push('detached');
+                return;
+            }
+            const panel = document.querySelector('.filter-panel');
+            if (panel) {
+                triggerEvents.push('close');
+                panel.remove();
+            }
+            else if (openingTimer !== undefined) {
+                triggerEvents.push('cancel');
+                clearTimeout(openingTimer);
+                openingTimer = undefined;
+            }
+            else if (remountBeforeOpen) {
+                triggerEvents.push('remount');
+                trigger = element.cloneNode(true);
+                element.replaceWith(trigger);
+                bindTrigger(trigger, false);
+            }
+            else {
+                triggerEvents.push('open');
+                if (options.openDelay || options.remountOnOpen) {
+                    openingTimer = setTimeout(() => {
+                        openingTimer = undefined;
+                        remountBeforeOpen = Boolean(options.remountOnOpen);
+                        renderPanel();
+                    }, options.openDelay || 250);
+                }
+                else renderPanel();
+            }
+        });
+    };
+    bindTrigger(trigger);
+
+    const overlay = document.createElement('div');
+    overlay.className = 'filter-overlay';
+    if (options.hitOverlay) document.body.append(overlay);
+    document.elementFromPoint = (x, y) => {
+        if (options.hitOverlay) return overlay;
+        const option = Array.from(document.querySelectorAll('.filter-panel .tags')).find((element) => {
+            if (element.closest('[aria-hidden="true"], [hidden], [inert]')) return false;
+            for (let node = element; node; node = node.parentElement) {
+                const style = dom.window.getComputedStyle(node);
+                if (style.display === 'none' || style.visibility === 'hidden' ||
+                    (style.opacity !== '' && Number(style.opacity) < 0.01)) return false;
+            }
+            const rect = element.getBoundingClientRect();
+            return x >= rect.left && x < rect.left + rect.width && y >= rect.top && y < rect.top + rect.height;
+        });
+        return option?.querySelector('span') || null;
+    };
 
     const page = createPageMock([]);
+    if (options.nativeClick !== false) {
+        page.nativeClick = vi.fn(async (x, y) => {
+            const target = document.elementFromPoint(x, y);
+            if (!target) throw new Error(`No filter control at ${x}, ${y}`);
+            target.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, clientX: x, clientY: y }));
+        });
+    }
     page.evaluate.mockImplementation(async (script) => {
         const source = String(script);
         if (source.includes('search-icon')) return { status: 'ok' };
@@ -224,6 +326,7 @@ function createFilterBehaviorPage(options = {}) {
             );
         }
         if (source.includes('const targetCount =')) {
+            harvestStates.push({ ...state });
             const empty = Boolean(document.querySelector('.search-empty-wrapper'));
             return harvestPayload(empty ? [] : [{
                 title: state['排序依据'],
@@ -237,6 +340,8 @@ function createFilterBehaviorPage(options = {}) {
     });
     page.filterState = state;
     page.filterClicks = clicks;
+    page.filterTriggerEvents = triggerEvents;
+    page.filterHarvestStates = harvestStates;
     page.panelRenderCount = () => panelRenders;
     page.closeFilterPanel = () => document.querySelector('.filter-panel')?.remove();
     return page;
@@ -701,6 +806,8 @@ describe('xiaohongshu search', () => {
                 title: '某鱼买FSD被坑了4万',
                 author: '随风',
                 likes: '261',
+                collects: '',
+                comments: '',
                 published_at: '2025-10-10',
                 url: detailUrl,
                 author_url: authorUrl,
@@ -985,6 +1092,130 @@ describe('xiaohongshu search', () => {
 });
 
 describe('xiaohongshu search filter behavior', () => {
+    it.each([
+        ['classic', { closeOnSelect: true }],
+        ['ai-chat', { closeOnSelect: '排序依据/最新' }],
+        ['classic', { remountOnOpen: true }],
+        ['ai-chat', { closeOnSelect: true, remountOnOpen: true }],
+        ['classic', { closeOnSelect: true, closeOnSettle: true, remountOnOpen: true }],
+    ])('reopens and reacquires controls for multiple filters in %s with %j', async (layout, behavior) => {
+        vi.useFakeTimers();
+        try {
+            const page = createFilterBehaviorPage({ layout, ...behavior });
+            const result = await runFilterCommand(page, {
+                sort: 'latest', 'note-type': 'video', 'publish-time': 'day', scope: 'following', location: 'nearby',
+            });
+            const expected = {
+                '排序依据': '最新', '笔记类型': '视频', '发布时间': '一天内', '搜索范围': '已关注', '位置距离': '附近',
+            };
+            expect(result[0].title).toBe('最新');
+            expect(page.filterState).toEqual(expected);
+            expect(page.filterHarvestStates).toEqual([expected]);
+            expect(page.filterClicks).toEqual([
+                '排序依据/最新', '笔记类型/视频', '发布时间/一天内', '搜索范围/已关注', '位置距离/附近',
+            ]);
+            expect(page.nativeClick).toHaveBeenCalledTimes(5);
+            expect(new Set(page.nativeClick.mock.calls.map(([x, y]) => `${x},${y}`)).size).toBe(5);
+            expect(page.filterTriggerEvents.every((event) => event === 'open' || event === 'remount')).toBe(true);
+            if (behavior.remountOnOpen) expect(page.filterTriggerEvents).toContain('remount');
+            if (behavior.closeOnSelect) {
+                expect(page.filterTriggerEvents.filter((event) => event === 'open').length).toBeGreaterThan(1);
+            }
+        }
+        finally { vi.useRealTimers(); }
+    });
+
+    it('clicks an unchanged trigger only once while its panel opens asynchronously', async () => {
+        vi.useFakeTimers();
+        try {
+            const page = createFilterBehaviorPage({ openDelay: 450, closeOnSelect: true });
+            await runFilterCommand(page, { sort: 'latest', 'note-type': 'video' });
+            expect(page.filterClicks).toEqual(['排序依据/最新', '笔记类型/视频']);
+            expect(page.filterTriggerEvents).toEqual(['open', 'open', 'open']);
+            expect(page.filterHarvestStates).toHaveLength(1);
+        }
+        finally { vi.useRealTimers(); }
+    });
+
+    it.each([false, true])('fails if the selected chip stays inactive after close with remount=%s', async (remountOnOpen) => {
+        vi.useFakeTimers();
+        try {
+            const page = createFilterBehaviorPage({ closeOnSelect: true, remountOnOpen, inactive: '排序依据/最新' });
+            await expect(runFilterCommand(page, { sort: 'latest', 'note-type': 'video' })).rejects.toMatchObject({
+                code: 'COMMAND_EXEC', message: expect.stringContaining('did not become active (排序依据/最新)'),
+            });
+            expect(page.filterClicks).toEqual(['排序依据/最新']);
+            expect(page.nativeClick).toHaveBeenCalledTimes(1);
+            expect(page.filterHarvestStates).toEqual([]);
+            expect(page.filterTriggerEvents.filter((event) => event === 'open')).toHaveLength(2);
+            expect(page.filterTriggerEvents).not.toContain('cancel');
+            expect(page.filterTriggerEvents).not.toContain('detached');
+        }
+        finally { vi.useRealTimers(); }
+    });
+
+    it.each([
+        ['the selected chip', { after: '排序依据/最新', group: '排序依据', value: '综合' }, { sort: 'latest' }],
+        ['an earlier chip', { after: '笔记类型/视频', group: '排序依据', value: '综合' }, { sort: 'latest', 'note-type': 'video' }],
+    ])('rejects stale active references when settling resets %s', async (_label, resetOnSettle, args) => {
+        vi.useFakeTimers();
+        try {
+            const page = createFilterBehaviorPage({ resetOnSettle, closeOnSettle: true, remountOnOpen: true });
+            await expect(runFilterCommand(page, args)).rejects.toMatchObject({
+                code: 'COMMAND_EXEC', message: expect.stringContaining('did not become active (排序依据/最新)'),
+            });
+            expect(page.filterState['排序依据']).toBe('综合');
+            expect(page.filterHarvestStates).toEqual([]);
+            expect(page.filterClicks).toEqual(args['note-type']
+                ? ['排序依据/最新', '笔记类型/视频'] : ['排序依据/最新']);
+            expect(page.filterTriggerEvents).not.toContain('detached');
+        }
+        finally { vi.useRealTimers(); }
+    });
+
+    it.each([
+        ['captcha', 'SECURITY_BLOCK'],
+        ['security', 'SECURITY_BLOCK'],
+        ['login', 'AUTH_REQUIRED'],
+    ])('stops before harvest when %s appears while filtered results settle', async (wallOnSettle, code) => {
+        vi.useFakeTimers();
+        try {
+            const page = createFilterBehaviorPage({ wallOnSettle, closeOnSelect: true, remountOnOpen: true });
+            await expect(runFilterCommand(page, { sort: 'latest', 'note-type': 'video' })).rejects.toMatchObject({ code });
+            expect(page.filterClicks).toEqual(['排序依据/最新']);
+            expect(page.nativeClick).toHaveBeenCalledTimes(1);
+            expect(page.filterHarvestStates).toEqual([]);
+        }
+        finally { vi.useRealTimers(); }
+    });
+
+    it('fails before selecting or harvesting when the browser has no native click capability', async () => {
+        vi.useFakeTimers();
+        try {
+            const page = createFilterBehaviorPage({ nativeClick: false });
+            await expect(runFilterCommand(page, { sort: 'latest' })).rejects.toMatchObject({
+                code: 'COMMAND_EXEC', message: expect.stringContaining('require a trusted native click'),
+            });
+            expect(page.filterClicks).toEqual([]);
+            expect(page.filterHarvestStates).toEqual([]);
+        }
+        finally { vi.useRealTimers(); }
+    });
+
+    it('fails closed when an overlay intercepts the native click target', async () => {
+        vi.useFakeTimers();
+        try {
+            const page = createFilterBehaviorPage({ hitOverlay: true });
+            await expect(runFilterCommand(page, { sort: 'latest' })).rejects.toMatchObject({
+                code: 'COMMAND_EXEC', message: expect.stringContaining('hit_target_mismatch'),
+            });
+            expect(page.nativeClick).not.toHaveBeenCalled();
+            expect(page.filterClicks).toEqual([]);
+            expect(page.filterHarvestStates).toEqual([]);
+        }
+        finally { vi.useRealTimers(); }
+    });
+
     it('ignores hidden overlapping clones for default and explicit filters without clicking them', async () => {
         vi.useFakeTimers();
         try {
@@ -1062,6 +1293,9 @@ describe('xiaohongshu search filter behavior', () => {
                 code: 'COMMAND_EXEC',
                 message: expect.stringContaining('ambiguous_option'),
             });
+            expect(ambiguous.nativeClick).not.toHaveBeenCalled();
+            expect(ambiguous.filterClicks).toEqual([]);
+            expect(ambiguous.filterHarvestStates).toEqual([]);
 
             const unavailable = createFilterBehaviorPage({ missing: '搜索范围/已关注' });
             await expect(runFilterCommand(unavailable, { scope: 'following' })).rejects.toMatchObject({
@@ -1149,7 +1383,7 @@ describe('buildSearchExtractJs', () => {
         expect(result[0]).toMatchObject({
             title: '数字作者测试',
             author: '数字3天前端',
-            likes: '8',
+            likes: '',
             author_url: 'https://www.xiaohongshu.com/user/profile/author123',
         });
     });
@@ -1197,9 +1431,15 @@ describe('mergeHarvestedRow', () => {
         mergeHarvestedRow(acc, { title: '后续标题', author: '', likes: '2', url: signedUrl, author_url: '' }, webHost);
         expect(acc.get(noteId).title).toBe('原始标题');
     });
-    it("backfills likes when the placeholder value is '0'", () => {
+    it("preserves a real '0' likes value from an earlier render", () => {
         const acc = new Map();
         mergeHarvestedRow(acc, { title: '标题', author: '', likes: '0', url: unsignedUrl, author_url: '' }, webHost);
+        mergeHarvestedRow(acc, { title: '标题', author: '', likes: '42', url: signedUrl, author_url: '' }, webHost);
+        expect(acc.get(noteId).likes).toBe('0');
+    });
+    it("backfills an unknown empty-string likes value from a later render", () => {
+        const acc = new Map();
+        mergeHarvestedRow(acc, { title: '标题', author: '', likes: '', url: unsignedUrl, author_url: '' }, webHost);
         mergeHarvestedRow(acc, { title: '标题', author: '', likes: '42', url: signedUrl, author_url: '' }, webHost);
         expect(acc.get(noteId).likes).toBe('42');
     });
@@ -1289,7 +1529,7 @@ describe('buildScrollHarvestJs', () => {
         const b = '697f6c74000000002103de17';
         const c = '69b739f00000000000000000';
         const { result, scrollDeltas, rootScrollCalls } = await runHarvestFrames([
-            { height: 1200, cards: [{ id: a, title: '', likes: '0' }] },
+            { height: 1200, cards: [{ id: a, title: '', likes: '' }] },
             {
                 height: 1800,
                 cards: [

@@ -6,7 +6,7 @@
 
 | Command | Description |
 |---------|-------------|
-| `opencli xiaohongshu search` | Search notes by keyword (returns title, author, likes, URL) |
+| `opencli xiaohongshu search` | Search notes by keyword (returns title, author, likes, collects, comments, URL) |
 | `opencli xiaohongshu ask` | Ask 点点 and return its answer with citation sources (`sources[]` in JSON) |
 | `opencli xiaohongshu note` | Read full note content (title, author, description, likes, collects, comments, tags) |
 | `opencli xiaohongshu comments` | Read comments from a note (`--with-replies` for nested 楼中楼 replies) |
@@ -83,6 +83,10 @@ opencli xiaohongshu delete-note 6a08ba0b000000000702a893 --execute
 ```
 
 `search` supports the same visible filter-panel choices as the website: `--sort comprehensive|latest|most-liked|most-commented|most-collected`, `--note-type all|video|image`, `--publish-time anytime|day|week|half-year`, `--scope all|seen|unseen|following`, and `--location all|same-city|nearby`. Account-scoped and location filters fail explicitly when the logged-in browser session lacks the required account or geolocation capability. The query is submitted through whichever search control the homepage renders: the classic `#search-input` box, or the AI-search homepage's textarea (submitted with Enter, landing on `/search_result_ai`). If the homepage renders neither control, the command opens `/search_result?keyword=` directly as a fallback; that page is accepted only when it shows results for the same keyword, and a captcha redirect still fails as `SECURITY_BLOCK`.
+
+Filter options use native browser clicks after checking that the target is unobstructed. This requires a visible page in the automation window; an unsupported backend or hidden page fails explicitly. A panel that closes or remounts during filtering is reopened and reacquired before checking the selection. All requested choices are verified again before harvesting.
+
+Search interaction counts are strings. `likes` always means likes, `collects` means collections, and `comments` means comments, regardless of `--sort`. The card's generic count can change meaning under sorting, so it is not used as a like count. Named counts from successful search responses naturally requested by this page are matched to rendered notes by ID, without extra per-note requests. A recognized DOM count can provide a fallback; unavailable counts are `""`, while an observed zero is `"0"`. The direct-URL fallback can miss the initial response capture, leaving some counts unavailable until a later response supplies them. Result order is the website's order; the adapter does not enforce a numeric descending order locally.
 
 > Note: `note` and `comments` now require a full signed note URL with `xsec_token`. `download` accepts either a signed note URL or an `xhslink` short link. Bare note IDs are no longer reliable on xiaohongshu.
 > With `comments --with-replies`, `reply_to` is the direct reply target displayed by the page. Replies without an explicit `回复 <name>` marker target the enclosing top-level comment.
