@@ -10254,6 +10254,153 @@
   },
   {
     "site": "douyin",
+    "name": "publish-article",
+    "description": "发布文章（UTF-8纯文本；默认仅预览，--publish 才提交）",
+    "access": "write",
+    "domain": "creator.douyin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "body-file",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "UTF-8 纯文本正文文件（≤20000字，保留分段；不解析 HTML/Markdown）"
+      },
+      {
+        "name": "title",
+        "type": "str",
+        "required": true,
+        "help": "文章标题（≤30字）"
+      },
+      {
+        "name": "summary",
+        "type": "str",
+        "default": "",
+        "required": false,
+        "help": "文章摘要（≤30字）"
+      },
+      {
+        "name": "cover",
+        "type": "str",
+        "default": "",
+        "required": false,
+        "help": "封面图片路径；提交或保存草稿时必填"
+      },
+      {
+        "name": "visibility",
+        "type": "str",
+        "default": "private",
+        "required": false,
+        "help": "默认仅自己可见",
+        "choices": [
+          "public",
+          "friends",
+          "private"
+        ]
+      },
+      {
+        "name": "publish",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "明确授权提交发布；结果未知时不自动重试"
+      },
+      {
+        "name": "save-draft",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "暂存离开；不能与 --publish 同用"
+      }
+    ],
+    "columns": [
+      "status",
+      "kind",
+      "title",
+      "visibility",
+      "submitted",
+      "message"
+    ],
+    "type": "js",
+    "modulePath": "douyin/publish-article.js",
+    "sourceFile": "douyin/publish-article.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "douyin",
+    "name": "publish-images",
+    "description": "发布多图图文（默认只填写预览；--publish 才提交，--save-draft 存草稿）",
+    "access": "write",
+    "domain": "creator.douyin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "images",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "1–35 张本地图片路径，逗号分隔（jpg/png/webp，单张 ≤50MB）"
+      },
+      {
+        "name": "title",
+        "type": "str",
+        "required": true,
+        "help": "图文标题（≤20字）"
+      },
+      {
+        "name": "caption",
+        "type": "str",
+        "default": "",
+        "required": false,
+        "help": "图文正文（≤1000字；话题实体请在预览中人工确认）"
+      },
+      {
+        "name": "visibility",
+        "type": "str",
+        "default": "private",
+        "required": false,
+        "help": "默认仅自己可见",
+        "choices": [
+          "public",
+          "friends",
+          "private"
+        ]
+      },
+      {
+        "name": "publish",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "明确授权提交发布；结果未知时不自动重试"
+      },
+      {
+        "name": "save-draft",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "暂存离开；不能与 --publish 同用"
+      }
+    ],
+    "columns": [
+      "status",
+      "kind",
+      "title",
+      "visibility",
+      "submitted",
+      "message"
+    ],
+    "type": "js",
+    "modulePath": "douyin/publish-images.js",
+    "sourceFile": "douyin/publish-images.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "douyin",
     "name": "search",
     "description": "关键词搜索抖音视频",
     "access": "read",

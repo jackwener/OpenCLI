@@ -256,6 +256,10 @@ When the site you need is not yet covered, use the `opencli-adapter-author` skil
 
 Curated highlights — **[→ see all 100+ supported sites & commands](./docs/adapters/index.md)** (douyin / weibo / spotify / 1688 / quark / nowcoder / google-scholar / hupu / xianyu / weread / weread-official / xiaoyuzhou / Chess.com / and more).
 
+Douyin also supports [image-text and article composition](./docs/adapters/browser/douyin.md#image-text-and-articles)
+with `publish-images` and `publish-article`: prepare-only/private by default;
+explicit `--publish` is required for submission.
+
 ## Download Support
 
 OpenCLI supports downloading images, videos, and articles from supported platforms.
