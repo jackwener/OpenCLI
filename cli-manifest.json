@@ -6426,6 +6426,58 @@
     "siteSession": "persistent"
   },
   {
+    "site": "cloudflare",
+    "name": "ask",
+    "description": "Ask Cloudflare Agent Lee in a remote dashboard tab (read-only unless --mode edit)",
+    "access": "write",
+    "domain": "dash.cloudflare.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "question",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Question or explicitly authorized task for Lee"
+      },
+      {
+        "name": "zone",
+        "type": "string",
+        "required": false,
+        "help": "Zone domain included explicitly in the prompt"
+      },
+      {
+        "name": "mode",
+        "type": "string",
+        "default": "ask",
+        "required": false,
+        "help": "ask refuses all approvals; edit permits conversation-scoped approval",
+        "choices": [
+          "ask",
+          "edit"
+        ]
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 180,
+        "required": false,
+        "help": "Seconds to wait for a final Worked response (1..900)"
+      }
+    ],
+    "columns": [
+      "response",
+      "worked",
+      "mode",
+      "zone"
+    ],
+    "type": "js",
+    "modulePath": "cloudflare/ask.js",
+    "sourceFile": "cloudflare/ask.js",
+    "navigateBefore": false
+  },
+  {
     "site": "cnki",
     "name": "search",
     "description": "中国知网论文搜索（海外版）",
