@@ -297,11 +297,13 @@ it('setting mutation verifies the selected account-wide value after clicking', a
     videoResolution: 'hd',
     videoBatchSize: 4,
   };
+  // Evaluate order: popover-visible probe, option scan, then after the click
+  // the verifying read (visible probe + read).
   const page = {
     evaluate: vi.fn()
       .mockResolvedValueOnce(true)
-      .mockResolvedValueOnce(settings)
       .mockResolvedValueOnce({ ok: true, changed: true })
+      .mockResolvedValueOnce(true)
       .mockResolvedValueOnce(true)
       .mockResolvedValueOnce({ ...settings, videoResolution: 'sd' }),
     click: vi.fn(),
@@ -324,8 +326,8 @@ it('setting mutation verifies the selected video batch size after clicking', asy
   const page = {
     evaluate: vi.fn()
       .mockResolvedValueOnce(true)
-      .mockResolvedValueOnce(settings)
       .mockResolvedValueOnce({ ok: true, changed: true })
+      .mockResolvedValueOnce(true)
       .mockResolvedValueOnce(true)
       .mockResolvedValueOnce({ ...settings, videoBatchSize: 1 }),
     click: vi.fn(),
@@ -347,8 +349,8 @@ it('setting mutation fails closed when the click does not change the account-wid
   const page = {
     evaluate: vi.fn()
       .mockResolvedValueOnce(true)
-      .mockResolvedValueOnce(settings)
       .mockResolvedValueOnce({ ok: true, changed: true })
+      .mockResolvedValueOnce(true)
       .mockResolvedValueOnce(true)
       .mockResolvedValueOnce(settings),
     click: vi.fn(),

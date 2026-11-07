@@ -117,6 +117,8 @@ opencli midjourney action <returned-video-job> cancel
 
 Video resolution and batch size are account-wide website settings. The adapter requires a readable baseline, applies requested temporary values, and restores the original values even when preparation, submission, or job correlation fails.
 
+Site defaults are read from the redesigned settings popover (opened from the composer's Settings icon). The model version comes from the popover's version trigger, and each segmented row (resolution, raw, speed, video) is read from its selected option, which the site marks only with red text. Rows that the current composer mode does not show are reported as null; routing falls back to the requested `--model`/`--resolution`/`--speed` or the plan defaults.
+
 ## History, status, and downloads
 
 ```bash
