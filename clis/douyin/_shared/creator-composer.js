@@ -69,16 +69,29 @@ export async function readState(page, kind) {
     return object(await page.evaluate(`(() => {
       const text = document.body?.innerText || '';
       const href = location.href;
+      const anyComposer = /^\\/creator-micro\\/content\\/post\\/(image|article|video)$/.test(location.pathname);
       const title = document.querySelector(${JSON.stringify(TITLE[kind])});
       const editors = [...document.querySelectorAll('[contenteditable="true"]')];
-      const match = text.match(/已添加\\s*(\\d+)\\s*张图片/);
+      const imageCounters = [...document.querySelectorAll('[class^="info-"]')].filter(e =>
+        [...e.querySelectorAll('button')].some(b=>b.textContent.trim() === '继续添加'));
+      const counterText = imageCounters.length === 1 ? [...imageCounters[0].childNodes]
+        .filter(n=>n.nodeType === Node.TEXT_NODE).map(n=>n.textContent).join('') : '';
+      const match = counterText.match(/^\\s*已添加\\s*(\\d+)\\s*张图片\\s*$/);
+      const alerts = [...document.querySelectorAll(
+        '[role="dialog"],[role="alert"],[class*="message"],[class*="toast"],[class*="login"],[id*="login"],[class*="captcha"],[id*="captcha"]'
+      )].filter(e=>e.getClientRects().length && !e.closest('[contenteditable]'));
+      const challengeText = anyComposer ? alerts.map(e=>e.innerText).join('\\n') : text;
+      const receipts = [...document.querySelectorAll('[role="alert"],[class*="message"],[class*="toast"]')]
+        .filter(e=>!e.hasAttribute('data-opencli-before-submit') && e.getClientRects().length &&
+          !e.closest('[contenteditable]')).map(e=>e.textContent.trim());
       const labels = [...document.querySelectorAll('label')];
       const visibility = labels.filter(e => e.querySelector('input:checked')).map(e => e.textContent.trim());
       return {
         trusted: location.origin === 'https://creator.douyin.com',
         composer: location.pathname === '/creator-micro/content/post/${kind}',
-        anyComposer: /^\\/creator-micro\\/content\\/post\\/(image|article|video)$/.test(location.pathname),
+        anyComposer,
         anyTitle: document.querySelector('input[placeholder*="标题"]')?.value || '',
+        anyMedia: !!document.querySelector('[class*="content-upload"] img[src],video[src]'),
         title: title?.value || '',
         body: editors.length === 1 ? (
           ${JSON.stringify(kind)} === 'article' && editors[0].children.length &&
@@ -95,11 +108,10 @@ export async function readState(page, kind) {
         coverDecoded: [...document.querySelectorAll('[class*="modalContainer"] img')]
           .some(e=>e.complete && e.naturalWidth > 256),
         coverDialog: text.includes('编辑封面') && [...document.querySelectorAll('button')].some(e => e.textContent.trim() === '完成'),
-        security: /验证码|安全验证|操作频繁|访问频次异常|安全限制/.test(text) || /captcha/i.test(href),
-        login: /\\/passport|\\/login/.test(href) || /扫码登录|登录抖音创作者中心/.test(text),
-        success: [...document.querySelectorAll('[role="alert"],[class*="message"],[class*="toast"]')]
-          .some(e => !e.hasAttribute('data-opencli-before-submit') &&
-            /^(发布成功|作品发布成功|已提交审核|保存成功|草稿保存成功)$/.test(e.textContent.trim())),
+        security: /验证码|安全验证|操作频繁|访问频次异常|安全限制/.test(challengeText) || /captcha/i.test(href),
+        login: /\\/passport|\\/login/.test(href) || /扫码登录|登录抖音创作者中心/.test(challengeText),
+        publishSuccess: receipts.some(t=>/^(发布成功|作品发布成功|已提交审核)$/.test(t)),
+        draftSuccess: receipts.some(t=>/^(保存成功|草稿保存成功)$/.test(t)),
         management: location.pathname === '/creator-micro/content/manage'
       };
     })()`));
@@ -188,8 +200,10 @@ async function uploadCover(page, cover) {
     }
 }
 
-export async function clickExact(page, text) {
-    const result = object(await page.evaluate(`(() => {
+export async function clickExact(page, text, once = false) {
+    const evaluate = once ? page.evaluateOnce : page.evaluate;
+    if (typeof evaluate !== 'function') throw new CommandExecutionError('浏览器不支持不重放的提交；未调用发布按钮');
+    const result = object(await evaluate.call(page, `(() => {
       const matches = [...document.querySelectorAll('button')].filter(e =>
         e.textContent.trim() === ${JSON.stringify(text)} && e.getClientRects().length && !e.disabled);
       if (matches.length !== 1) return { ok: false };
@@ -229,7 +243,10 @@ export async function runComposer(page, options) {
     }
     // Do not replace an in-progress user/previous preparation in this leased tab.
     const initial = await readState(page, options.kind);
-    if (initial.anyComposer && (initial.anyTitle || initial.body.trim() || initial.imageCount)) {
+    if (initial.anyComposer && (
+        initial.anyTitle || initial.body.trim() || initial.imageCount ||
+        initial.summary || initial.anyMedia || initial.coverDialog
+    )) {
         throw new CommandExecutionError('当前标签有未提交编辑；请先人工处理，或为本次操作使用独立会话');
     }
     await page.goto(options.kind === 'image' ? IMAGE_UPLOAD_URL : ARTICLE_URL);
@@ -255,16 +272,20 @@ export async function runComposer(page, options) {
         return [{ ...base, status: 'prepared', submitted: false,
             message: '已填写并回读，尚未发布或保存草稿；检查编辑器后人工提交，或在新会话显式指定 --publish/--save-draft' }];
     }
+    if (typeof page.evaluateOnce !== 'function') {
+        throw new CommandExecutionError('当前浏览器后端缺少 evaluateOnce；已准备预览，但未提交');
+    }
     // One click only. Transport failure after this point is NEVER safely retryable.
     try {
         await page.evaluate(`document.querySelectorAll('[role="alert"],[class*="message"],[class*="toast"]')
           .forEach(e=>e.setAttribute('data-opencli-before-submit','1'))`);
-        await clickExact(page, options.publish ? '发布' : '暂存离开');
+        await clickExact(page, options.publish ? '发布' : '暂存离开', true);
         for (let i = 0; i < 40; i++) {
             await page.wait({ time: 0.5 });
             const state = await readState(page, options.kind);
             checkState(state);
-            if (state.success && (state.management || !state.composer)) {
+            const receiptMatches = options.publish ? state.publishSuccess : state.draftSuccess;
+            if (receiptMatches && (state.management || !state.composer)) {
                 return [{ ...base, status: options.publish ? 'submitted' : 'draft_saved',
                     submitted: options.publish, verification: 'platform_ui',
                     message: options.publish ? '平台确认已提交，仍需审核；不代表已公开可见' : '平台确认草稿已保存' }];

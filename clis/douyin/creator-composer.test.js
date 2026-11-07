@@ -39,14 +39,14 @@ function fixture(kind = 'image', { receipt = 'none', guard = '' } = {}) {
           <input placeholder="${kind === 'image' ? '添加作品标题' : '请输入文章标题，最多不超过30个字'}">
           <input placeholder="添加内容摘要或文章精彩部分">
           <div contenteditable="true"></div>
-          ${kind === 'image' ? '<div>已添加1张图片</div>' : ''}
+          ${kind === 'image' ? '<div class="info-count">已添加1张图片<button>继续添加</button></div>' : ''}
           <div class="content-section"><div><span>封面设置</span>*</div>
             <div class="content-upload-fixture"><div class="addIcon-cover">+</div></div></div>
           <label><input type="checkbox">公开</label>
           <label><input type="checkbox">好友可见</label>
           <label><input type="checkbox" checked>仅自己可见</label>
           <label><input type="checkbox" checked>立即发布</label>
-          <button id="submit">发布</button><button id="draft">暂存离开</button>${guard}`;
+          <button id="submit">发布</button><button id="draft">暂存离开</button>${guard ? `<div role="alert">${guard}</div>` : ''}`;
         document.querySelectorAll('label').forEach(label => label.onclick = () => {
             if (label.textContent.trim() === '立即发布') return;
             document.querySelectorAll('label').forEach(other => {
@@ -57,9 +57,11 @@ function fixture(kind = 'image', { receipt = 'none', guard = '' } = {}) {
         const submit = () => {
             submits++;
             if (receipt === 'throw') throw new Error('simulated connection loss');
-            if (receipt === 'success') {
+            if (['success', 'wrong-draft', 'wrong-publish', 'draft-success'].includes(receipt)) {
                 dom.reconfigure({ url: 'https://creator.douyin.com/creator-micro/content/manage' });
-                document.body.innerHTML = '<div role="alert">发布成功</div>';
+                document.body.innerHTML = `<div role="alert">${
+                    ['wrong-draft', 'draft-success'].includes(receipt) ? '草稿保存成功' : '发布成功'
+                }</div>`;
             }
             if (receipt === 'navigation-only') dom.reconfigure({ url: 'https://creator.douyin.com/creator-micro/content/manage' });
         };
@@ -107,6 +109,7 @@ function fixture(kind = 'image', { receipt = 'none', guard = '' } = {}) {
             return { verified: true };
         }),
     };
+    page.evaluateOnce = vi.fn(async script => page.evaluate(script));
     return page;
 }
 
@@ -255,9 +258,59 @@ describe('Douyin creator production paths', () => {
         expect(page.goto).not.toHaveBeenCalled();
         page.dom.window.close();
     });
+    it.each(['summary', 'cover'])('preserves %s-only unsaved article changes', async dirty => {
+        const page = fixture('article');
+        page.composer();
+        if (dirty === 'summary') page.dom.window.document.querySelector('input[placeholder*="添加内容摘要"]').value = '仅摘要有改动';
+        else {
+            const image = page.dom.window.document.createElement('img');
+            image.src = 'https://example.test/cover.jpg';
+            page.dom.window.document.querySelector('.content-upload-fixture').appendChild(image);
+        }
+        await expect(runComposer(page, validateOptions('article', args('article')))).rejects.toThrow('未提交编辑');
+        expect(page.goto).not.toHaveBeenCalled();
+        page.dom.window.close();
+    });
+    it.each(['如何配置验证码登录', '扫码登录操作指南', '已添加2张图片'])('does not treat authored text "%s" as platform state', async caption => {
+        const page = fixture();
+        const result = await runComposer(page, validateOptions('image', args('image', { caption })));
+        expect(result[0].status).toBe('prepared');
+        expect(page.submits()).toBe(0);
+        page.dom.window.close();
+    });
+    it('requires a publication receipt rather than a new draft-save receipt', async () => {
+        const page = fixture('image', { receipt: 'wrong-draft' });
+        const result = await runComposer(page, validateOptions('image', args('image', { publish: true })));
+        expect(result[0].status).toBe('uncertain');
+        expect(page.submits()).toBe(1);
+        page.dom.window.close();
+    });
+    it.each([['wrong-publish', 'uncertain'], ['draft-success', 'draft_saved']])('matches explicit draft action to %s receipt', async (receipt, status) => {
+        const page = fixture('article', { receipt });
+        const result = await runComposer(page, validateOptions('article', args('article', { cover: image, 'save-draft': true })));
+        expect(result[0].status).toBe(status);
+        expect(page.submits()).toBe(1);
+        page.dom.window.close();
+    });
     it.each(['验证码', '扫码登录'])('fails closed on %s', async guard => {
         const page = fixture('article', { guard });
         await expect(runComposer(page, validateOptions('article', args('article')))).rejects.toThrow();
+        expect(page.submits()).toBe(0);
+        page.dom.window.close();
+    });
+    it.each(['semi-toast-content', 'semi-message-content'])('stops on a role-less platform security message: %s', async className => {
+        const page = fixture();
+        const goto = page.goto;
+        const upload = page.setFileInput;
+        page.goto = vi.fn(async (...args) => goto(...args));
+        page.setFileInput = vi.fn(async (...args) => {
+            await upload(...args);
+            const warning = page.dom.window.document.createElement('div');
+            warning.className = className;
+            warning.textContent = '操作频繁';
+            page.dom.window.document.body.appendChild(warning);
+        });
+        await expect(runComposer(page, validateOptions('image', args('image', { publish: true })))).rejects.toThrow('停止自动重试');
         expect(page.submits()).toBe(0);
         page.dom.window.close();
     });
@@ -265,8 +318,16 @@ describe('Douyin creator production paths', () => {
         const page = fixture('image', { receipt: 'success' });
         const result = await runComposer(page, validateOptions('image', args('image', { publish: true })));
         expect(page.submits()).toBe(1);
+        expect(page.evaluateOnce).toHaveBeenCalledTimes(1);
         expect(result[0]).toMatchObject({ status: 'submitted', submitted: true });
         expect(result[0]).not.toHaveProperty('aweme_id');
+        page.dom.window.close();
+    });
+    it('refuses final submission on backends without non-replaying evaluation', async () => {
+        const page = fixture();
+        delete page.evaluateOnce;
+        await expect(runComposer(page, validateOptions('image', args('image', { publish: true })))).rejects.toThrow('evaluateOnce');
+        expect(page.submits()).toBe(0);
         page.dom.window.close();
     });
     it.each(['none', 'navigation-only'])('returns uncertain without retry on %s', async receipt => {

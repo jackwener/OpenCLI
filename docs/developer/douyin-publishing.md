@@ -28,7 +28,7 @@ explicitly saved or a post was published.
 After reviewing the prepared editor, finish manually. Alternatively, start a new
 operation with `--publish` to authorize one final submission click, or
 `--save-draft` to choose “暂存离开”. These flags are mutually exclusive. An existing
-nonempty composer is never overwritten; handle that editor manually first or use
+nonempty composer (including summary-only or media-only edits) is never overwritten; handle that editor manually first or use
 an independent site session for a new operation. Do not replay an operation whose
 submission outcome is unknown.
 
@@ -77,6 +77,12 @@ on framework internals.
 - `uncertain`: final click was attempted but a complete receipt was unavailable.
   `retryable` is `false`. Inspect creator-center content management before doing
   anything else. There is no automatic resubmission.
+
+The final click requires the backend's non-replaying `evaluateOnce` API; the
+adapter refuses submission on a backend that lacks it. Publication and draft-save
+notifications are checked separately: a cover/autosave or draft notification
+cannot confirm a publication. Status and upload counters are read from platform
+controls, not from authored text containing words such as “验证码”.
 
 The adapter never invents a post ID or constructs a public URL from an unverified
 success screen. Captchas, security restrictions, authentication walls, editor
