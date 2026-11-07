@@ -40,6 +40,7 @@ describe('facebook feed', () => {
       likes: '12',
       comments: '3',
       shares: '2',
+      url: '',
     }]);
   });
 
@@ -69,6 +70,7 @@ describe('facebook feed', () => {
       likes: '1.2K',
       comments: '4',
       shares: '1',
+      url: 'https://www.facebook.com/bob/posts/123',
     }]);
   });
 
@@ -123,6 +125,7 @@ describe('facebook feed', () => {
       likes: '-',
       comments: '-',
       shares: '-',
+      url: 'https://www.facebook.com/dana/posts/456',
     }]);
   });
 
@@ -264,5 +267,20 @@ describe('facebook feed', () => {
     expect(payload.rows).toHaveLength(1);
     expect(payload.rows[0].author).toBe('Real Human');
     expect(payload.rows[0].content).not.toContain('1234567890123');
+  });
+
+  it('anchors on "Actions for this post by <name>" labels and falls back to that name as author', () => {
+    const html = `
+      <div role="main">
+        <div>
+          <div aria-label="Actions for this post by Erin Drift" role="button"></div>
+          <div dir="auto">Post body from the newer Facebook markup that only names the author in the menu label.</div>
+          <a href="https://www.facebook.com/erin/posts/789">Permalink</a>
+        </div>
+      </div>`;
+    const payload = runExtract(html, 5);
+    expect(payload.status).toBe('ok');
+    expect(payload.rows[0].author).toBe('Erin Drift');
+    expect(payload.rows[0].url).toBe('https://www.facebook.com/erin/posts/789');
   });
 });
