@@ -664,8 +664,8 @@ describe('instagram avatar_url', () => {
             ok: true,
             json: () => Promise.resolve({
                 users: [
-                    { user: { username: 'nasa', full_name: 'NASA', is_verified: true, is_private: false, profile_pic_url: 'https://scontent.cdninstagram.com/nasa.jpg' } },
-                    { user: { username: 'nopic', full_name: 'No Pic', is_verified: false, is_private: true } },
+                    { pk: '528817151', username: 'nasa', full_name: 'NASA', is_verified: true, is_private: false, profile_pic_url: 'https://scontent.cdninstagram.com/nasa.jpg' },
+                    { pk: '1', username: 'nopic', full_name: 'No Pic', is_verified: false, is_private: true },
                 ],
             }),
         });
@@ -677,5 +677,27 @@ describe('instagram avatar_url', () => {
             { rank: 1, username: 'nasa', name: 'NASA', verified: 'Yes', private: 'No', avatar_url: 'https://scontent.cdninstagram.com/nasa.jpg', url: 'https://www.instagram.com/nasa' },
             { rank: 2, username: 'nopic', name: 'No Pic', verified: 'No', private: 'Yes', avatar_url: '', url: 'https://www.instagram.com/nopic' },
         ]);
+    });
+
+    it('search queries the web client account search and respects limit', async () => {
+        const fetchFn = vi.fn().mockResolvedValueOnce({
+            ok: true,
+            json: () => Promise.resolve({
+                num_results: 3,
+                users: [
+                    { username: 'nasa', full_name: 'NASA', is_verified: true, is_private: false },
+                    { username: 'nasa_es', full_name: 'NASA en Español', is_verified: true, is_private: false },
+                    { username: 'nasawebb', full_name: 'NASA Webb Telescope', is_verified: true, is_private: false },
+                ],
+            }),
+        });
+        const result = await runCommandEvaluate('search', fetchFn, {
+            '${{ args.query | json }}': JSON.stringify('nasa webb'),
+            '${{ args.limit }}': '2',
+        });
+        expect(fetchFn).toHaveBeenCalledTimes(1);
+        expect(fetchFn.mock.calls[0][0]).toBe('https://www.instagram.com/api/v1/fbsearch/account_serp/?query=nasa%20webb');
+        expect(fetchFn.mock.calls[0][1]).toMatchObject({ credentials: 'include', headers: { 'X-IG-App-ID': '936619743392459' } });
+        expect(result.map((r) => r.username)).toEqual(['nasa', 'nasa_es']);
     });
 });
