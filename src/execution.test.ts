@@ -398,6 +398,95 @@ describe('executeCommand — non-browser timeout', () => {
     vi.restoreAllMocks();
   });
 
+  // 2026-09-27: one rejected pre-navigation failed `linkedin connections`, and the daily social
+  // run sent no general invites. The adapters already retried; the pre-navigation did not.
+  it('retries a rejected pre-navigation and then runs the adapter', async () => {
+    const goto = vi.fn()
+      .mockRejectedValueOnce(new Error('Navigation rejected.'))
+      .mockResolvedValueOnce(undefined);
+    const newTab = vi.fn();
+    const mockPage = { goto, newTab, setActivePage: vi.fn() } as any;
+
+    vi.spyOn(capRouting, 'shouldUseBrowserSession').mockReturnValue(true);
+    vi.spyOn(runtime, 'browserSession').mockImplementation(async (_Factory, fn) => fn(mockPage));
+
+    const func = vi.fn(async () => [{ ok: true }]);
+    const cmd = cli({
+      site: 'test-execution',
+      name: 'prenav-rejected-once', access: 'read',
+      description: 'test a rejected pre-navigation is retried',
+      browser: true,
+      strategy: Strategy.COOKIE,
+      domain: 'example.com',
+      func,
+    });
+
+    await expect(executeCommand(cmd, {})).resolves.toEqual([{ ok: true }]);
+
+    expect(goto).toHaveBeenCalledTimes(2);
+    expect(goto).toHaveBeenLastCalledWith('https://example.com');
+    expect(newTab).not.toHaveBeenCalled();
+    expect(func).toHaveBeenCalledTimes(1);
+    vi.restoreAllMocks();
+  });
+
+  it('moves a twice-rejected pre-navigation to a new tab and runs the adapter there', async () => {
+    const goto = vi.fn().mockRejectedValue(new Error('Navigation rejected.'));
+    const newTab = vi.fn().mockResolvedValue('p2');
+    const setActivePage = vi.fn();
+    const evaluate = vi.fn().mockResolvedValue({ href: 'https://example.com/', ready: 'complete' });
+    const mockPage = { goto, newTab, setActivePage, evaluate } as any;
+
+    vi.spyOn(capRouting, 'shouldUseBrowserSession').mockReturnValue(true);
+    vi.spyOn(runtime, 'browserSession').mockImplementation(async (_Factory, fn) => fn(mockPage));
+
+    const func = vi.fn(async () => [{ ok: true }]);
+    const cmd = cli({
+      site: 'test-execution',
+      name: 'prenav-rejected-twice', access: 'read',
+      description: 'test a twice-rejected pre-navigation falls back to a new tab',
+      browser: true,
+      strategy: Strategy.COOKIE,
+      domain: 'example.com',
+      func,
+    });
+
+    await expect(executeCommand(cmd, {})).resolves.toEqual([{ ok: true }]);
+
+    expect(goto).toHaveBeenCalledTimes(2);
+    expect(newTab).toHaveBeenCalledWith('https://example.com');
+    expect(setActivePage).toHaveBeenCalledWith('p2');
+    expect(func).toHaveBeenCalledTimes(1);
+    vi.restoreAllMocks();
+  });
+
+  it('fails a pre-navigation that stays rejected, and never runs the adapter', async () => {
+    const goto = vi.fn().mockRejectedValue(new Error('Navigation rejected.'));
+    const mockPage = { goto } as any;
+
+    vi.spyOn(capRouting, 'shouldUseBrowserSession').mockReturnValue(true);
+    vi.spyOn(runtime, 'browserSession').mockImplementation(async (_Factory, fn) => fn(mockPage));
+
+    const func = vi.fn(async () => [{ ok: true }]);
+    const cmd = cli({
+      site: 'test-execution',
+      name: 'prenav-rejected-for-good', access: 'read',
+      description: 'test a pre-navigation with no fallback still fails loudly',
+      browser: true,
+      strategy: Strategy.COOKIE,
+      domain: 'example.com',
+      func,
+    });
+
+    await expect(executeCommand(cmd, {})).rejects.toThrow(
+      'Pre-navigation to https://example.com failed: Navigation rejected.',
+    );
+
+    expect(goto).toHaveBeenCalledTimes(2);
+    expect(func).not.toHaveBeenCalled();
+    vi.restoreAllMocks();
+  });
+
   it('respects navigateBefore=false so adapter range validation fails before browser navigation', async () => {
     const closeWindow = vi.fn().mockResolvedValue(undefined);
     const goto = vi.fn().mockResolvedValue(undefined);
