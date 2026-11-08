@@ -24,6 +24,7 @@
 | `opencli notebooklm write-note <notebook> --title <title> --content <markdown> --execute` | Create a Studio note in a notebook |
 | `opencli notebooklm generate-audio <notebook> --execute` | Trigger Audio Overview generation for a notebook |
 | `opencli notebooklm generate-slides <notebook> --execute` | Trigger slide deck generation for a notebook |
+| `opencli notebooklm download-audio <notebook>` | Download the Audio Overview (podcast) of a notebook to a local audio file |
 
 ## Compatibility Aliases
 
@@ -68,6 +69,12 @@ opencli notebooklm add-source 17e2b882-6a01-4c6c-9262-0738dfa2abee --file ./pape
 opencli notebooklm write-note 17e2b882-6a01-4c6c-9262-0738dfa2abee --title "Open questions" --content "## Next steps" --execute
 opencli notebooklm generate-audio 17e2b882-6a01-4c6c-9262-0738dfa2abee --execute
 opencli notebooklm generate-slides 17e2b882-6a01-4c6c-9262-0738dfa2abee --length 3 --language en --execute
+
+# Download the Audio Overview of a notebook (waits until generation finishes)
+opencli notebooklm download-audio 17e2b882-6a01-4c6c-9262-0738dfa2abee --output ./episode.wav
+
+# Trigger the generation first when the notebook has no audio overview yet
+opencli notebooklm download-audio 17e2b882-6a01-4c6c-9262-0738dfa2abee --generate --timeout 900 --output ./episode.wav
 ```
 
 ## Prerequisites

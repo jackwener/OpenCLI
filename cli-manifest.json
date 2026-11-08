@@ -24503,6 +24503,66 @@
   },
   {
     "site": "notebooklm",
+    "name": "download-audio",
+    "description": "Download the Audio Overview (podcast) of a NotebookLM notebook to a local audio file",
+    "access": "write",
+    "domain": "notebook.google.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "notebook",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Notebook id from `notebooklm list` or full notebook URL"
+      },
+      {
+        "name": "output",
+        "type": "str",
+        "required": false,
+        "help": "Output file path (default ./<notebook_id>-audio.wav). A .wav target is transcoded to real PCM WAV."
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 900,
+        "required": false,
+        "help": "Seconds to wait for the audio overview to become ready (default 900)"
+      },
+      {
+        "name": "poll",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": "Seconds between readiness checks (default 30)"
+      },
+      {
+        "name": "generate",
+        "type": "boolean",
+        "required": false,
+        "help": "Trigger an Audio Overview generation when the notebook has none yet"
+      }
+    ],
+    "columns": [
+      "notebook_id",
+      "file",
+      "bytes",
+      "status",
+      "artifact_id",
+      "title",
+      "duration_seconds",
+      "language",
+      "content_type",
+      "converted_to_wav"
+    ],
+    "type": "js",
+    "modulePath": "notebooklm/download-audio.js",
+    "sourceFile": "notebooklm/download-audio.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "notebooklm",
     "name": "generate-audio",
     "description": "Trigger an Audio Overview (Deep Dive podcast) generation for a NotebookLM notebook, using all of its sources",
     "access": "write",
@@ -42766,6 +42826,125 @@
     "type": "js",
     "modulePath": "xiaoyuzhou/transcript.js",
     "sourceFile": "xiaoyuzhou/transcript.js"
+  },
+  {
+    "site": "xiaoyuzhou",
+    "name": "upload",
+    "description": "Upload an audio file as a new episode (单集) on the Xiaoyuzhou podcaster backend",
+    "access": "write",
+    "domain": "podcaster.xiaoyuzhoufm.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "audio",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Local audio file to upload (wav / mp3 / m4a)"
+      },
+      {
+        "name": "title",
+        "type": "str",
+        "required": true,
+        "help": "Episode title (单集标题)"
+      },
+      {
+        "name": "description",
+        "type": "str",
+        "required": false,
+        "help": "Episode description / shownotes (简介)"
+      },
+      {
+        "name": "cover",
+        "type": "str",
+        "required": false,
+        "help": "Local cover image (jpg / png / webp)"
+      },
+      {
+        "name": "podcast",
+        "type": "str",
+        "default": "",
+        "required": false,
+        "help": "Podcast id (required; or set YT2PODCAST_PODCAST_ID)"
+      },
+      {
+        "name": "draft",
+        "type": "boolean",
+        "default": true,
+        "required": false,
+        "help": "Keep the episode as an unpublished draft (default: true)"
+      },
+      {
+        "name": "publish",
+        "type": "boolean",
+        "required": false,
+        "help": "Publish the episode right after creating it (overrides --draft)"
+      },
+      {
+        "name": "ai-generated",
+        "type": "boolean",
+        "default": true,
+        "required": false,
+        "help": "Declare the audio as AI generated (default: true)"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Seconds to wait for the upload (default 300)"
+      }
+    ],
+    "columns": [
+      "episode_id",
+      "episode_url",
+      "title",
+      "status",
+      "draft"
+    ],
+    "type": "js",
+    "modulePath": "xiaoyuzhou/upload.js",
+    "sourceFile": "xiaoyuzhou/upload.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "xiaoyuzhou",
+    "name": "upload-status",
+    "description": "Show the status (draft / reviewing / published) of a Xiaoyuzhou episode",
+    "access": "read",
+    "domain": "podcaster.xiaoyuzhoufm.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "episode_id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Episode id (eid)"
+      },
+      {
+        "name": "podcast",
+        "type": "str",
+        "default": "",
+        "required": false,
+        "help": "Podcast id (required; or set YT2PODCAST_PODCAST_ID)"
+      }
+    ],
+    "columns": [
+      "episode_id",
+      "title",
+      "status",
+      "review_status",
+      "duration_seconds",
+      "published",
+      "episode_url"
+    ],
+    "type": "js",
+    "modulePath": "xiaoyuzhou/upload-status.js",
+    "sourceFile": "xiaoyuzhou/upload-status.js",
+    "navigateBefore": false
   },
   {
     "site": "xueqiu",
