@@ -8,33 +8,13 @@ const mocks = vi.hoisted(() => ({
     downloadSunoClip: vi.fn(),
 }));
 
-vi.mock('./utils.js', () => ({
-    DEFAULT_SUNO_MODEL: 'chirp-fenix',
-    SUNO_DOMAIN: 'suno.com',
-    SUNO_MODELS: ['chirp-fenix', 'chirp-bluejay', 'chirp-v4', 'chirp-v3-5'],
-    SUNO_URL: 'https://suno.com',
+vi.mock('./utils.js', async importOriginal => ({
+    ...await importOriginal(),
     ensureSunoSession: mocks.ensureSunoSession,
     checkSunoCaptcha: mocks.checkSunoCaptcha,
     submitSunoGeneration: mocks.submitSunoGeneration,
     pollSunoClips: mocks.pollSunoClips,
     downloadSunoClip: mocks.downloadSunoClip,
-    clampSlider: (value, _label, def) => (value === undefined || value === '' || value === null ? def : Number(value)),
-    normalizeBooleanFlag: (value, fallback = false) => {
-        if (typeof value === 'boolean') return value;
-        if (value == null || value === '') return fallback;
-        const s = String(value).trim().toLowerCase();
-        return s === 'true' || s === '1' || s === 'yes' || s === 'on';
-    },
-    parseFormats: (value) => {
-        if (!value) return ['mp3', 'metadata'];
-        const raw = Array.isArray(value) ? value.join(',') : String(value);
-        return raw.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
-    },
-    requirePositiveInt: (value) => {
-        const n = Number(value);
-        if (!Number.isInteger(n) || n < 1) throw new Error('positive int required');
-        return n;
-    },
     resolveSunoOutputDir: (value) => value || '/tmp/suno-test',
 }));
 
@@ -44,7 +24,9 @@ function createPage() {
     return {
         goto: vi.fn().mockResolvedValue(undefined),
         wait: vi.fn().mockResolvedValue(undefined),
-        evaluate: vi.fn().mockResolvedValue(undefined),
+        click: vi.fn().mockResolvedValue({ clicked: true }),
+        evaluate: vi.fn(async js => js.includes('simple: document.querySelector')
+            ? { simple: false, advanced: false } : undefined),
     };
 }
 
@@ -55,6 +37,9 @@ const okSession = {
     totalCreditsAvailable: 2000,
     breakdown: { pack: 0, purchasedPacks: 0, monthlyRemaining: 2000, monthlyLimit: 2500, monthlyUsed: 500 },
     deviceId: 'device-uuid',
+    models: [{ name: 'v6', externalKey: 'chirp-hawk', canUse: true, isDefault: true },
+        { name: 'v6-wild', externalKey: 'chirp-hawk-wild', canUse: true, isDefault: false },
+        { name: 'v6-mini', externalKey: 'chirp-goose', canUse: true, isDefault: false }],
 };
 const okCaptcha = { ok: true, required: false };
 const okSubmission = { id: 'batch-id', clips: [{ id: 'clip-a-id', status: 'submitted' }, { id: 'clip-b-id', status: 'submitted' }] };
@@ -112,21 +97,27 @@ describe('suno generate argument validation', () => {
         expect(mocks.submitSunoGeneration).not.toHaveBeenCalled();
     });
 
-    it('refuses to submit when captcha is required (out-of-scope for headless flow)', async () => {
+    it('rejects lyrics plus instrumental before native submission', async () => {
         mocks.checkSunoCaptcha.mockResolvedValue({ ok: true, required: true });
-        await expect(generateCommand.func(createPage(), { prompt: 'foo', sd: true, timeout: 60 })).rejects.toMatchObject({
-            code: 'COMMAND_EXEC',
-            message: expect.stringContaining('CAPTCHA challenge'),
+        await expect(generateCommand.func(createPage(), { lyrics: '[Verse] foo', instrumental: true, sd: true, timeout: 60 })).rejects.toMatchObject({
+            code: 'ARGUMENT',
+            message: expect.stringContaining('cannot combine nonempty lyrics'),
         });
         expect(mocks.submitSunoGeneration).not.toHaveBeenCalled();
     });
 
-    it('refuses to submit when captcha pre-flight fails', async () => {
+    it('uses Create instead of the direct API when captcha pre-flight fails', async () => {
         mocks.checkSunoCaptcha.mockResolvedValue({ ok: false, status: 500 });
-        await expect(generateCommand.func(createPage(), { prompt: 'foo', sd: true, timeout: 60 })).rejects.toMatchObject({
-            code: 'COMMAND_EXEC',
-            message: expect.stringContaining('captcha pre-flight failed'),
-        });
+        const page = createPage();
+        await expect(generateCommand.func(page, { prompt: 'foo', sd: true, timeout: 60 })).rejects.toMatchObject({ code: 'COMMAND_EXEC' });
+        expect(page.goto).toHaveBeenCalledWith('https://suno.com/create');
+        expect(mocks.submitSunoGeneration).not.toHaveBeenCalled();
+    });
+    it('skips the captcha probe when --via-ui is explicit', async () => {
+        const page = createPage();
+        await expect(generateCommand.func(page, { prompt: 'foo', 'via-ui': true, sd: true, timeout: 60 })).rejects.toMatchObject({ code: 'COMMAND_EXEC' });
+        expect(mocks.checkSunoCaptcha).not.toHaveBeenCalled();
+        expect(page.goto).toHaveBeenCalledWith('https://suno.com/create');
         expect(mocks.submitSunoGeneration).not.toHaveBeenCalled();
     });
 });
@@ -143,6 +134,58 @@ describe('suno generate Simple mode payload', () => {
             userTier: okSession.planId,
             deviceId: okSession.deviceId,
         }));
+    });
+    it('uses the available free-plan v6-mini model when it is the account default', async () => {
+        mocks.ensureSunoSession.mockResolvedValue({ ...okSession, models: [
+            { name: 'v6', externalKey: 'chirp-hawk', canUse: false, isDefault: false },
+            { name: 'v6-mini', externalKey: 'chirp-goose', canUse: true, isDefault: true },
+        ] });
+        await generateCommand.func(createPage(), { prompt: 'short melody', sd: true, timeout: 60 });
+        expect(mocks.submitSunoGeneration).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+            model: 'chirp-goose',
+            modelName: 'v6-mini',
+        }));
+    });
+    it('resolves a retired chirp-* --model to v6 instead of rejecting the script', async () => {
+        await generateCommand.func(createPage(), { prompt: 'short melody', model: 'chirp-fenix', sd: true, timeout: 60 });
+        expect(mocks.submitSunoGeneration).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+            model: 'chirp-hawk',
+            modelName: 'v6',
+        }));
+    });
+    it('falls back to the account default when the v6 successor is unusable', async () => {
+        // A free account: only v6-mini is usable, so chirp-v4 cannot map to v6.
+        mocks.ensureSunoSession.mockResolvedValue({ ...okSession, models: [
+            { name: 'v6', externalKey: 'chirp-hawk', canUse: false, isDefault: false, isDefaultFree: false },
+            { name: 'v6-mini', externalKey: 'chirp-goose', canUse: true, isDefault: false, isDefaultFree: true },
+        ] });
+        await generateCommand.func(createPage(), { prompt: 'short melody', model: 'chirp-v4', sd: true, timeout: 60 });
+        expect(mocks.submitSunoGeneration).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+            model: 'chirp-goose',
+            modelName: 'v6-mini',
+        }));
+    });
+    it('prefers the account default over the free default regardless of billing order', async () => {
+        // v6-mini listed first: the paid default v6 must still win.
+        mocks.ensureSunoSession.mockResolvedValue({ ...okSession, models: [
+            { name: 'v6-mini', externalKey: 'chirp-goose', canUse: true, isDefault: false, isDefaultFree: true },
+            { name: 'v6', externalKey: 'chirp-hawk', canUse: true, isDefault: true, isDefaultFree: false },
+        ] });
+        await generateCommand.func(createPage(), { prompt: 'short melody', sd: true, timeout: 60 });
+        expect(mocks.submitSunoGeneration).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+            model: 'chirp-hawk',
+            modelName: 'v6',
+        }));
+    });
+    it('still rejects --model values that were never Suno models', async () => {
+        await expect(generateCommand.func(createPage(), { prompt: 'short melody', model: 'gpt-4o', sd: true, timeout: 60 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('Unsupported --model "gpt-4o"') });
+        expect(mocks.submitSunoGeneration).not.toHaveBeenCalled();
+    });
+    it('rejects a blank --model instead of silently using a default', async () => {
+        await expect(generateCommand.func(createPage(), { prompt: 'short melody', model: '   ', sd: true, timeout: 60 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('Unsupported --model ""') });
+        expect(mocks.submitSunoGeneration).not.toHaveBeenCalled();
     });
 });
 
