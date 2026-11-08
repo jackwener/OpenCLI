@@ -6,6 +6,7 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { looksLinkedInAuthWall, normalizeWhitespace, unwrapEvaluateResult } from './shared.js';
+import { gotoResilient } from '@jackwener/opencli/browser/utils';
 
 const LINKEDIN_DOMAIN = 'www.linkedin.com';
 const SEARCH_URL_BASE = 'https://www.linkedin.com/search/results/people/';
@@ -193,7 +194,7 @@ cli({
         const limit = parseLimit(args.limit);
 
         try {
-            await page.goto(buildSearchUrl(keywords));
+            await gotoResilient(page, buildSearchUrl(keywords));
             await page.wait(6);
         } catch (error) {
             throw new CommandExecutionError(`LinkedIn people search navigation failed: ${error?.message || error}`);

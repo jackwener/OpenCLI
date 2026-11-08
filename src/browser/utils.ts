@@ -68,3 +68,49 @@ export function buildEvaluateExpression(input: string | EvaluateFunction, args: 
   }
   return wrapForEval(input);
 }
+
+/**
+ * Chrome occasionally answers `chrome.tabs.update` with "Navigation rejected."
+ * for a tab the automation session already holds (seen on LinkedIn profile
+ * hops since 2026-09-14; google/images had the same failure). The tab is not
+ * dead — a fresh tab navigates fine — so retry there instead of failing the
+ * whole command. Any other error is rethrown untouched.
+ *
+ * The retry never releases the lease (closeWindow): that dropped the page
+ * identity the adapter still held and churned the owned window, which on
+ * 2026-09-14 surfaced as a new visible browser window mid-run.
+ */
+export function isNavigationRejected(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error ?? '');
+  return /Navigation rejected/i.test(message);
+}
+
+interface ResilientPage {
+  goto(url: string, options?: Record<string, unknown>): Promise<void>;
+  newTab?: (url: string) => Promise<string | null | undefined>;
+  setActivePage?: (pageId: string) => Promise<void> | void;
+}
+
+export async function gotoResilient(page: ResilientPage, url: string, options?: Record<string, unknown>): Promise<void> {
+  // Forward options only when given so adapters' `goto(url)` contract (and their tests) hold.
+  const go = () => (options === undefined ? page.goto(url) : page.goto(url, options));
+  try {
+    await go();
+    return;
+  } catch (error) {
+    if (!isNavigationRejected(error)) throw error;
+  }
+  try {
+    await go();
+  } catch (error) {
+    if (!isNavigationRejected(error)) throw error;
+    if (typeof page.newTab === 'function' && typeof page.setActivePage === 'function') {
+      const pageId = await page.newTab(url);
+      if (pageId) {
+        await page.setActivePage(pageId);
+        return;
+      }
+    }
+    throw error;
+  }
+}
