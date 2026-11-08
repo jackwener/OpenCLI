@@ -11,7 +11,7 @@ import { emitFailure, emitResult } from './command-output.js';
 import { registerAllCommands } from './commanderAdapter.js';
 import { registerAdapterCommands } from './commands/adapter.js';
 import { registerAuthCommands } from './commands/auth.js';
-import { registerBrowserCommands } from './commands/browser.js';
+import { registerBrowserCommands, registerWindowsCommands } from './commands/browser.js';
 import { daemonRestart, daemonStatus, daemonStop } from './commands/daemon.js';
 import { registerListCommand } from './commands/list.js';
 import { registerPluginCommands } from './commands/plugin.js';
@@ -127,6 +127,9 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
   // All commands wrapped in browserAction() for consistent error handling.
 
   const browser = registerBrowserCommands(program);
+
+  // ── Built-in: windows ──────────────────────────────────────────────────────
+  registerWindowsCommands(program);
 
   // ── Built-in: doctor / completion ──────────────────────────────────────────
 

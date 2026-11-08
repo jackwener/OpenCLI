@@ -2861,4 +2861,121 @@ describe('background tab isolation', () => {
     const leftover = (await chrome.storage.local.get(REGISTRY_KEY) as any)[REGISTRY_KEY];
     expect(leftover).toBeUndefined();
   });
+
+  it('closes the windows opencli owns on request and forgets their leases', async () => {
+    const { chrome, tabs } = createChromeMock();
+    const closedWindows = new Set<number>();
+    chrome.windows.get.mockImplementation(async (windowId: number) => {
+      if (closedWindows.has(windowId)) throw new Error(`No window with id: ${windowId}.`);
+      return { id: windowId, focused: false };
+    });
+    chrome.windows.remove.mockImplementation(async (windowId: number) => {
+      closedWindows.add(windowId);
+      for (let i = tabs.length - 1; i >= 0; i -= 1) {
+        if (tabs[i].windowId === windowId) tabs.splice(i, 1);
+      }
+    });
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    await mod.__test__.resolveTabId(undefined, adapterKey('first'));
+    expect(mod.__test__.getSession(adapterKey('first'))).not.toBeNull();
+
+    const result = await mod.__test__.handleCommand({ id: 'close-owned', action: 'close-owned-windows' });
+
+    expect(result).toEqual(expect.objectContaining({ id: 'close-owned', ok: true }));
+    expect((result.data as any).closed).toEqual([expect.objectContaining({ role: 'automation', windowId: 1 })]);
+    expect((result.data as any).kept).toEqual([]);
+    expect(chrome.windows.remove).toHaveBeenCalledWith(1);
+    expect(tabs.some((tab) => tab.windowId === 1)).toBe(false);
+    expect(tabs.find((tab) => tab.id === 2)?.url).toBe('https://user.example');
+    expect(mod.__test__.getSession(adapterKey('first'))).toBeNull();
+  });
+
+  it('leaves a window open while any command on its surface is still running', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    await mod.__test__.resolveTabId(undefined, adapterKey('first'));
+    // A second adapter command that has not created its lease yet still counts.
+    mod.__test__.setActiveCommandCount(adapterKey('second'), 1);
+
+    const result = await mod.__test__.handleCommand({ id: 'close-busy', action: 'close-owned-windows' });
+
+    expect(result.ok).toBe(true);
+    expect((result.data as any).kept).toEqual([{ role: 'automation', windowId: 1, reason: 'busy' }]);
+    expect(chrome.windows.remove).not.toHaveBeenCalled();
+    expect(chrome.tabs.remove).not.toHaveBeenCalled();
+    expect(mod.__test__.getSession(adapterKey('first'))).not.toBeNull();
+  });
+
+  it('closes only opencli tabs when the browser-session group sits in a user window', async () => {
+    const { chrome, tabs, groups } = createChromeMock();
+    tabs.push({ id: 60, windowId: 2, url: 'https://session.example', title: 'session', active: false, status: 'complete', groupId: 300 });
+    tabs.push({ id: 61, windowId: 2, url: 'about:blank', title: 'blank', active: false, status: 'complete', groupId: 300 });
+    groups.push({ id: 300, windowId: 2, title: 'OpenCLI Browser', collapsed: false });
+    vi.stubGlobal('chrome', chrome);
+    await chrome.storage.session.set({
+      [REGISTRY_KEY]: {
+        version: 2,
+        contextId: 'user-default',
+        ownedContainers: { interactive: { windowId: 2, groupIds: [300] }, automation: { windowId: null } },
+        leases: {},
+      },
+    });
+
+    const mod = await import('./background');
+    await mod.__test__.reconcileTargetLeaseRegistry();
+
+    const result = await mod.__test__.handleCommand({ id: 'close-user-window', action: 'close-owned-windows' });
+
+    expect(result.ok).toBe(true);
+    expect((result.data as any).kept).toEqual([{ role: 'interactive', windowId: 2, reason: 'user_tabs', closedTabs: 2 }]);
+    expect(chrome.tabs.remove).toHaveBeenCalledWith([60, 61]);
+    expect(chrome.windows.remove).not.toHaveBeenCalled();
+    expect(tabs.find((tab) => tab.id === 2)?.url).toBe('https://user.example');
+    expect(mod.__test__.getInteractiveContainer().windowId).toBeNull();
+  });
+
+  it('reports a window that is still open after the close instead of calling it closed', async () => {
+    // The default mock never forgets a window, like one held open by a "Leave site?" prompt.
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    mod.__test__.setOwnedWindowCloseTimeoutMs(200);
+    await mod.__test__.resolveTabId(undefined, adapterKey('first'));
+
+    const result = await mod.__test__.handleCommand({ id: 'close-blocked', action: 'close-owned-windows' });
+
+    expect(chrome.windows.remove).toHaveBeenCalledWith(1);
+    expect((result.data as any).closed).toEqual([]);
+    expect((result.data as any).kept).toEqual([{ role: 'automation', windowId: 1, reason: 'close_blocked' }]);
+  });
+
+  it('waits out a window that Chrome still reports right after removing it', async () => {
+    // Measured on Edge 2026-09-17: windows.get kept answering for a few hundred ms
+    // after the window was closed, so one eager check called every close blocked.
+    const { chrome } = createChromeMock();
+    let getsAfterRemove = 0;
+    let removed = false;
+    chrome.windows.remove.mockImplementation(async (_windowId: number) => { removed = true; });
+    chrome.windows.get.mockImplementation(async (windowId: number) => {
+      if (removed && ++getsAfterRemove > 2) throw new Error(`No window with id: ${windowId}.`);
+      return { id: windowId, focused: false };
+    });
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    mod.__test__.setOwnedWindowCloseTimeoutMs(2_000);
+    await mod.__test__.resolveTabId(undefined, adapterKey('first'));
+
+    const result = await mod.__test__.handleCommand({ id: 'close-late', action: 'close-owned-windows' });
+
+    expect(getsAfterRemove).toBeGreaterThan(1);
+    expect((result.data as any).kept).toEqual([]);
+    expect((result.data as any).closed).toEqual([expect.objectContaining({ role: 'automation', windowId: 1 })]);
+    expect(mod.__test__.getSession(adapterKey('first'))).toBeNull();
+  });
 });

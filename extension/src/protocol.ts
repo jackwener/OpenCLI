@@ -14,6 +14,7 @@ export type Action =
   | 'screenshot'
   | 'close-window'
   | 'close-owned-tab'
+  | 'close-owned-windows'
   | 'sessions'
   | 'set-file-input'
   | 'insert-text'

@@ -1741,6 +1741,9 @@ async function getAutomationWindow(leaseKey, initialUrl) {
 }
 chrome.windows.onRemoved.addListener(async (windowId) => {
   await workerReady;
+  await forgetClosedWindow(windowId);
+});
+async function forgetClosedWindow(windowId) {
   for (const container of Object.values(ownedContainers)) {
     if (container.windowId === windowId) {
       container.windowId = null;
@@ -1757,7 +1760,7 @@ chrome.windows.onRemoved.addListener(async (windowId) => {
     }
   }
   await persistRuntimeState();
-});
+}
 chrome.tabs.onRemoved.addListener(async (tabId) => {
   await workerReady;
   evictTab(tabId);
@@ -1863,6 +1866,13 @@ async function handleCommand(cmd) {
       ) }));
     } catch (error) {
       return errorResult(cmd.id, error);
+    }
+  }
+  if (cmd.action === "close-owned-windows") {
+    try {
+      return await handleCloseOwnedWindows(cmd);
+    } catch (err) {
+      return errorResult(cmd.id, err);
     }
   }
   const session = getSessionName(cmd.session);
@@ -2528,6 +2538,74 @@ async function handleCloseWindow(cmd, leaseKey) {
   const sessionName = automationSessions.get(leaseKey)?.session ?? getSessionFromKey(leaseKey);
   await releaseLease(leaseKey, "explicit close");
   return { id: cmd.id, ok: true, data: { closed: true, session: sessionName } };
+}
+let ownedWindowCloseTimeoutMs = 5e3;
+async function handleCloseOwnedWindows(cmd) {
+  return withLeaseMutation(async () => {
+    const report = { closed: [], kept: [] };
+    for (const role of ["automation", "interactive"]) {
+      const container = ownedContainers[role];
+      const windowId = container.windowId;
+      if (windowId === null) continue;
+      if ([...activeCommandCounts.keys()].some((leaseKey) => getOwnedWindowRole(leaseKey) === role)) {
+        report.kept.push({ role, windowId, reason: "busy" });
+        continue;
+      }
+      let tabs;
+      try {
+        await chrome.windows.get(windowId);
+        tabs = await chrome.tabs.query({ windowId });
+      } catch {
+        await forgetClosedWindow(windowId);
+        continue;
+      }
+      const ownedIds = /* @__PURE__ */ new Set();
+      for (const tab of tabs) {
+        if (tab.id === void 0) continue;
+        if (role === "automation" || isOwnedInteractiveTab(tab, windowId)) ownedIds.add(tab.id);
+      }
+      if (ownedIds.size < tabs.length) {
+        if (ownedIds.size > 0) await chrome.tabs.remove([...ownedIds]).catch(() => {
+        });
+        container.windowId = null;
+        container.groupId = null;
+        await persistRuntimeState();
+        report.kept.push({ role, windowId, reason: "user_tabs", closedTabs: ownedIds.size });
+        continue;
+      }
+      void chrome.windows.remove(windowId).catch(() => {
+      });
+      if (!await windowClosedBefore(windowId, Date.now() + ownedWindowCloseTimeoutMs)) {
+        report.kept.push({ role, windowId, reason: "close_blocked" });
+        continue;
+      }
+      await forgetClosedWindow(windowId);
+      console.log(`[opencli] Closed owned ${role} window ${windowId} (${tabs.length} tabs, explicit close)`);
+      report.closed.push({ role, windowId, tabs: tabs.length });
+    }
+    return { id: cmd.id, ok: true, data: report };
+  });
+}
+async function windowClosedBefore(windowId, deadline) {
+  for (; ; ) {
+    const open = await chrome.windows.get(windowId).then(() => true, () => false);
+    if (!open) return true;
+    if (Date.now() >= deadline) return false;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+}
+function isOwnedInteractiveTab(tab, windowId) {
+  const groupId = tab.groupId;
+  if (typeof groupId === "number" && groupId >= 0 && (groupId === ownedContainers.interactive.groupId || interactiveGroupLedger.has(groupId))) {
+    return true;
+  }
+  if (tab.url === BLANK_PAGE) return true;
+  for (const [leaseKey, session] of automationSessions.entries()) {
+    if (session.owned && session.windowId === windowId && session.preferredTabId === tab.id && getOwnedWindowRole(leaseKey) === "interactive") {
+      return true;
+    }
+  }
+  return false;
 }
 async function handleSetFileInput(cmd, leaseKey) {
   if (!cmd.files || !Array.isArray(cmd.files) || cmd.files.length === 0) {
