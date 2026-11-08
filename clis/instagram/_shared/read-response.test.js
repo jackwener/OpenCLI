@@ -1,13 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
-import '../profile.js';
 import '../user.js';
 import '../search.js';
 function fixture(body,status=200) {
     const fetch = vi.fn(async()=>new Response(body,{status}));
     return {fetch,page:{goto:vi.fn(),evaluate:async script=>new Function('fetch',`return (${script})`)(fetch)}};
 }
-describe.each(['profile','user','search'])('Instagram %s errors',name=>{
+// profile reads through the web client instead; see ../profile.test.js.
+describe.each(['user','search'])('Instagram %s errors',name=>{
     const args={username:'fixture',query:'fixture',limit:1};
     const run=page=>getRegistry().get(`instagram/${name}`).func(page,args);
     it('rejects HTTP 429 without retries or fallback',async()=>{
