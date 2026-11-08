@@ -1,5 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { extractRedditMedia, fetchRedditListing } from './api.js';
+import { extractRedditMedia, fetchRedditListingWithHtmlFallback } from './api.js';
 cli({
     site: 'reddit',
     name: 'subreddit',
@@ -32,10 +32,13 @@ cli({
         const time = kwargs.time ?? 'all';
         const limit = kwargs.limit ?? 15;
         let path = '/r/' + encodeURIComponent(sub) + '/' + encodeURIComponent(sort) + '.json?limit=' + limit + '&raw_json=1';
+        const feed = new URLSearchParams({ name: sub });
         if ((sort === 'top' || sort === 'controversial') && time) {
             path += '&t=' + encodeURIComponent(time);
+            feed.set('t', String(time));
         }
-        const children = await fetchRedditListing(page, path);
+        const htmlPath = '/svc/shreddit/community-more-posts/' + encodeURIComponent(sort) + '/?' + feed.toString();
+        const children = await fetchRedditListingWithHtmlFallback(page, path, htmlPath, limit);
         return children.slice(0, limit).map(c => ({
             id: c.data.id,
             title: c.data.title,

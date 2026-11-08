@@ -148,6 +148,7 @@ cli({
             throwIfLoginWall(result.sentinel, { url: requestPath });
         }
         const rows = mapSearchResult(result).slice(0, limit);
+        if (result.cardsOnly) log.warn('Reddit blocked post hydration (/by_id) with its network-security filter; returning the fields shown on the search results page (no selftext or media).');
         if (result.fallback) log.warn('Reddit web-search markup was unavailable; using legacy search ranking.');
         if (result.missing) log.warn(`Reddit did not return details for ${result.missing} ranked posts; preserving the remaining web-search order.`);
         if (result.capped) log.warn('Reddit search reached its 10-page pagination limit.');
