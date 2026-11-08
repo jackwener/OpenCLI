@@ -11637,7 +11637,8 @@
       "content",
       "likes",
       "comments",
-      "shares"
+      "shares",
+      "url"
     ],
     "type": "js",
     "modulePath": "facebook/feed.js",

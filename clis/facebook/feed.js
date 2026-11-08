@@ -160,7 +160,12 @@ function buildFeedExtractScript(limit) {
       const fullText = textOf(root);
       if (!fullText || isSuggestionOrChrome(fullText) || isSponsored(fullText)) return null;
 
-      const author = findAuthor(root);
+      let author = findAuthor(root);
+      if (!author) {
+        // Newer Facebook markup names the author only in the ⋯ menu label.
+        const menu = Array.from(root.querySelectorAll('[aria-label]')).map(labelOf).find((l) => /^Actions for this post by /i.test(l));
+        if (menu) author = clean(menu.replace(/^Actions for this post by /i, ''));
+      }
       const blocks = contentBlocks(root, author);
       const content = clean(blocks.join(' '));
       const postUrl = postUrlFrom(root);
@@ -184,6 +189,7 @@ function buildFeedExtractScript(limit) {
         likes: likesMatch ? clean(likesMatch[1]) : '-',
         comments: commentsMatch ? clean(commentsMatch[1]) : '-',
         shares: sharesMatch ? clean(sharesMatch[1]) : '-',
+        url: postUrl,
       };
     }
 
@@ -201,7 +207,7 @@ function buildFeedExtractScript(limit) {
       // Post menus only — NOT "Actions for this comment", so the anchor set,
       // countMenus, and loadFeedPosts all key on the same thing (#2089).
       return Array.from(document.querySelectorAll('[aria-label]')).filter((el) =>
-        /^(Actions for this post|此帖子的操作|针对此帖子的操作|贴文的操作)$/i.test(labelOf(el)));
+        /^(Actions for this post( by .+)?|此帖子的操作|针对此帖子的操作|贴文的操作)$/i.test(labelOf(el)));
     }
 
     function actionAnchoredContainers() {
@@ -211,7 +217,7 @@ function buildFeedExtractScript(limit) {
       const countMenus = (node) => {
         let n = 0;
         for (const el of node.querySelectorAll('[aria-label]')) {
-          if (/^(Actions for this post|此帖子的操作|针对此帖子的操作|贴文的操作)$/i.test(labelOf(el))) n += 1;
+          if (/^(Actions for this post( by .+)?|此帖子的操作|针对此帖子的操作|贴文的操作)$/i.test(labelOf(el))) n += 1;
         }
         return n;
       };
@@ -306,7 +312,7 @@ async function loadFeedPosts(page, limit) {
     await sleep(800);
     return document.querySelectorAll('[aria-label]').length
       ? document.querySelectorAll('[role="article"]').length
-        + Array.from(document.querySelectorAll('[aria-label]')).filter((el) => /^(Actions for this post|此帖子的操作|针对此帖子的操作|贴文的操作)$/i.test((el.getAttribute('aria-label') || '').trim())).length
+        + Array.from(document.querySelectorAll('[aria-label]')).filter((el) => /^(Actions for this post( by .+)?|此帖子的操作|针对此帖子的操作|贴文的操作)$/i.test((el.getAttribute('aria-label') || '').trim())).length
       : 0;
   })()`;
   const extractStep = buildFeedExtractScript(limit);
@@ -403,7 +409,7 @@ const command = {
   args: [
     { name: 'limit', type: 'int', default: 10, help: 'Number of posts' },
   ],
-  columns: ['index', 'author', 'content', 'likes', 'comments', 'shares'],
+  columns: ['index', 'author', 'content', 'likes', 'comments', 'shares', 'url'],
   func: getFacebookFeed,
 };
 
