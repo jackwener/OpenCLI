@@ -1,15 +1,24 @@
 import { BrowserBridge, CDPBridge } from './browser/index.js';
+import { EgoBridge } from './browser/ego.js';
 import type { IPage } from './types.js';
-import { TimeoutError } from './errors.js';
+import { ConfigError, TimeoutError } from './errors.js';
 import { DEFAULT_BROWSER_COMMAND_TIMEOUT, DEFAULT_BROWSER_CONNECT_TIMEOUT } from './browser/config.js';
 
 export { DEFAULT_BROWSER_COMMAND_TIMEOUT, DEFAULT_BROWSER_CONNECT_TIMEOUT };
 
-/**
- * Returns the appropriate browser factory based on explicit configuration.
- * A manual CDP endpoint uses CDPBridge; otherwise use BrowserBridge.
- */
-export function getBrowserFactory(): new () => IBrowserFactory {
+export function usesEgoBrowser(): boolean {
+  return process.env.OPENCLI_BROWSER_BACKEND === 'ego';
+}
+
+/** The generic browser surface historically uses the extension even when adapters use CDP. */
+export function getBrowserFactory(surface: BrowserSurface = 'adapter'): new () => IBrowserFactory {
+  if (usesEgoBrowser()) {
+    if (process.env.OPENCLI_CDP_ENDPOINT) {
+      throw new ConfigError('Unset OPENCLI_CDP_ENDPOINT to use the Ego backend.');
+    }
+    return EgoBridge;
+  }
+  if (surface === 'browser') return BrowserBridge;
   if (process.env.OPENCLI_CDP_ENDPOINT) return CDPBridge;
   return BrowserBridge;
 }

@@ -186,6 +186,7 @@ Agent 在内部自动处理所有 `opencli browser` 命令——你只需用自�
 | `OPENCLI_BROWSER_COMMAND_TIMEOUT` | `60` | 单个浏览器命令超时（秒） |
 | `OPENCLI_BROWSER_IDLE_TIMEOUT` | 扩展默认值 | owned session 的 idle timeout（秒），命令级 `idleTimeout` 优先。不延长显式清理时间：ephemeral adapter 通常在命令结束时释放 tab；bound tab 和 persistent adapter session 忽略 idle timeout。释放 session 后，可复用的 window container 仍保留。 |
 | `OPENCLI_CDP_ENDPOINT` | — | Chrome DevTools Protocol 端点，用于远程浏览器 |
+| `OPENCLI_BROWSER_BACKEND` | — | 设为 `ego` 以启用实验性的 [Ego Lite 后端](./docs/zh/guide/browser-bridge.md#ego-lite-实验性支持)。 |
 | `OPENCLI_CDP_TARGET` | — | 按 URL 子串过滤 CDP target（如 `detail.1688.com`） |
 | `OPENCLI_VERBOSE` | `false` | 启用详细日志（`-v` 也可以） |
 | `DEBUG_SNAPSHOT` | — | 设为 `1` 输出 DOM 快照调试信息 |

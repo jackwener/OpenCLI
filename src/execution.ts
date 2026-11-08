@@ -28,7 +28,7 @@ import * as os from 'node:os';
 import { executePipeline } from './pipeline/index.js';
 import { adapterLoadError, ArgumentError, CommandExecutionError, SessionBusyError, attachTraceReceipt, getErrorMessage } from './errors.js';
 import { shouldUseBrowserSession } from './capabilityRouting.js';
-import { getBrowserFactory, browserSession, runWithTimeout, DEFAULT_BROWSER_COMMAND_TIMEOUT, type BrowserWindowMode } from './runtime.js';
+import { getBrowserFactory, usesEgoBrowser, browserSession, runWithTimeout, DEFAULT_BROWSER_COMMAND_TIMEOUT, type BrowserWindowMode } from './runtime.js';
 import { profileRouteParams, resolveProfileSelection } from './browser/profile.js';
 import { SLOT_WAIT_DEFAULT_MS, MAX_SLOT_DELAY_MS, parseSlotPolicy, type SlotPolicy } from './site-slots.js';
 import { acquireSiteSlot, clearDaemonRunContext, generateRunId, isUnknownOutcomeError, releaseSiteSessionLease, setDaemonCommandTimeoutSeconds, setDaemonRunContext } from './browser/daemon-client.js';
@@ -224,6 +224,9 @@ export async function executeCommand(
   if (slotPolicy && process.env.OPENCLI_CDP_ENDPOINT) {
     throw new ArgumentError('OPENCLI_SITE_SLOTS requires Browser Bridge; use --site-session ephemeral with a direct CDP endpoint.');
   }
+  if (slotPolicy && usesEgoBrowser()) {
+    throw new ArgumentError('OPENCLI_SITE_SLOTS requires Browser Bridge; use --site-session ephemeral in Ego mode.');
+  }
   const siteSession = slotPolicy ? 'persistent' : resolvedSiteSession;
 
   let kwargs: CommandArgs;
@@ -267,7 +270,7 @@ export async function executeCommand(
       // Chrome tab. The runId flows to the daemon on every command (acquire +
       // heartbeat); we release it explicitly when the command settles. Read and
       // ephemeral commands are never leased.
-      let leaseRun = siteSession === 'persistent' && cmd.access === 'write'
+      let leaseRun = !usesEgoBrowser() && siteSession === 'persistent' && cmd.access === 'write'
         ? { runId: generateRunId(), session }
         : null;
       let slotWaitedSec = 0;
@@ -354,7 +357,9 @@ export async function executeCommand(
             });
             const wrapped = new CommandExecutionError(
               `Pre-navigation to ${preNavUrl} failed: ${err instanceof Error ? err.message : err}`,
-              'Check that the site is reachable and the browser extension is running.',
+              usesEgoBrowser()
+                ? 'Check that the site is reachable and the Ego Space is still agent-owned.'
+                : 'Check that the site is reachable and the browser extension is running.',
             );
             // Keep the original error reachable: the lease-release decision walks
             // the cause chain, and a pre-nav navigate/exec can itself end with an
