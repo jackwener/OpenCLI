@@ -37,6 +37,7 @@ describe('xiaohongshu ask', () => {
             'source_total_text',
             'sources_summary',
             'sources',
+            'share_url',
             'warning',
             'message_id',
             'conversation_id',
@@ -117,10 +118,30 @@ describe('xiaohongshu ask', () => {
         expect(normalizeAskSource({ id: '69d6fc08000000001f007646', like: 1.5 }, 0)).not.toHaveProperty('like_count');
     });
 
-    it('builds a bare note URL when 点点 source data has no xsec token', () => {
-        expect(buildNoteUrl('69d6fc08000000001f007646', '')).toBe(
-            'https://www.xiaohongshu.com/explore/69d6fc08000000001f007646',
+    it('refuses to build a note URL without an xsec token, because it would not resolve', () => {
+        // Xiaohongshu answers a tokenless note URL with HTTP 200 and a
+        // "你访问的页面不见了" body, so the dead link passes every status-code check
+        // a caller might run. Measured 2026-08-28, same note id, one variable:
+        //   /explore/<id>                  -> 200, 109746 bytes, title "你访问的页面不见了"
+        //   /explore/<id>?xsec_token=<tok> -> 200, 134011 bytes, title "香港小众玩法🔥…"
+        expect(buildNoteUrl('69d6fc08000000001f007646', '')).toBe('');
+        expect(buildNoteUrl('69d6fc08000000001f007646', 'tok')).toBe(
+            'https://www.xiaohongshu.com/explore/69d6fc08000000001f007646?xsec_token=tok&xsec_source=',
         );
+    });
+
+    it('takes the xsec token from the source field dqa/detail supplies', () => {
+        const source = normalizeAskSource({
+            id: '69d6fc08000000001f007646',
+            title: '来源标题',
+            xsecToken: 'ABLSQRovqo7q',
+        }, 0);
+
+        expect(source).toMatchObject({
+            note_id: '69d6fc08000000001f007646',
+            xsec_token: 'ABLSQRovqo7q',
+            url: 'https://www.xiaohongshu.com/explore/69d6fc08000000001f007646?xsec_token=ABLSQRovqo7q&xsec_source=',
+        });
     });
 
     it('does not project untrusted citation links into source URLs or deeplinks', () => {
@@ -133,10 +154,10 @@ describe('xiaohongshu ask', () => {
 
         expect(source).toMatchObject({
             note_id: '',
-            url: '',
             xsec_token: '',
             title: '来源标题',
         });
+        expect(source).not.toHaveProperty('url');
         expect(source).not.toHaveProperty('deeplink');
     });
 
@@ -149,9 +170,11 @@ describe('xiaohongshu ask', () => {
 
         expect(source).toMatchObject({
             note_id: '69d6fc08000000001f007646',
-            url: 'https://www.xiaohongshu.com/explore/69d6fc08000000001f007646',
             xsec_token: '',
         });
+        // Identity survives an untrusted link; a URL built on a token we do not have
+        // would not resolve, so none is offered.
+        expect(source).not.toHaveProperty('url');
         expect(source).not.toHaveProperty('deeplink');
     });
 
@@ -273,7 +296,15 @@ describe('xiaohongshu ask', () => {
 // lookup is exercised for real rather than asserted as a substring. The point is the
 // module id: Xiaohongshu renumbers chunks on redeploys (6404 -> 32914 broke every ask),
 // so the lookup has to survive an id nobody has seen before.
-async function runAskScriptAgainstFakeRuntime({ moduleId, answer = '答案正文' }) {
+async function runAskScriptAgainstFakeRuntime({
+    moduleId,
+    answer = '答案正文',
+    // Each entry becomes one module in the require cache exporting an axios-shaped
+    // client. `respond` receives (path, config) and returns what .get resolves to.
+    signedClients = [],
+    referenceItems = [{ id: '69d6fc08000000001f007646', title: '来源标题', nickName: '作者A' }],
+    onGetResponseReferences = null,
+}) {
     const msgId = 'msg-1';
     const store = {
         switchScene: () => {},
@@ -282,10 +313,13 @@ async function runAskScriptAgainstFakeRuntime({ moduleId, answer = '答案正文
         sendMessage: async () => msgId,
         getSceneRounds: () => [{ aiMessage: { msgId, isFinished: true, text: answer } }],
         agent: {
-            getResponseReferences: async () => ({
-                baseInfo: { totalCnt: 'ai总结7篇笔记生成' },
-                items: [{ id: '69d6fc08000000001f007646', title: '来源标题', nickName: '作者A' }],
-            }),
+            getResponseReferences: async (params) => {
+                if (onGetResponseReferences) onGetResponseReferences(params);
+                return {
+                    baseInfo: { totalCnt: 'ai总结7篇笔记生成' },
+                    items: referenceItems,
+                };
+            },
         },
     };
     // toString() of this factory carries the fingerprint the scan looks for.
@@ -302,6 +336,21 @@ async function runAskScriptAgainstFakeRuntime({ moduleId, answer = '答案正文
     webpackRequire.m = moduleId === null
         ? { 4242: decoyFactory }
         : { 4242: decoyFactory, [moduleId]: conversationFactory };
+    // The module cache is where the signed HTTP client is found. A decoy that is an
+    // object but not axios-shaped keeps the shape test honest.
+    webpackRequire.c = { 777: { exports: { notAClient: { get: 'string, not a function' } } } };
+    signedClients.forEach((client, index) => {
+        webpackRequire.c[900 + index] = {
+            exports: {
+                [client.exportKey || 'dJ']: {
+                    get: (path, config) => client.respond(path, config),
+                    post: () => {},
+                    buildURL: () => {},
+                    interceptors: {},
+                },
+            },
+        };
+    });
 
     const priorWindow = globalThis.window;
     const priorLocation = globalThis.location;
@@ -333,5 +382,107 @@ describe('xiaohongshu ask conversation-store lookup', () => {
     it('reports conversation_store_missing when no module matches, instead of throwing', async () => {
         const result = await runAskScriptAgainstFakeRuntime({ moduleId: null });
         expect(result).toMatchObject({ ok: false, error: 'conversation_store_missing' });
+    });
+});
+
+describe('xiaohongshu ask citation sources', () => {
+    const TOKENED = [
+        { id: '699dd2250000000023038495', title: '香港小众玩法', nickName: 'Tim孟游记', xsecToken: 'ABLSQRovqo7q' },
+        { id: '6a87089d000000002702ef3c', title: '香港3天2晚', nickName: 'MorikawaMio', xsecToken: 'AB0BX-aB6nwD' },
+    ];
+
+    it('reads sources from dqa/detail and turns its token into a working URL', async () => {
+        const calls = [];
+        const result = await runAskScriptAgainstFakeRuntime({
+            moduleId: 32914,
+            signedClients: [{
+                respond: (path, config) => {
+                    calls.push({ path, params: config.params });
+                    return { data: { items: TOKENED, shareInfo: { functionEntries: [
+                        { type: 'generate_image', link: 'https://www.xiaohongshu.com/s/dqa?dqa_share_id=IMG' },
+                        { type: 'copy_link', link: 'https://www.xiaohongshu.com/s/dqa?dqa_share_id=LINK' },
+                    ] } } };
+                },
+            }],
+            // A trap, not a value: reaching the old endpoint at all is the bug.
+            onGetResponseReferences: () => { throw new Error('must not fall back when dqa/detail answered'); },
+        });
+
+        expect(calls).toHaveLength(1);
+        expect(calls[0].path).toBe('/api/sns/web/v1/search/dqa/detail');
+        expect(calls[0].params).toMatchObject({
+            message_id: 'msg-1',
+            conversation_id: expect.any(String),
+            scene: 'web_ask',
+            type: 'inside',
+            page_from: 0,
+        });
+        expect(result.sources[0]).toMatchObject({ id: '699dd2250000000023038495', xsecToken: 'ABLSQRovqo7q' });
+        expect(result.share_url).toBe('https://www.xiaohongshu.com/s/dqa?dqa_share_id=LINK');
+
+        const normalized = buildAskResult(result);
+        expect(normalized.sources.map((source) => source.url)).toEqual([
+            'https://www.xiaohongshu.com/explore/699dd2250000000023038495?xsec_token=ABLSQRovqo7q&xsec_source=',
+            'https://www.xiaohongshu.com/explore/6a87089d000000002702ef3c?xsec_token=AB0BX-aB6nwD&xsec_source=',
+        ]);
+    });
+
+    it('picks the client that answers when several match the shape', async () => {
+        // Measured on a live page: two loaded modules expose an axios-shaped client.
+        // Shape alone cannot choose between them, so the answer has to.
+        const reached = [];
+        const result = await runAskScriptAgainstFakeRuntime({
+            moduleId: 32914,
+            signedClients: [
+                { exportKey: 'ZP', respond: () => { reached.push('wrong'); return { data: { items: [] } }; } },
+                { exportKey: 'dJ', respond: () => { reached.push('right'); return { data: { items: TOKENED } }; } },
+            ],
+        });
+
+        expect(reached).toEqual(['wrong', 'right']);
+        expect(result.sources).toHaveLength(2);
+        expect(result.sources[0].xsecToken).toBe('ABLSQRovqo7q');
+    });
+
+    it('falls back to the store reference call when no signed client is present', async () => {
+        let fellBack = false;
+        const result = await runAskScriptAgainstFakeRuntime({
+            moduleId: 32914,
+            signedClients: [],
+            onGetResponseReferences: () => { fellBack = true; },
+        });
+
+        expect(fellBack).toBe(true);
+        expect(result.ok).toBe(true);
+        expect(result.sources).toHaveLength(1);
+    });
+
+    it('omits the URL rather than emitting a dead one when the fallback supplied no token', async () => {
+        const result = await runAskScriptAgainstFakeRuntime({ moduleId: 32914, signedClients: [] });
+        const normalized = buildAskResult(result);
+
+        expect(normalized.sources[0].note_id).toBe('69d6fc08000000001f007646');
+        expect(normalized.sources[0]).not.toHaveProperty('url');
+    });
+
+    it('survives a client whose get throws, instead of losing every source', async () => {
+        const result = await runAskScriptAgainstFakeRuntime({
+            moduleId: 32914,
+            signedClients: [
+                { exportKey: 'ZP', respond: () => { throw new Error('406 not signed'); } },
+                { exportKey: 'dJ', respond: () => ({ data: { items: TOKENED } }) },
+            ],
+        });
+
+        expect(result.sources).toHaveLength(2);
+    });
+
+    it('accepts a client that returns the body directly rather than under .data', async () => {
+        const result = await runAskScriptAgainstFakeRuntime({
+            moduleId: 32914,
+            signedClients: [{ respond: () => ({ items: TOKENED }) }],
+        });
+
+        expect(result.sources).toHaveLength(2);
     });
 });
