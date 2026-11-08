@@ -670,3 +670,157 @@ export async function waitForVideoReady(page, { timeoutMs = TRANSCODE_TIMEOUT_MS
         `Video upload did not finish within ${Math.round(timeoutMs / 1000)}s (last state: ${JSON.stringify(lastState)}). Nothing was published.`,
     );
 }
+
+/** Cover images are small; anything larger is a mistake, not a cover. */
+export const COVER_MAX_BYTES = 20 * 1024 * 1024;
+export const COVER_ACCEPTED_MIMES = ['image/png', 'image/jpeg'];
+
+/**
+ * Apply a custom cover to the video note.
+ *
+ * Flow (creator center, verified 2026-11-09): the cover preview hides
+ * 「编辑封面」 until hovered, so the entry is clicked directly in the page;
+ * the editor exposes `input[aria-label="上传封面图片"]`, and 「完成」 closes
+ * it. Every stage is a postcondition: a requested cover that cannot be
+ * opened, uploaded or confirmed throws — the publish must not silently fall
+ * back to the default frame.
+ */
+export async function uploadCover(page, coverPath) {
+    const opened = unwrapBrowserResult(await page.evaluate(`
+      (() => {
+        const entry = document.querySelector('.cover-edit-entry');
+        if (entry) { entry.click(); return true; }
+        const labels = ['编辑封面', '设置封面', '修改封面', '更换封面'];
+        const el = Array.from(document.querySelectorAll('div,span,button'))
+          .find(node => node.offsetParent !== null && labels.includes((node.textContent || '').trim()));
+        if (!el) return false;
+        el.click();
+        return true;
+      })()
+    `));
+    if (!opened) {
+        throw new CommandExecutionError('Cover editor entry was not found on the publish page.');
+    }
+    await page.wait({ time: 2 });
+
+    const selector = unwrapBrowserResult(await page.evaluate(`
+      (() => {
+        let input = document.querySelector('input[aria-label="上传封面图片"]');
+        if (!input) {
+          const clear = document.querySelector('.uploaded-thumbnail-clear');
+          if (clear) clear.click();
+          input = document.querySelector('input[aria-label="上传封面图片"]');
+        }
+        if (!input) {
+          input = Array.from(document.querySelectorAll('input[type="file"]')).find(el => {
+            const accept = (el.getAttribute('accept') || '').toLowerCase();
+            const aria = el.getAttribute('aria-label') || '';
+            return /image|png|jpe?g/.test(accept) || /封面/.test(aria);
+          });
+        }
+        if (!input) return null;
+        input.setAttribute('data-opencli-cover-input', '1');
+        return 'input[data-opencli-cover-input="1"]';
+      })()
+    `));
+    if (!selector) {
+        throw new CommandExecutionError('Cover upload input was not found after opening the cover editor.');
+    }
+
+    const uploaded = await uploadFiles(page, [coverPath], selector);
+    if (!uploaded?.ok) {
+        throw new CommandExecutionError(`Cover upload failed: ${uploaded?.error || 'unknown'}. Nothing was published.`);
+    }
+    await page.wait({ time: 3 });
+
+    let confirmed = false;
+    for (let attempt = 0; attempt < 3 && !confirmed; attempt += 1) {
+        confirmed = Boolean(unwrapBrowserResult(await page.evaluate(`
+          (() => {
+            const btn = Array.from(document.querySelectorAll('button, .d-button'))
+              .find(el => el.offsetParent !== null && (el.textContent || '').trim() === '完成');
+            if (!btn) return false;
+            btn.click();
+            return true;
+          })()
+        `)));
+        if (!confirmed) await page.wait({ time: 1 });
+    }
+    if (!confirmed) {
+        throw new CommandExecutionError('Cover editor confirm (完成) was not found; the cover was not applied.');
+    }
+    await page.wait({ time: 2 });
+
+    const applied = unwrapBrowserResult(await page.evaluate(`
+      (() => {
+        const preview = document.querySelector('.default.row, .cover-plugin-preview img');
+        if (!preview) return false;
+        if (preview.tagName === 'IMG') return Boolean(preview.getAttribute('src'));
+        return /url\\(/.test(getComputedStyle(preview).backgroundImage || '');
+      })()
+    `));
+    if (!applied) {
+        throw new CommandExecutionError('Cover preview did not update after confirming; the cover was not applied.');
+    }
+    return 'ok';
+}
+
+/**
+ * Set the note's content-type declaration. Only `ai` is supported today:
+ * 「笔记含AI合成内容」. The control is a d-select whose options are mounted
+ * hidden until the select is opened, so the option is clicked by exact text.
+ */
+export async function selectDeclaration(page, declaration) {
+    const value = String(declaration || '').trim().toLowerCase();
+    if (value !== 'ai') {
+        throw new ArgumentError(`Unsupported --declaration value: ${declaration}. Only "ai" is supported.`);
+    }
+    const label = '笔记含AI合成内容';
+
+    const opened = unwrapBrowserResult(await page.evaluate(`
+      (() => {
+        const host = Array.from(document.querySelectorAll('.wrapper, .d-select-wrapper'))
+          .find(el => el && el.offsetParent !== null && /添加内容类型声明|内容类型声明|AI合成/.test(el.innerText || ''));
+        if (!host) return false;
+        host.scrollIntoView({ block: 'center' });
+        const select = host.querySelector('.d-select') || host;
+        select.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+        select.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+        select.click();
+        return true;
+      })()
+    `));
+    if (!opened) {
+        throw new CommandExecutionError('Content-type declaration control was not found on the publish page.');
+    }
+    await page.wait({ time: 1 });
+
+    const clicked = unwrapBrowserResult(await page.evaluate(`
+      (label => {
+        const visible = Array.from(document.querySelectorAll('.d-option, [role="option"]'))
+          .filter(el => el && el.offsetParent !== null && (el.textContent || '').trim() === label);
+        const all = Array.from(document.querySelectorAll('.d-option, [role="option"], div, span'))
+          .filter(el => el && (el.textContent || '').trim() === label);
+        const el = visible[visible.length - 1] || all[all.length - 1];
+        if (!el) return false;
+        el.click();
+        return true;
+      })(${JSON.stringify(label)})
+    `));
+    if (!clicked) {
+        throw new CommandExecutionError(`Declaration option "${label}" was not found; refusing to publish without it.`);
+    }
+    await page.wait({ time: 1.5 });
+
+    const applied = unwrapBrowserResult(await page.evaluate(`
+      (label => {
+        const host = Array.from(document.querySelectorAll('.wrapper, .d-select-wrapper'))
+          .find(el => el && el.offsetParent !== null && /内容类型声明|AI合成/.test(el.innerText || ''));
+        return Boolean(host && (host.innerText || '').includes(label));
+      })(${JSON.stringify(label)})
+    `));
+    if (!applied) {
+        throw new CommandExecutionError('The declaration was not applied; refusing to publish without it.');
+    }
+    return label;
+}

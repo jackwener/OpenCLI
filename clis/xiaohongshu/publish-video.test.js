@@ -78,6 +78,22 @@ function happyPathResponder({ topicChipsAfter = ['梦核'], finalUrl = 'https://
     };
 }
 
+
+/** Evaluate-responder that also answers the cover and declaration helpers. */
+function coverAndDeclarationResponder() {
+    const base = happyPathResponder({ finalUrl: 'https://creator.xiaohongshu.com/publish/success' });
+    return (code) => {
+        if (code.includes('data-opencli-cover-input')) return 'input[data-opencli-cover-input="1"]';
+        if (code.includes('cover-edit-entry')) return true;
+        if (code.includes('.d-button')) return true;
+        if (code.includes('getComputedStyle')) return true;
+        if (code.includes('添加内容类型声明')) return true;
+        if (code.includes('.d-option')) return true;
+        if (code.includes('host.innerText')) return true;
+        return base(code);
+    };
+}
+
 describe('xiaohongshu publish-video', () => {
     let videoPath;
     beforeEach(() => {
@@ -152,6 +168,64 @@ describe('xiaohongshu publish-video', () => {
         expect(rows[0].detail).toContain('话题: 梦核');
         expect(page.setFileInput).toHaveBeenCalledWith([videoPath], 'input[data-opencli-video-input="1"]');
         expect(page.goto).toHaveBeenCalledWith('https://creator.xiaohongshu.com/publish/publish?from=menu_left&target=video');
+    });
+
+    it('rejects a cover that is not png/jpeg before navigating', async () => {
+        const cmd = getRegistry().get('xiaohongshu/publish-video');
+        const page = createVideoPage(() => undefined);
+        const fakeCover = writeMedia('cover.txt', Array.from(Buffer.from('not an image')));
+        await expect(cmd.func(page, { content: '正文', title: '标题', video: videoPath, cover: fakeCover }))
+            .rejects.toBeInstanceOf(ArgumentError);
+        expect(page.goto).not.toHaveBeenCalled();
+    });
+
+    it('rejects an unsupported declaration value before navigating', async () => {
+        const cmd = getRegistry().get('xiaohongshu/publish-video');
+        const page = createVideoPage(() => undefined);
+        await expect(cmd.func(page, { content: '正文', title: '标题', video: videoPath, declaration: 'ad' }))
+            .rejects.toBeInstanceOf(ArgumentError);
+        expect(page.goto).not.toHaveBeenCalled();
+    });
+
+    it('applies a custom cover and the AI declaration end to end', async () => {
+        const cmd = getRegistry().get('xiaohongshu/publish-video');
+        const coverPath = writeMedia('cover.jpg', JPG_BYTES);
+        const page = createVideoPage(coverAndDeclarationResponder());
+        const rows = await cmd.func(page, {
+            content: '正文',
+            title: '标题',
+            video: videoPath,
+            cover: coverPath,
+            declaration: 'ai',
+        });
+        expect(rows[0].detail).toContain('封面:cover.jpg');
+        expect(rows[0].detail).toContain('声明:ai');
+        expect(page.setFileInput).toHaveBeenCalledWith([coverPath], 'input[data-opencli-cover-input="1"]');
+    });
+
+    it('fails closed when the cover editor cannot be opened', async () => {
+        const cmd = getRegistry().get('xiaohongshu/publish-video');
+        const coverPath = writeMedia('cover.jpg', JPG_BYTES);
+        const responder = coverAndDeclarationResponder();
+        const page = createVideoPage((code) => {
+            if (code.includes('cover-edit-entry')) return false;
+            return responder(code);
+        });
+        await expect(cmd.func(page, { content: '正文', title: '标题', video: videoPath, cover: coverPath }))
+            .rejects.toThrow(/Cover editor entry/i);
+    });
+
+    it('fails closed when the declaration option is missing', async () => {
+        const cmd = getRegistry().get('xiaohongshu/publish-video');
+        const responder = coverAndDeclarationResponder();
+        const page = createVideoPage((code) => {
+            if (code.includes('host.innerText')) return true;
+            if (code.includes('添加内容类型声明')) return true;
+            if (code.includes('.d-option')) return false;
+            return responder(code);
+        });
+        await expect(cmd.func(page, { content: '正文', title: '标题', video: videoPath, declaration: 'ai' }))
+            .rejects.toThrow(/Declaration option/i);
     });
 });
 

@@ -42345,6 +42345,18 @@
         "help": "话题标签，逗号分隔，不含 # 号；无法精确匹配时整体失败"
       },
       {
+        "name": "cover",
+        "type": "str",
+        "required": false,
+        "help": "自定义封面图片路径 (.png/.jpg)，上传失败即中止发布"
+      },
+      {
+        "name": "declaration",
+        "type": "str",
+        "required": false,
+        "help": "内容类型声明：ai = 笔记含AI合成内容"
+      },
+      {
         "name": "draft",
         "type": "bool",
         "default": false,

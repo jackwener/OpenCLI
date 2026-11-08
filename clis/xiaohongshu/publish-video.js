@@ -7,15 +7,18 @@
  * silently attaching a different one. Shared field filling, upload, submit
  * and verification live in publish-helpers.js.
  *
- * A --cover flag is intentionally absent: the current creator center no
- * longer exposes a custom-cover upload entry (verified 2026-11-06; the panel
- * only offers 智能推荐封面 / 重新生成 / 应用 and no image file input exists).
+ * --cover applies a custom cover through 「编辑封面」 → 「上传封面图片」 →
+ * 「完成」 (live-verified 2026-11-09; the 2026-11-06 note claiming the entry
+ * was gone no longer holds). --declaration ai sets 「笔记含AI合成内容」.
+ * Both fail closed: a requested cover/declaration that cannot be applied
+ * aborts the publish instead of silently posting without it.
  *
  * Usage:
  *   opencli xiaohongshu publish-video --title "标题(20字内)" "正文内容" \
  *     --video /path/to/video.mp4 \
  *     [--cover /path/to/cover-3x4.png] \
  *     [--topics 中式梦核,梦核,怀旧] \
+ *     [--declaration ai] \
  *     [--draft]
  */
 
@@ -24,11 +27,15 @@ import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors'
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import {
     BODY_SELECTORS,
+    COVER_ACCEPTED_MIMES,
+    COVER_MAX_BYTES,
     TITLE_SELECTORS,
     clickByText,
     fillField,
     invokePublishAction,
     unwrapBrowserResult,
+    selectDeclaration,
+    uploadCover,
     uploadFiles,
     validateMediaFile,
     waitForVideoReady,
@@ -216,6 +223,8 @@ cli({
         { name: 'title', required: true, help: '笔记标题 (最多20字)' },
         { name: 'video', required: true, help: '视频文件路径 (.mp4/.mov，视频内容以文件实际类型校验)' },
         { name: 'topics', required: false, help: '话题标签，逗号分隔，不含 # 号；无法精确匹配时整体失败' },
+        { name: 'cover', required: false, help: '自定义封面图片路径 (.png/.jpg)，上传失败即中止发布' },
+        { name: 'declaration', required: false, help: '内容类型声明：ai = 笔记含AI合成内容' },
         { name: 'draft', type: 'bool', default: false, help: '保存为草稿，不直接发布' },
     ],
     columns: ['status', 'detail'],
@@ -235,6 +244,17 @@ cli({
         const topics = kwargs.topics
             ? String(kwargs.topics).split(',').map((s) => s.trim()).filter(Boolean)
             : [];
+        const cover = kwargs.cover
+            ? validateMediaFile(kwargs.cover, {
+                accepted: COVER_ACCEPTED_MIMES,
+                maxBytes: COVER_MAX_BYTES,
+                label: 'Cover',
+            })
+            : null;
+        const declaration = kwargs.declaration ? String(kwargs.declaration).trim().toLowerCase() : '';
+        if (declaration && declaration !== 'ai') {
+            throw new ArgumentError(`Unsupported --declaration value: ${kwargs.declaration}. Only "ai" is supported.`);
+        }
         const isDraft = Boolean(kwargs.draft);
 
         await page.goto(PUBLISH_VIDEO_URL);
@@ -250,12 +270,19 @@ cli({
         }
         await waitForVideoReady(page);
 
+        if (cover) {
+            await uploadCover(page, cover.absPath);
+        }
+
         await fillField(page, TITLE_SELECTORS, title, 'title');
         await page.wait({ time: 0.5 });
         await fillField(page, BODY_SELECTORS, String(kwargs.content ?? '').trim(), 'content');
         await page.wait({ time: 0.5 });
 
         const addedTopics = topics.length ? await addTopics(page, topics) : [];
+        if (declaration) {
+            await selectDeclaration(page, declaration);
+        }
 
         const actionLabels = isDraft ? ['暂存离开', '存草稿'] : ['发布', '发布笔记'];
         await invokePublishAction(page, isDraft, actionLabels);
@@ -268,6 +295,8 @@ cli({
                     `"${title}"`,
                     path.basename(video.absPath),
                     addedTopics.length ? `话题: ${addedTopics.join(' ')}` : '',
+                    cover ? `封面:${path.basename(cover.absPath)}` : '',
+                    declaration ? `声明:${declaration}` : '',
                     successMsg || '',
                 ].filter(Boolean).join(' · '),
             },
