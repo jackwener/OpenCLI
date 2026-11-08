@@ -58,7 +58,6 @@ describe('reddit listing failures', () => {
     ['hot', {}],
     ['frontpage', {}],
     ['popular', {}],
-    ['subreddit', { name: 'pics', sort: 'new' }],
     ['user', { username: 'alice' }],
     ['user-posts', { username: 'alice' }],
     ['user-comments', { username: 'alice' }],
@@ -66,6 +65,7 @@ describe('reddit listing failures', () => {
     ['upvoted', {}],
   ];
 
+  // reddit/subreddit falls back to the HTML feed on this block; see html-fallback.test.js.
   it.each(commands)('reddit/%s reports the network-security page as SECURITY_BLOCK, not a JSON SyntaxError or login wall', async (name, args) => {
     const fetch = vi.fn().mockResolvedValue(response(NETWORK_SECURITY_PAGE, { status: 403, type: 'text/html' }));
     const error = await getRegistry().get(`reddit/${name}`).func(runtimePage(fetch), { ...args, limit: 5 }).catch(e => e);
