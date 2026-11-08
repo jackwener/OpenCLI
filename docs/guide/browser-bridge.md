@@ -1,6 +1,6 @@
 # Browser Bridge Setup
 
-> **⚠️ Important**: Browser commands reuse your Chrome login session. You must be logged into the target website in Chrome before running commands.
+> **⚠️ Important**: Browser commands use the login session of the selected browser. Sign in to the target website in that browser before running commands.
 
 OpenCLI connects to your browser through a lightweight **Browser Bridge** Chrome Extension + micro-daemon (zero config, auto-start).
 
@@ -134,6 +134,27 @@ opencli daemon stop      # Graceful shutdown
 ```
 
 The daemon is persistent — it stays alive until you explicitly stop it (`opencli daemon stop`) or uninstall the package.
+
+## Ego Lite (experimental)
+
+OpenCLI can use [Ego Lite](https://lite.ego.app/) as an optional browser backend. Install and open Ego Lite, sign in there, and make sure `ego-browser skill` shows the TaskSpace and Page APIs. Select the backend explicitly:
+
+```bash
+export OPENCLI_BROWSER_BACKEND=ego
+opencli doctor
+opencli browser --session research open https://example.com
+opencli browser --session research state
+opencli browser --session research close
+opencli bilibili search "OpenCLI" --limit 3
+```
+
+In PowerShell, use `$env:OPENCLI_BROWSER_BACKEND = 'ego'`. If the Ego CLI is outside your PATH, set `OPENCLI_EGO_BROWSER` to its executable path. Unset `OPENCLI_CDP_ENDPOINT` and any explicit `OPENCLI_PROFILE` when using Ego.
+
+Each named browser session maps to an agent-owned Ego Space. One-shot adapters use a separate Space for each run. OpenCLI scopes page operations to agent-owned tabs and uses the login state provided by Ego.
+
+This backend supports page operations and ephemeral adapter sessions. Chrome binding, native Chrome management, persistent adapter sessions, site slots, continuous CDP event capture, and screenshot viewport overrides are unavailable in Ego mode. Use `--site-session ephemeral` for an adapter that defaults to a persistent session.
+
+If `doctor` receives no script result, open Ego Lite and run `ego-browser nodejs -e "console.log(typeof taskSpace)"`. A compatible launcher and SDK report `function`.
 
 ## Running OpenCLI from a remote machine
 

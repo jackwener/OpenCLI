@@ -226,6 +226,7 @@ When the site you need is not yet covered, use the `opencli-adapter-author` skil
 | `OPENCLI_BROWSER_COMMAND_TIMEOUT` | `60` | Seconds to wait for a single browser command |
 | `OPENCLI_BROWSER_IDLE_TIMEOUT` | extension default | Owned session idle timeout in seconds; per-command `idleTimeout` takes precedence. Does not extend explicit cleanup: ephemeral adapters normally release their tab at command completion. Bound tabs and persistent adapter sessions ignore idle timeouts. Releasing a session keeps its reusable window container open. |
 | `OPENCLI_CDP_ENDPOINT` | — | Chrome DevTools Protocol endpoint for remote browsers |
+| `OPENCLI_BROWSER_BACKEND` | — | Set to `ego` to use the experimental [Ego Lite backend](./docs/guide/browser-bridge.md#ego-lite-experimental). |
 | `OPENCLI_CDP_TARGET` | — | Filter CDP targets by URL substring (e.g. `detail.1688.com`) |
 | `OPENCLI_VERBOSE` | `false` | Enable verbose logging (`-v` flag also works) |
 | `DEBUG_SNAPSHOT` | — | Set to `1` for DOM snapshot debug output |

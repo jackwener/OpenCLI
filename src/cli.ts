@@ -22,6 +22,7 @@ import { formatRootAdapterHelpText, installCommanderNamespaceStructuredHelp, ins
 import { normalizeOutputFormat } from './output-format.js';
 import { render as renderOutput } from './output.js';
 import { findPackageRoot } from './package-paths.js';
+import { getBrowserFactory, usesEgoBrowser } from './runtime.js';
 import { listOpenCliSkills, readOpenCliSkill } from './skills.js';
 import { PKG_VERSION } from './version.js';
 
@@ -132,10 +133,21 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
 
   program
     .command('doctor')
-    .description('Diagnose opencli browser bridge connectivity')
+    .description(usesEgoBrowser() ? 'Diagnose Ego Lite connectivity' : 'Diagnose opencli browser bridge connectivity')
     .option('-v, --verbose', 'Debug output')
     .action(async (opts) => {
       applyVerbose(opts);
+      if (usesEgoBrowser()) {
+        getBrowserFactory();
+        const { runEgo } = await import('./browser/ego-transport.js');
+        const report = await runEgo(`
+          if (typeof taskSpace !== 'function') throw new Error('Ego Lite SDK with taskSpace() is required');
+          await listTaskSpaces();
+          return { backend: 'ego', taskSpaceApi: true };
+        `, null);
+        emitResult(report);
+        return;
+      }
       const { runBrowserDoctor } = await import('./doctor.js');
       const report = await runBrowserDoctor({ cliVersion: PKG_VERSION });
       emitResult(report);

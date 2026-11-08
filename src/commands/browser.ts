@@ -16,10 +16,10 @@ import { parseFilter, shapeMatchesFilter } from '../browser/shape-filter.js';
 import { inferShape } from '../browser/shape.js';
 import { TargetError, type TargetErrorCode } from '../browser/target-errors.js';
 import { getAttributesResolvedJs, getTextResolvedJs, getValueResolvedJs, isAutocompleteResolvedJs, resolveTargetJs, selectResolvedJs, type ResolveOptions, type TargetMatchLevel } from '../browser/target-resolver.js';
-import { EXIT_CODES, getErrorMessage } from '../errors.js';
+import { ConfigError, EXIT_CODES, getErrorMessage } from '../errors.js';
 import { installCommanderNamespaceStructuredHelp } from '../help.js';
 import { log } from '../logger.js';
-import type { BrowserWindowMode } from '../runtime.js';
+import { getBrowserFactory, usesEgoBrowser, type BrowserWindowMode } from '../runtime.js';
 import type { BrowserDownloadWaitResult, IPage, ScreenshotOptions } from '../types.js';
 
 
@@ -248,6 +248,7 @@ async function resolveBrowserTargetInSession(
 }
 
 function getBrowserScope(session: string, contextId?: string): string {
+  if (usesEgoBrowser()) return `ego:${session}`;
   return contextId ? `${contextId}:${session}` : session;
 }
 
@@ -264,8 +265,8 @@ async function getBrowserPage(
   profileSelection?: ProfileSelection,
   opts: { windowMode?: BrowserWindowMode } = {},
 ): Promise<import('../types.js').IPage> {
-  const { BrowserBridge } = await import('../browser/index.js');
-  const bridge = new BrowserBridge();
+  const BrowserFactory = getBrowserFactory('browser');
+  const bridge = new BrowserFactory();
   // Internal GC timeout for browser sessions. Not the per-command runtime timeout.
   const envTimeout = process.env.OPENCLI_BROWSER_IDLE_TIMEOUT;
   const idleTimeout = envTimeout ? parseInt(envTimeout, 10) : undefined;
@@ -559,6 +560,7 @@ export function registerBrowserCommands(program: Command): Command {
     return browserLifecycle(async (optsOrCommand: unknown, maybeCommand?: Command) => {
       const command = optsOrCommand instanceof Command ? optsOrCommand : maybeCommand;
       try {
+        if (usesEgoBrowser()) throw new ConfigError('Chrome tab binding is unavailable in Ego mode.');
         const session = getBrowserSession(command);
         const profileSelection = getBrowserProfileSelection(command);
         const contextId = profileSelection?.contextId;
@@ -820,6 +822,7 @@ export function registerBrowserCommands(program: Command): Command {
   const nativeChrome = browser.command('chrome').description('Manage native Chrome tabs, groups and windows without attaching a page');
   const nativeAction = (mode: 'chrome-call' | 'chrome-describe') => browserLifecycle(async (...args: any[]) => {
     try {
+      if (usesEgoBrowser()) throw new ConfigError('Native Chrome management is unavailable in Ego mode.');
       const command = args.at(-1) as Command;
       const method = args[0] as string | undefined;
       const chromeArgs = mode === 'chrome-call' ? JSON.parse(args[1]) : [];

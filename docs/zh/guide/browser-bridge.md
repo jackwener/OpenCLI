@@ -1,6 +1,6 @@
 # Browser Bridge 设置
 
-> **⚠️ 重要**: 浏览器命令复用你的 Chrome 登录会话。运行命令前必须在 Chrome 中登录目标网站。
+> **⚠️ 重要**: 浏览器命令复用所选浏览器的登录会话。运行命令前，请在该浏览器中登录目标网站。
 
 OpenCLI 通过轻量级 **Browser Bridge** Chrome 扩展 + 微守护进程连接浏览器（零配置，自动启动）。
 
@@ -79,3 +79,24 @@ opencli daemon stop      # 优雅关停
 ```
 
 Daemon 为常驻模式，会一直运行直到你显式停止（`opencli daemon stop`）或卸载包。
+
+## Ego Lite 实验性支持
+
+OpenCLI 可以选择 [Ego Lite](https://lite.ego.app/) 作为浏览器后端。安装并打开 Ego Lite，在其中登录目标站点，并确认 `ego-browser skill` 显示了 TaskSpace 和 Page API。通过环境变量启用：
+
+```powershell
+$env:OPENCLI_BROWSER_BACKEND = 'ego'
+opencli doctor
+opencli browser --session research open https://example.com
+opencli browser --session research state
+opencli browser --session research close
+opencli bilibili search "OpenCLI" --limit 3
+```
+
+在 Bash 或 Zsh 中，使用 `export OPENCLI_BROWSER_BACKEND=ego`。如果 Ego CLI 不在 PATH 上，可将 `OPENCLI_EGO_BROWSER` 设为可执行文件的路径。启用 Ego 时，请清除已有的 `OPENCLI_CDP_ENDPOINT` 和显式设置的 `OPENCLI_PROFILE`。
+
+每个命名的浏览器 session 对应一个由 Agent 管理的 Ego Space。一次性适配器每次运行使用独立 Space。OpenCLI 只操作归属 Agent 的标签页，并使用 Ego 提供的登录态。
+
+Ego 模式支持页面操作和一次性适配器会话。Chrome 绑定、原生 Chrome 管理、持久适配器会话、站点槽位、持续 CDP 事件采集和截图视口覆盖暂未支持。默认使用持久会话的适配器可通过 `--site-session ephemeral` 运行。
+
+如果 `doctor` 提示未收到脚本结果，请打开 Ego Lite，并运行 `ego-browser nodejs -e "console.log(typeof taskSpace)"`。兼容的启动器和 SDK 应返回 `function`。
