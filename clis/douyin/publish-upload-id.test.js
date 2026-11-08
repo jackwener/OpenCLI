@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => ({
   tosUpload: vi.fn(),
   pollTranscode: vi.fn(),
   imagexUpload: vi.fn(),
+  applyImageUpload: vi.fn(),
+  commitImageUpload: vi.fn(),
 }));
 
 vi.mock('./_shared/browser-fetch.js', () => ({ browserFetch: mocks.browserFetch }));
@@ -21,7 +23,11 @@ vi.mock('./_shared/vod-upload.js', () => ({
 }));
 vi.mock('./_shared/tos-upload.js', () => ({ tosUpload: mocks.tosUpload }));
 vi.mock('./_shared/transcode.js', () => ({ pollTranscode: mocks.pollTranscode }));
-vi.mock('./_shared/imagex-upload.js', () => ({ imagexUpload: mocks.imagexUpload }));
+vi.mock('./_shared/imagex-upload.js', () => ({
+  imagexUpload: mocks.imagexUpload,
+  applyImageUpload: mocks.applyImageUpload,
+  commitImageUpload: mocks.commitImageUpload,
+}));
 
 describe('douyin publish upload identifier handling', () => {
   beforeEach(() => {
@@ -136,22 +142,17 @@ describe('douyin publish upload identifier handling', () => {
     expect(mocks.browserFetch.mock.calls.some((call) => String(call[2]).includes('/aweme/create_v2/'))).toBe(true);
   });
 
-  it('unwraps Browser Bridge envelopes around cover ImageX evaluate results', async () => {
+  it('uploads the cover through signed ImageX apply/commit with the upload credentials', async () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'douyin-publish-cover-'));
     const video = path.join(tmpDir, 'video.mp4');
     const cover = path.join(tmpDir, 'cover.jpg');
     fs.writeFileSync(video, Buffer.from('fake-video'));
     fs.writeFileSync(cover, Buffer.from('fake-cover'));
-    mocks.imagexUpload.mockResolvedValue('cover-store-uri');
-
-    const page = {
-      evaluate: vi.fn()
-        .mockResolvedValueOnce({
-          session: 'site:douyin:test',
-          data: { Result: { UploadAddress: { StoreInfos: [{ UploadHost: 'imagex.example.com', StoreUri: 'cover/key.jpg' }] } } },
-        })
-        .mockResolvedValueOnce({ session: 'site:douyin:test', data: { Result: {} } }),
-    };
+    const imageUpload = { upload_url: 'https://imagex.example.com/cover/key.jpg', store_uri: 'cover/key.jpg', auth: 'store-auth', session_key: 'cover-session' };
+    mocks.applyImageUpload.mockResolvedValue(imageUpload);
+    mocks.imagexUpload.mockResolvedValue('cover/key.jpg');
+    mocks.commitImageUpload.mockResolvedValue({ uri: 'cover/key.jpg', width: 1080, height: 1920 });
+    const page = { evaluate: vi.fn() };
 
     const { getRegistry } = await import('@jackwener/opencli/registry');
     getRegistry().delete('douyin/publish');
@@ -169,22 +170,23 @@ describe('douyin publish upload identifier handling', () => {
       no_safety_check: true,
     });
 
-    expect(mocks.imagexUpload).toHaveBeenCalledWith(cover, {
-      upload_url: 'https://imagex.example.com/cover/key.jpg',
-      store_uri: 'cover/key.jpg',
-    });
+    const credentials = { access_key_id: 'ak', secret_access_key: 'sk', session_token: 'token' };
+    expect(mocks.applyImageUpload).toHaveBeenCalledWith(credentials, { fileExtension: '.jpg' });
+    expect(mocks.imagexUpload).toHaveBeenCalledWith(cover, imageUpload);
+    expect(mocks.commitImageUpload).toHaveBeenCalledWith(credentials, 'cover-session');
+    expect(page.evaluate).not.toHaveBeenCalled();
     const createCall = mocks.browserFetch.mock.calls.find((call) => String(call[2]).includes('/aweme/create_v2/'));
-    expect(createCall?.[3]?.body.item.cover.poster).toBe('cover-store-uri');
+    expect(createCall?.[3]?.body.item.cover).toMatchObject({ poster: 'cover/key.jpg', custom_cover_image_width: 1080, custom_cover_image_height: 1920 });
   });
 
-  it('throws typed when cover ImageX apply returns the wrong shape', async () => {
+  it('stops before create_v2 when the cover ImageX apply fails', async () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'douyin-publish-cover-bad-'));
     const video = path.join(tmpDir, 'video.mp4');
     const cover = path.join(tmpDir, 'cover.jpg');
     fs.writeFileSync(video, Buffer.from('fake-video'));
     fs.writeFileSync(cover, Buffer.from('fake-cover'));
-
-    const page = { evaluate: vi.fn().mockResolvedValueOnce({ session: 'site:douyin:test', data: { Result: { UploadAddress: { StoreInfos: [] } } } }) };
+    const { CommandExecutionError } = await import('@jackwener/opencli/errors');
+    mocks.applyImageUpload.mockRejectedValue(new CommandExecutionError('ImageX ApplyImageUpload response is missing upload fields: {}'));
 
     const { getRegistry } = await import('@jackwener/opencli/registry');
     getRegistry().delete('douyin/publish');
@@ -192,7 +194,7 @@ describe('douyin publish upload identifier handling', () => {
     const cmd = getRegistry().get('douyin/publish');
     if (!cmd) throw new Error('douyin publish command not registered');
 
-    await expect(cmd.func(page, {
+    await expect(cmd.func({ evaluate: vi.fn() }, {
       video,
       cover,
       title: 'OpenCLI自测',
@@ -200,7 +202,8 @@ describe('douyin publish upload identifier handling', () => {
       caption: '',
       visibility: 'private',
       no_safety_check: true,
-    })).rejects.toThrow('UploadHost/StoreUri');
+    })).rejects.toThrow('missing upload fields');
     expect(mocks.imagexUpload).not.toHaveBeenCalled();
+    expect(mocks.browserFetch.mock.calls.some((call) => String(call[2]).includes('/aweme/create_v2/'))).toBe(false);
   });
 });
