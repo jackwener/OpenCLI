@@ -12,6 +12,8 @@
 | `opencli xiaoyuzhou history` | List the logged-in account's playback history and progress (requires local credentials) |
 | `opencli xiaoyuzhou download` | Download episode audio (requires local credentials) |
 | `opencli xiaoyuzhou transcript` | Download transcript JSON and extracted text (requires local credentials) |
+| `opencli xiaoyuzhou upload <audio>` | Upload an audio file as a new episode on the podcaster backend (uses the browser session) |
+| `opencli xiaoyuzhou upload-status <episode_id>` | Show the status of an episode: draft / reviewing / published (uses the browser session) |
 
 ## Usage Examples
 
