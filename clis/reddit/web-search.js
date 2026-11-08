@@ -61,7 +61,9 @@ export async function fetchRankedRedditSearch(query, subreddit, sort, time, limi
         const landed = new URL(response.url || next, origin);
         if (landed.origin !== origin || /\/login\/?$|\/account\/login|\/challenge\/?$/.test(landed.pathname)) return wall(response, text, next);
         const doc = new DOMParser().parseFromString(text, 'text/html');
-        const units = Array.from(doc.querySelectorAll('[data-testid="search-post-unit"]'));
+        // Reddit serves two result-card layouts depending on the query; both carry
+        // the same post telemetry, links and counts.
+        const units = Array.from(doc.querySelectorAll('[data-testid="search-post-unit"], [data-testid="sdui-post-unit"]'));
         if (!units.length && /blocked by network security/i.test(doc.body?.textContent || '')) return blocked(response, next);
         if ((!units.length && /^(?:log in|login|access denied|blocked|security verification|just a moment)/i.test(doc.title))
             || (!units.length && /whoa there, pardner|you.ve been blocked/i.test(doc.body?.textContent || ''))

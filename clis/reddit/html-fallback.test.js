@@ -120,6 +120,12 @@ describe('reddit/search card fallback when /by_id hydration is blocked', () => {
     expect(f.fetch).toHaveBeenCalledTimes(2);
   });
 
+  it('reads the newer sdui-post-unit result layout the same way', async () => {
+    const f = fixture([{ body: card('s').replace('data-testid="search-post-unit"', 'data-testid="sdui-post-unit"') }, { status: 403, body: BLOCKED }]);
+    expect((await run(f, { limit: 1 }))[0]).toMatchObject({ id: 's', title: 'Card s', score: 3116, comments: 869 });
+    expect(f.fetch).toHaveBeenCalledTimes(2);
+  });
+
   it('still uses /by_id details when hydration works', async () => {
     const hydrated = { data: { children: [{ kind: 't3', data: { id: 'a', name: 't3_a', title: 'Full a', permalink: '/r/x/comments/a/', selftext: 'body' } }] } };
     const f = fixture([{ body: card('a') }, { type: 'application/json', body: JSON.stringify(hydrated) }]);
