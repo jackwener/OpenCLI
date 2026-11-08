@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from 'vitest';
 import './follow.js';
 import './followers.js';
 import './following.js';
-import './profile.js';
 import './save.js';
 import './search.js';
 import './unfollow.js';
@@ -514,72 +513,6 @@ describe('instagram business-account endpoint fallback', () => {
         })).rejects.toThrow('Instagram unfollow returned no success evidence');
     });
 
-    it('profile falls back to users info and maps the mobile field names', async () => {
-        const fetchFn = vi.fn()
-            .mockResolvedValueOnce(gatedResponse)
-            .mockResolvedValueOnce(feedResponse)
-            .mockResolvedValueOnce({
-                ok: true,
-                json: () => Promise.resolve({
-                    user: {
-                        username: 'bizaccount',
-                        full_name: 'Biz Account',
-                        biography: 'line one\nline two',
-                        follower_count: 136386446,
-                        following_count: 510,
-                        media_count: 1493,
-                        is_verified: true,
-                        profile_pic_url: 'https://scontent.cdninstagram.com/biz_150.jpg',
-                        hd_profile_pic_url_info: { url: 'https://scontent.cdninstagram.com/biz_1080.jpg' },
-                    },
-                }),
-            });
-
-        const result = await runCommandEvaluate('profile', fetchFn, {
-            '${{ args.username | json }}': JSON.stringify('bizaccount'),
-        });
-
-        expect(result).toEqual([{
-            username: 'bizaccount',
-            name: 'Biz Account',
-            bio: 'line one line two',
-            followers: 136386446,
-            following: 510,
-            posts: 1493,
-            verified: 'Yes',
-            avatar_url: 'https://scontent.cdninstagram.com/biz_1080.jpg',
-        }]);
-        expect(fetchFn.mock.calls[2][0]).toContain('/api/v1/users/4213518589/info/');
-    });
-
-    it('profile keeps the single-request path for ungated accounts', async () => {
-        const fetchFn = vi.fn().mockResolvedValueOnce({
-            ok: true,
-            json: () => Promise.resolve({
-                data: {
-                    user: {
-                        username: 'personal',
-                        full_name: 'Personal User',
-                        biography: '',
-                        edge_followed_by: { count: 10 },
-                        edge_follow: { count: 20 },
-                        edge_owner_to_timeline_media: { count: 30 },
-                        is_verified: false,
-                        profile_pic_url: 'https://scontent.cdninstagram.com/p_150.jpg',
-                        profile_pic_url_hd: 'https://scontent.cdninstagram.com/p_320.jpg',
-                    },
-                },
-            }),
-        });
-
-        const result = await runCommandEvaluate('profile', fetchFn, {
-            '${{ args.username | json }}': JSON.stringify('personal'),
-        });
-
-        expect(result[0]).toMatchObject({ username: 'personal', followers: 10, following: 20, posts: 30, avatar_url: 'https://scontent.cdninstagram.com/p_320.jpg' });
-        expect(fetchFn).toHaveBeenCalledTimes(1);
-    });
-
     it('following paginates after resolving the id through the fallback', async () => {
         const fetchFn = vi.fn()
             .mockResolvedValueOnce(gatedResponse)
@@ -646,19 +579,6 @@ describe('instagram business-account endpoint fallback', () => {
 });
 
 describe('instagram avatar_url', () => {
-    const profileArgs = { '${{ args.username | json }}': JSON.stringify('nopic') };
-
-    it('profile returns an empty avatar_url when Instagram sends none or a non-https value', async () => {
-        const fetchFn = vi.fn().mockResolvedValueOnce({
-            ok: true,
-            json: () => Promise.resolve({
-                data: { user: { username: 'nopic', full_name: '', biography: '', profile_pic_url: 'javascript:alert(1)' } },
-            }),
-        });
-        const result = await runCommandEvaluate('profile', fetchFn, profileArgs);
-        expect(result[0].avatar_url).toBe('');
-    });
-
     it('search returns each user\'s profile photo URL', async () => {
         const fetchFn = vi.fn().mockResolvedValueOnce({
             ok: true,
