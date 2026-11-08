@@ -19,22 +19,26 @@ import {
   queryThreads,
 } from './utils.js';
 
-function batchViewFixture({ threads = true, labels = true } = {}) {
-  const body = Array(19).fill(null);
-  if (threads) {
-    const summary = [];
-    summary[1] = [null, 'sender@example.com', 'Sender Name'];
-    summary[10] = ['^u', '^t'];
-    body[2] = [[[
-      'Fixture subject',
-      'Fixture snippet',
-      1_700_000_000_000,
-      'thread-f:1234567890123456789',
-      [summary],
-    ], null]];
-  } else {
-    body[2] = [];
+function batchViewFixture({ threads = true, labels = true, arity = 19 } = {}) {
+  const body = Array(arity).fill(null);
+  const summary = [];
+  summary[1] = [null, 'sender@example.com', 'Sender Name'];
+  summary[10] = ['^u', '^t'];
+  const wrappers = threads ? [[[
+    'Fixture subject',
+    'Fixture snippet',
+    1_700_000_000_000,
+    'thread-f:1234567890123456789',
+    [summary],
+  ], null]] : [];
+  if (arity === 20) {
+    // Current Gmail appends a 20th field: tagged sections at body[19] where
+    // section[0] === 2 holds the thread wrappers. Label rows (body[1]) and
+    // label counts (body[6]) are absent from the payload entirely.
+    body[19] = [[2, wrappers, 1, []]];
+    return body;
   }
+  body[2] = wrappers;
   if (labels) {
     body[1] = [
       [[ '^i', 'Inbox' ], null],
@@ -133,6 +137,27 @@ describe('gmail positional response parsers', () => {
     ]);
   });
 
+  it('parses an arity-20 batch-view with threads in body[19] sections and no label rows', () => {
+    const body = batchViewFixture({ arity: 20 });
+    expect(parseBatchView(body)).toEqual([expect.objectContaining({
+      threadId: 'thread-f:1234567890123456789',
+      subject: 'Fixture subject',
+      from: 'sender@example.com',
+      fromName: 'Sender Name',
+      unread: true,
+      starred: true,
+    })]);
+    // The arity-20 shape carries no label data: return no rows so listLabels
+    // falls back to the renderedLabels() DOM scrape.
+    expect(parseLabels(body)).toEqual([]);
+  });
+
+  it('returns no thread rows for an arity-20 batch-view without kind-2 sections', () => {
+    const body = batchViewFixture({ threads: false, arity: 20 });
+    body[19] = [[1, [], 1, []], [3, [], 1, []]];
+    expect(parseBatchView(body)).toEqual([]);
+  });
+
   it('parses fetch-data messages, bodies, recipients, and attachments', () => {
     expect(parseFetchData(fetchDataFixture())).toEqual([expect.objectContaining({
       messageId: 'msg-f:1',
@@ -152,6 +177,7 @@ describe('gmail positional response parsers', () => {
 
   it('rejects malformed positional arrays instead of returning partial data', () => {
     expect(() => parseBatchView([])).toThrow(CommandExecutionError);
+    expect(() => parseBatchView(Array(21).fill(null))).toThrow(CommandExecutionError);
     expect(() => parseLabels(Array(18).fill(null))).toThrow(CommandExecutionError);
     expect(() => parseFetchData([null, 'wrong'])).toThrow(CommandExecutionError);
   });

@@ -130,11 +130,26 @@ function labelIdsFromMessages(messages) {
     .filter((label) => typeof label === 'string' && label.startsWith('^')))];
 }
 
+function batchViewThreadRows(body) {
+  // Legacy /bv payloads (19 top-level fields) carried the thread rows at
+  // body[2]. Current Gmail appends a 20th field: a list of tagged sections
+  // where a section of the form [2, <thread wrappers>, ...] holds the rows.
+  if (Array.isArray(body[2]) && body[2].length > 0) return body[2];
+  const sections = Array.isArray(body[19]) ? body[19] : [];
+  const rows = [];
+  for (const section of sections) {
+    if (Array.isArray(section) && section[0] === 2 && Array.isArray(section[1])) {
+      rows.push(...section[1]);
+    }
+  }
+  return rows;
+}
+
 export function parseBatchView(body) {
-  if (!Array.isArray(body) || body.length !== 19) {
+  if (!Array.isArray(body) || (body.length !== 19 && body.length !== 20)) {
     throw new CommandExecutionError('Gmail batch-view response had an unexpected shape');
   }
-  const rows = Array.isArray(body[2]) ? body[2] : [];
+  const rows = batchViewThreadRows(body);
   return rows.map((wrapper, index) => {
     const record = Array.isArray(wrapper?.[0]) ? wrapper[0] : null;
     if (!record || record.length < 5) {
@@ -176,7 +191,10 @@ function labelCounts(value) {
 }
 
 export function parseLabels(body) {
-  if (!Array.isArray(body) || body.length !== 19) {
+  // Current /bv responses append a 20th field (thread sections at body[19])
+  // and no longer carry label rows at body[1]/body[6]. Return no rows for
+  // them so listLabels falls back to renderedLabels() instead of failing.
+  if (!Array.isArray(body) || (body.length !== 19 && body.length !== 20)) {
     throw new CommandExecutionError('Gmail batch-view response had an unexpected shape');
   }
   const counts = labelCounts(body[6]);
@@ -363,6 +381,13 @@ async function renderedLabels(page, account) {
       'category/updates': 'Updates', 'category/forums': 'Forums',
       'category/promotions': 'Promotions',
     };
+    const localizedSystemNames = {
+      '收件箱': 'inbox', '已加星标': 'starred', '已延后': 'snoozed', '重要邮件': 'important',
+      '已发邮件': 'sent', '定时发送': 'scheduled', '草稿': 'drafts', '所有邮件': 'all',
+      '垃圾邮件': 'spam', '已删除邮件': 'trash',
+      '购物': 'category/purchases', '社交': 'category/social', '动态': 'category/updates',
+      '论坛': 'category/forums', '推广': 'category/promotions',
+    };
     const seen = new Set();
     const result = [];
     const add = (id, name, type, unreadCount = null) => {
@@ -385,12 +410,14 @@ async function renderedLabels(page, account) {
     const headings = new Set([
       'labels', 'label', 'system labels', 'categories', 'create new label',
       'show in label list', 'show in message list', 'actions',
+      '系统标签', '类别', '标签', '创建新标签', '在标签列表中显示', '在邮件列表中显示', '操作',
     ]);
     for (const row of document.querySelectorAll('[role="main"] tr, main tr')) {
       const cell = row.querySelector('td');
       const name = String(cell?.innerText || cell?.textContent || '').split('\\n').map((text) => text.trim()).find(Boolean) || '';
-      if (!name || headings.has(name.toLowerCase()) || /^note:/i.test(name) || name.length > 120) continue;
-      const systemKey = Object.keys(systemNames).find((key) => systemNames[key].toLowerCase() === name.toLowerCase());
+      if (!name || headings.has(name.toLowerCase()) || /^note:/i.test(name) || /^注意[:：]/.test(name) || name.length > 120) continue;
+      const systemKey = localizedSystemNames[name]
+        || Object.keys(systemNames).find((key) => systemNames[key].toLowerCase() === name.toLowerCase());
       add(systemKey || 'label/' + name, name, systemKey ? 'system' : 'user');
     }
     return result;
