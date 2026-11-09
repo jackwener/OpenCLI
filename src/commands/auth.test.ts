@@ -312,6 +312,155 @@ describe('auth refresh collection', () => {
   });
 });
 
+describe('auth refresh cookie expiry diagnostics', () => {
+  const now = new Date('2026-06-06T12:00:00.000Z');
+  // Epoch seconds, as Browser Bridge and CDP report `expirationDate`.
+  const BEFORE = Date.parse('2026-06-10T00:00:00.000Z') / 1000;
+  const AFTER = Date.parse('2026-06-20T00:00:00.000Z') / 1000;
+
+  function sessionCookie(expirationDate?: number) {
+    return {
+      name: 'sid',
+      value: 'secret-session-value',
+      domain: '.alpha.example.com',
+      path: '/',
+      ...(expirationDate === undefined ? {} : { expirationDate }),
+    };
+  }
+
+  function registerWithSessionCookies(site: string, sessionCookies?: string[]): void {
+    registerWhoami(site, { quick: true, quickLoggedIn: true });
+    if (sessionCookies) getRegistry().get(`${site}/whoami`)!.authStatus!.sessionCookies = sessionCookies;
+  }
+
+  // Each getCookies call returns the next snapshot: before the touch, then after it.
+  function runWithCookieSnapshots(...snapshots: Array<unknown[] | Error>) {
+    const getCookies = vi.fn();
+    for (const snapshot of snapshots) {
+      if (snapshot instanceof Error) getCookies.mockRejectedValueOnce(snapshot);
+      else getCookies.mockResolvedValueOnce(snapshot);
+    }
+    executeCommandMock.mockImplementation(async (cmd: BrowserCliCommand, kwargs: Record<string, unknown>) => {
+      return cmd.func!({ goto: vi.fn(), wait: vi.fn(), getCookies } as never, kwargs);
+    });
+    return getCookies;
+  }
+
+  it('reports refreshed with before/after expiry when the session cookie expiry moves later', async () => {
+    registerWithSessionCookies('alpha', ['sid']);
+    const getCookies = runWithCookieSnapshots(
+      [sessionCookie(BEFORE), { name: 'analytics', value: 'x', domain: '.alpha.example.com', expirationDate: AFTER + 1000 }],
+      [sessionCookie(AFTER)],
+    );
+    const statePath = await tempStatePath();
+
+    const rows = await collectAuthRefresh({ sites: 'alpha', statePath, now });
+
+    expect(rows).toEqual([{
+      site: 'alpha',
+      status: 'refreshed',
+      last_touched_at: now.toISOString(),
+      next_refresh_at: '2026-06-07T12:00:00.000Z',
+      error: '',
+      cookie_expiry_before: '2026-06-10T00:00:00.000Z',
+      cookie_expiry_after: '2026-06-20T00:00:00.000Z',
+    }]);
+    expect(getCookies).toHaveBeenCalledTimes(2);
+    expect(getCookies).toHaveBeenCalledWith({ url: 'https://alpha.example.com' });
+    expect(JSON.stringify(rows)).not.toContain('secret-session-value');
+    const state = JSON.parse(await readFile(statePath, 'utf8'));
+    expect(state.sites.alpha.last_status).toBe('refreshed');
+    expect(JSON.stringify(state)).not.toContain('cookie_expiry');
+  });
+
+  it('keeps touched when the session cookie expiry is unchanged', async () => {
+    registerWithSessionCookies('alpha', ['sid']);
+    runWithCookieSnapshots([sessionCookie(BEFORE)], [sessionCookie(BEFORE)]);
+
+    const rows = await collectAuthRefresh({ sites: 'alpha', statePath: await tempStatePath(), now });
+
+    expect(rows[0]).toMatchObject({
+      status: 'touched',
+      cookie_expiry_before: '2026-06-10T00:00:00.000Z',
+      cookie_expiry_after: '2026-06-10T00:00:00.000Z',
+    });
+  });
+
+  it('keeps touched without expiry fields when the session cookie has no expiry or is missing', async () => {
+    registerWithSessionCookies('alpha', ['sid']);
+    runWithCookieSnapshots([sessionCookie()], []);
+
+    const rows = await collectAuthRefresh({ sites: 'alpha', statePath: await tempStatePath(), now });
+
+    expect(rows[0]?.status).toBe('touched');
+    expect(rows[0]).not.toHaveProperty('cookie_expiry_before');
+    expect(rows[0]).not.toHaveProperty('cookie_expiry_after');
+  });
+
+  it('keeps touched when only one side of the expiry is known', async () => {
+    registerWithSessionCookies('alpha', ['sid']);
+    runWithCookieSnapshots([], [sessionCookie(AFTER)]);
+
+    const rows = await collectAuthRefresh({ sites: 'alpha', statePath: await tempStatePath(), now });
+
+    expect(rows[0]?.status).toBe('touched');
+    expect(rows[0]).not.toHaveProperty('cookie_expiry_before');
+    expect(rows[0]?.cookie_expiry_after).toBe('2026-06-20T00:00:00.000Z');
+  });
+
+  it('keeps touched when the cookies cannot be read', async () => {
+    registerWithSessionCookies('alpha', ['sid']);
+    runWithCookieSnapshots(new Error('cookies unavailable'), new Error('cookies unavailable'));
+
+    const rows = await collectAuthRefresh({ sites: 'alpha', statePath: await tempStatePath(), now });
+
+    expect(rows[0]).toEqual({
+      site: 'alpha',
+      status: 'touched',
+      last_touched_at: now.toISOString(),
+      next_refresh_at: '2026-06-07T12:00:00.000Z',
+      error: '',
+    });
+  });
+
+  it('does not read cookies for sites that declare no session cookies', async () => {
+    registerWithSessionCookies('alpha');
+    const getCookies = runWithCookieSnapshots([sessionCookie(BEFORE)], [sessionCookie(AFTER)]);
+
+    const rows = await collectAuthRefresh({ sites: 'alpha', statePath: await tempStatePath(), now });
+
+    expect(rows[0]?.status).toBe('touched');
+    expect(rows[0]).not.toHaveProperty('cookie_expiry_after');
+    expect(getCookies).not.toHaveBeenCalled();
+  });
+
+  it('wraps adapter refresh hooks too, and an explicit refreshed result still wins', async () => {
+    registerWhoami('beta', { refresh: 'refreshed' });
+    getRegistry().get('beta/whoami')!.authStatus!.sessionCookies = ['sid'];
+    runWithCookieSnapshots([sessionCookie(BEFORE)], [sessionCookie(BEFORE)]);
+
+    const rows = await collectAuthRefresh({ sites: 'beta', statePath: await tempStatePath(), now });
+
+    expect(rows[0]).toMatchObject({
+      status: 'refreshed',
+      cookie_expiry_before: '2026-06-10T00:00:00.000Z',
+      cookie_expiry_after: '2026-06-10T00:00:00.000Z',
+    });
+  });
+
+  it('does not update last_touched_at or read expiry fields for not_logged_in', async () => {
+    registerWithSessionCookies('alpha', ['sid']);
+    getRegistry().get('alpha/whoami')!.authStatus!.quickCheck = async () => ({ logged_in: false });
+    runWithCookieSnapshots([sessionCookie(BEFORE)], [sessionCookie(AFTER)]);
+
+    const rows = await collectAuthRefresh({ sites: 'alpha', statePath: await tempStatePath(), now });
+
+    expect(rows[0]?.status).toBe('not_logged_in');
+    expect(rows[0]?.last_touched_at).toBe('');
+    expect(rows[0]).not.toHaveProperty('cookie_expiry_after');
+  });
+});
+
 describe('auth recovery hints', () => {
   it('adds the site login command to quick not_logged_in rows', async () => {
     registerWhoami('alpha', { quick: true, quickLoggedIn: false });

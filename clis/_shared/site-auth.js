@@ -68,6 +68,9 @@ export function registerSiteAuthCommands(config) {
       ...(typeof config.refresh === 'function'
         ? { refresh: async (page, kwargs) => normalizeRefreshResult(await config.refresh(page, kwargs)) }
         : {}),
+      ...(Array.isArray(config.sessionCookies) && config.sessionCookies.length > 0
+        ? { sessionCookies: [...config.sessionCookies] }
+        : {}),
     },
     func: async (page) => tryProbe(config, page, 'identity'),
   });
