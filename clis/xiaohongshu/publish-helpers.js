@@ -4,7 +4,9 @@
  * validation, topic typing primitives, and the publish/draft submission and
  * success verification used by the creator center.
  */
+import { randomUUID } from 'node:crypto';
 import * as fs from 'node:fs';
+import { createServer } from 'node:http';
 import * as path from 'node:path';
 import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 
@@ -441,52 +443,84 @@ export function validateMediaFile(filePath, { accepted, maxBytes, label }) {
  * without set-file-input support. MIME types come from the file bytes.
  */
 export async function uploadFiles(page, absPaths, selector) {
+    let setFileInputError;
     if (typeof page.setFileInput === 'function') {
         try {
             await page.setFileInput(absPaths, selector);
             return { ok: true, count: absPaths.length, via: 'setFileInput' };
         } catch (err) {
-            const msg = err instanceof Error ? err.message : String(err);
-            if (/Unknown action|not supported|Not allowed|fileChooserOpened not received/i.test(msg)) {
-                // Fall through to the in-page injection fallback.
-            } else {
-                return { ok: false, count: 0, error: msg };
-            }
+            // Every CDP setFileInput failure falls through to the fetch path:
+            // chrome.debugger rejects DOM.setFileInputFiles with "-32000 Not
+            // allowed" on some pages (crbug 928255, seen on the Xiaohongshu
+            // creator center), and the chooser never fires on hidden inputs.
+            setFileInputError = err instanceof Error ? err.message : String(err);
         }
     }
-    const files = absPaths.map((absPath) => {
-        const size = fs.statSync(absPath).size;
-        if (size > BASE64_FALLBACK_MAX_BYTES) {
-            throw new CommandExecutionError(
-                `${path.basename(absPath)} is ${(size / 1024 / 1024).toFixed(1)}MB and the browser bridge cannot pass it through the fallback path. `
-                + 'Update the OpenCLI browser extension to a version with CDP file upload, or compress the file.',
-            );
+    if (typeof page.evaluate !== 'function') {
+        return { ok: false, count: 0, error: setFileInputError || 'No upload path available' };
+    }
+
+    // The page fetches the bytes from a loopback HTTP server this process owns.
+    // Shipping a multi-MB file through the daemon WebSocket as base64 stalls
+    // the exec ("max attempts exhausted"), and 127.0.0.1 is a trustworthy
+    // origin for an https page, so the fetch is not blocked as mixed content.
+    const token = randomUUID();
+    const routes = absPaths.map((absPath, index) => ({
+        name: path.basename(absPath),
+        mimeType: sniffMime(absPath) || 'application/octet-stream',
+        index,
+    }));
+    const server = createServer((req, res) => {
+        const match = /^\/([0-9a-f-]+)\/(\d+)$/.exec(req.url || '');
+        const allowed = match && match[1] === token ? routes[Number(match[2])] : null;
+        if (!allowed) {
+            res.writeHead(404);
+            res.end();
+            return;
         }
-        return { name: path.basename(absPath), mimeType: sniffMime(absPath) || 'application/octet-stream', base64: fs.readFileSync(absPath).toString('base64') };
+        res.writeHead(200, {
+            'Content-Type': allowed.mimeType,
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Private-Network': 'true',
+            'Cache-Control': 'no-store',
+        });
+        fs.createReadStream(absPaths[allowed.index]).pipe(res);
     });
-    return page.evaluate(`
-    (async () => {
-      const files = ${JSON.stringify(files)};
-      const input = document.querySelector(${JSON.stringify(selector)});
-      if (!input) return { ok: false, count: 0, error: 'File input not found: ' + ${JSON.stringify(selector)} };
-      const dt = new DataTransfer();
-      for (const file of files) {
-        try {
-          const binary = atob(file.base64);
-          const bytes = new Uint8Array(binary.length);
-          for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
-          const blob = new Blob([bytes], { type: file.mimeType });
-          dt.items.add(new File([blob], file.name, { type: file.mimeType }));
-        } catch (e) {
-          return { ok: false, count: 0, error: 'Failed to create File: ' + e.message };
+    await new Promise((resolve, reject) => {
+        server.once('error', reject);
+        server.listen(0, '127.0.0.1', resolve);
+    });
+    const port = server.address().port;
+    try {
+        const injected = await page.evaluate(`
+      (async () => {
+        const files = ${JSON.stringify(routes.map((route) => ({ name: route.name, mimeType: route.mimeType, url: `http://127.0.0.1:${port}/${token}/${route.index}` })))};
+        const input = document.querySelector(${JSON.stringify(selector)});
+        if (!input) return { ok: false, count: 0, error: 'File input not found: ' + ${JSON.stringify(selector)} };
+        const dt = new DataTransfer();
+        for (const file of files) {
+          try {
+            const response = await fetch(file.url);
+            if (!response.ok) return { ok: false, count: 0, error: 'Fetch failed (' + response.status + ') for ' + file.name };
+            const blob = await response.blob();
+            dt.items.add(new File([blob], file.name, { type: file.mimeType }));
+          } catch (e) {
+            return { ok: false, count: 0, error: 'Failed to read ' + file.name + ': ' + e.message };
+          }
         }
-      }
-      Object.defineProperty(input, 'files', { value: dt.files, writable: false, configurable: true });
-      input.dispatchEvent(new Event('change', { bubbles: true }));
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-      return { ok: true, count: dt.files.length, via: 'dataTransfer' };
-    })()
-  `);
+        Object.defineProperty(input, 'files', { value: dt.files, writable: false, configurable: true });
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        return { ok: true, count: dt.files.length, via: 'loopbackFetch' };
+      })()
+    `);
+        if (injected && typeof injected === 'object' && 'ok' in injected && !injected.ok && setFileInputError) {
+            injected.error = `${injected.error} (setFileInput: ${setFileInputError})`;
+        }
+        return injected;
+    } finally {
+        server.close();
+    }
 }
 
 /**
