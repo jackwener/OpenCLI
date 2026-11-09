@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { CommandExecutionError } from '@jackwener/opencli/errors';
 import {
     __test__,
+    clickDoubaoSendButton,
     collectDoubaoTranscriptAdditions,
     mergeTranscriptSnapshots,
     parseDoubaoConversationId,
@@ -34,6 +35,8 @@ function createPageMock() {
         screenshot: vi.fn().mockResolvedValue(''),
         nativeType: vi.fn().mockResolvedValue(undefined),
         nativeKeyPress: vi.fn().mockResolvedValue(undefined),
+        nativeClick: vi.fn().mockResolvedValue(undefined),
+        cdp: vi.fn().mockResolvedValue(undefined),
     };
 }
 
@@ -46,7 +49,7 @@ describe('parseDoubaoConversationId', () => {
     });
 });
 describe('doubao send strategy', () => {
-    it('prefers native CDP text insertion and button submission when a send button is available', async () => {
+    it('prefers native CDP text insertion and verified button submission when a send button is available', async () => {
         const page = createPageMock();
         const evaluate = vi.mocked(page.evaluate);
         const nativeType = vi.mocked(page.nativeType);
@@ -54,14 +57,17 @@ describe('doubao send strategy', () => {
         evaluate
             .mockResolvedValueOnce('https://www.doubao.com/chat')
             .mockResolvedValueOnce({ ok: true })
+            .mockResolvedValueOnce(undefined)
             .mockResolvedValueOnce({ hasText: true, text: '你好' })
-            .mockResolvedValueOnce({ hasText: true, text: '你好' })
+            .mockResolvedValueOnce({ w: 1280, h: 800 })
+            .mockResolvedValueOnce({ x: 100, y: 100 })
             .mockResolvedValueOnce(true)
+            .mockResolvedValueOnce({ hasText: false, text: '' })
             .mockResolvedValueOnce({ detected: false });
         const result = await sendDoubaoMessage(page, '你好');
         expect(nativeType).toHaveBeenCalledWith('你好');
         expect(nativeKeyPress).not.toHaveBeenCalled();
-        expect(result).toBe('button');
+        expect(result).toBe('button-js');
     });
     it('falls back to DOM insertion when native insertion does not update the composer', async () => {
         const page = createPageMock();
@@ -70,15 +76,18 @@ describe('doubao send strategy', () => {
         evaluate
             .mockResolvedValueOnce('https://www.doubao.com/chat')
             .mockResolvedValueOnce({ ok: true })
-            .mockResolvedValueOnce({ hasText: false, text: '' })
+            .mockResolvedValueOnce(undefined)
             .mockResolvedValueOnce({ hasText: false, text: '' })
             .mockResolvedValueOnce({ hasText: true, text: '你好' })
+            .mockResolvedValueOnce({ w: 1280, h: 800 })
+            .mockResolvedValueOnce({ x: 100, y: 100 })
             .mockResolvedValueOnce(true)
+            .mockResolvedValueOnce({ hasText: false, text: '' })
             .mockResolvedValueOnce({ detected: false });
         const result = await sendDoubaoMessage(page, '你好');
         expect(nativeType).toHaveBeenCalledWith('你好');
-        expect(evaluate).toHaveBeenCalledTimes(7);
-        expect(result).toBe('button');
+        expect(evaluate).toHaveBeenCalledTimes(10);
+        expect(result).toBe('button-js');
     });
     it('falls back to DOM insertion when native insertion text does not match the requested prompt', async () => {
         const page = createPageMock();
@@ -86,12 +95,16 @@ describe('doubao send strategy', () => {
         evaluate
             .mockResolvedValueOnce('https://www.doubao.com/chat')
             .mockResolvedValueOnce({ ok: true })
+            .mockResolvedValueOnce(undefined)
             .mockResolvedValueOnce({ hasText: true, text: '你' })
             .mockResolvedValueOnce({ hasText: true, text: '你好' })
+            .mockResolvedValueOnce({ w: 1280, h: 800 })
+            .mockResolvedValueOnce({ x: 100, y: 100 })
             .mockResolvedValueOnce(true)
+            .mockResolvedValueOnce({ hasText: false, text: '' })
             .mockResolvedValueOnce({ detected: false });
         const result = await sendDoubaoMessage(page, '你好');
-        expect(result).toBe('button');
+        expect(result).toBe('button-js');
     });
     it('falls back to native Enter when no clickable submit button is found', async () => {
         const page = createPageMock();
@@ -100,13 +113,54 @@ describe('doubao send strategy', () => {
         evaluate
             .mockResolvedValueOnce('https://www.doubao.com/chat')
             .mockResolvedValueOnce({ ok: true })
+            .mockResolvedValueOnce(undefined)
             .mockResolvedValueOnce({ hasText: true, text: '你好' })
-            .mockResolvedValueOnce({ hasText: true, text: '你好' })
+            .mockResolvedValueOnce({ w: 1280, h: 800 })
+            .mockResolvedValueOnce(null)
             .mockResolvedValueOnce(false)
+            .mockResolvedValueOnce({ hasText: false, text: '' })
             .mockResolvedValueOnce({ detected: false });
         const result = await sendDoubaoMessage(page, '你好');
         expect(nativeKeyPress).toHaveBeenCalledWith('Enter');
-        expect(result).toBe('enter');
+        expect(result).toBe('enter-key');
+    });
+    it('escalates to native Enter and a native-flavor button retry when the first click is swallowed', async () => {
+        const page = createPageMock();
+        const evaluate = vi.mocked(page.evaluate);
+        const nativeKeyPress = vi.mocked(page.nativeKeyPress);
+        const nativeClick = vi.mocked(page.nativeClick);
+        evaluate
+            .mockResolvedValueOnce('https://www.doubao.com/chat')
+            .mockResolvedValueOnce({ ok: true })
+            .mockResolvedValueOnce(undefined)
+            .mockResolvedValueOnce({ hasText: true, text: '你好' })
+            .mockResolvedValueOnce({ w: 1280, h: 800 })
+            .mockResolvedValueOnce({ x: 70, y: 72 })
+            .mockResolvedValueOnce(true)
+            .mockResolvedValueOnce({ hasText: true, text: '你好' })
+            .mockResolvedValueOnce({ hasText: true, text: '你好' })
+            .mockResolvedValueOnce({ w: 1280, h: 800 })
+            .mockResolvedValueOnce({ x: 70, y: 72 })
+            .mockResolvedValueOnce({ hasText: false, text: '' })
+            .mockResolvedValueOnce({ detected: false });
+        const result = await sendDoubaoMessage(page, '你好');
+        expect(nativeKeyPress).toHaveBeenCalledWith('Enter');
+        expect(nativeClick).toHaveBeenCalledWith(70, 72);
+        expect(result).toBe('button-js+enter-key+button-cdp');
+    });
+    it('throws a command error when the composer never clears after every submit flavor', async () => {
+        const page = createPageMock();
+        const evaluate = vi.mocked(page.evaluate);
+        evaluate
+            .mockResolvedValueOnce('https://www.doubao.com/chat')
+            .mockResolvedValueOnce({ ok: true })
+            .mockResolvedValueOnce(undefined)
+            .mockResolvedValueOnce({ hasText: true, text: '你好' })
+            .mockResolvedValueOnce({ w: 1280, h: 800 })
+            .mockResolvedValueOnce({ x: 70, y: 72 })
+            .mockResolvedValueOnce(true)
+            .mockResolvedValue({ hasText: true, text: '你好' });
+        await expect(sendDoubaoMessage(page, '你好')).rejects.toThrow(/composer never cleared/);
     });
     it('does not throw verification errors just because the prompt mentions verification terms', async () => {
         const page = createPageMock();
@@ -114,11 +168,14 @@ describe('doubao send strategy', () => {
         evaluate
             .mockResolvedValueOnce('https://www.doubao.com/chat')
             .mockResolvedValueOnce({ ok: true })
+            .mockResolvedValueOnce(undefined)
             .mockResolvedValueOnce({ hasText: true, text: '请解释 CAPTCHA verification 是什么' })
-            .mockResolvedValueOnce({ hasText: true, text: '请解释 CAPTCHA verification 是什么' })
+            .mockResolvedValueOnce({ w: 1280, h: 800 })
+            .mockResolvedValueOnce({ x: 100, y: 100 })
             .mockResolvedValueOnce(true)
+            .mockResolvedValueOnce({ hasText: false, text: '' })
             .mockResolvedValueOnce({ detected: false, reason: '' });
-        await expect(sendDoubaoMessage(page, '请解释 CAPTCHA verification 是什么')).resolves.toBe('button');
+        await expect(sendDoubaoMessage(page, '请解释 CAPTCHA verification 是什么')).resolves.toBe('button-js');
     });
     it('does not throw verification errors for ordinary chinese prompts mentioning security terms', async () => {
         const page = createPageMock();
@@ -126,11 +183,14 @@ describe('doubao send strategy', () => {
         evaluate
             .mockResolvedValueOnce('https://www.doubao.com/chat')
             .mockResolvedValueOnce({ ok: true })
+            .mockResolvedValueOnce(undefined)
             .mockResolvedValueOnce({ hasText: true, text: '请解释人机验证和完成安全验证的区别' })
-            .mockResolvedValueOnce({ hasText: true, text: '请解释人机验证和完成安全验证的区别' })
+            .mockResolvedValueOnce({ w: 1280, h: 800 })
+            .mockResolvedValueOnce({ x: 100, y: 100 })
             .mockResolvedValueOnce(true)
+            .mockResolvedValueOnce({ hasText: false, text: '' })
             .mockResolvedValueOnce({ detected: false, reason: '' });
-        await expect(sendDoubaoMessage(page, '请解释人机验证和完成安全验证的区别')).resolves.toBe('button');
+        await expect(sendDoubaoMessage(page, '请解释人机验证和完成安全验证的区别')).resolves.toBe('button-js');
     });
     it('throws a command error when Doubao shows a verification challenge after submit', async () => {
         const page = createPageMock();
@@ -138,11 +198,61 @@ describe('doubao send strategy', () => {
         evaluate
             .mockResolvedValueOnce('https://www.doubao.com/chat')
             .mockResolvedValueOnce({ ok: true })
+            .mockResolvedValueOnce(undefined)
             .mockResolvedValueOnce({ hasText: true, text: '你好' })
-            .mockResolvedValueOnce({ hasText: true, text: '你好' })
+            .mockResolvedValueOnce({ w: 1280, h: 800 })
+            .mockResolvedValueOnce({ x: 100, y: 100 })
             .mockResolvedValueOnce(true)
+            .mockResolvedValueOnce({ hasText: false, text: '' })
             .mockResolvedValueOnce({ detected: true, reason: '请完成安全验证' });
         await expect(sendDoubaoMessage(page, '你好')).rejects.toBeInstanceOf(CommandExecutionError);
+    });
+});
+describe('clickDoubaoSendButton', () => {
+    it('surfaces a collapsed viewport via Page.bringToFront before probing', async () => {
+        const page = createPageMock();
+        const evaluate = vi.mocked(page.evaluate);
+        evaluate
+            .mockResolvedValueOnce({ w: 0, h: 0 })
+            .mockResolvedValueOnce({ x: 70, y: 72 })
+            .mockResolvedValueOnce(true);
+        const result = await clickDoubaoSendButton(page);
+        expect(page.cdp).toHaveBeenCalledWith('Page.bringToFront', {});
+        expect(result).toBe('js');
+    });
+    it('falls back to the trusted CDP click when the JS click does not fire', async () => {
+        const page = createPageMock();
+        const evaluate = vi.mocked(page.evaluate);
+        const nativeClick = vi.mocked(page.nativeClick);
+        evaluate
+            .mockResolvedValueOnce({ w: 1280, h: 800 })
+            .mockResolvedValueOnce({ x: 70, y: 72 })
+            .mockResolvedValueOnce(false);
+        const result = await clickDoubaoSendButton(page);
+        expect(nativeClick).toHaveBeenCalledWith(70, 72);
+        expect(result).toBe('cdp');
+    });
+    it('uses the native flavor first on the preferNative retry', async () => {
+        const page = createPageMock();
+        const evaluate = vi.mocked(page.evaluate);
+        const nativeClick = vi.mocked(page.nativeClick);
+        evaluate
+            .mockResolvedValueOnce({ w: 1280, h: 800 })
+            .mockResolvedValueOnce({ x: 70, y: 72 });
+        const result = await clickDoubaoSendButton(page, { preferNative: true });
+        expect(nativeClick).toHaveBeenCalledWith(70, 72);
+        expect(result).toBe('cdp');
+        expect(evaluate).toHaveBeenCalledTimes(2);
+    });
+    it('returns false when the send button is absent', async () => {
+        const page = createPageMock();
+        const evaluate = vi.mocked(page.evaluate);
+        evaluate
+            .mockResolvedValueOnce({ w: 1280, h: 800 })
+            .mockResolvedValueOnce(null);
+        const result = await clickDoubaoSendButton(page);
+        expect(result).toBe(false);
+        expect(page.nativeClick).not.toHaveBeenCalled();
     });
 });
 describe('doubao receive strategy', () => {
