@@ -7,25 +7,46 @@ import { isRecoverableFileInputError } from './utils.js';
 
 const MAX_IMAGES = 4;
 const UPLOAD_POLL_MS = 500;
-const UPLOAD_TIMEOUT_MS = 30_000;
+const IMAGE_UPLOAD_TIMEOUT_MS = 30_000;
+// X transcodes video server-side before the Post button re-enables, which takes
+// far longer than an image upload even for a small clip. This is only a ceiling:
+// the wait actually granted is derived from --timeout (see resolveUploadTimeoutMs),
+// so the command never advertises a deadline the command budget cannot deliver.
+const VIDEO_UPLOAD_TIMEOUT_CAP_MS = 180_000;
+// Wall clock the rest of the command still needs after the upload wait:
+// composer focus/insert (10s) plus submit confirmation (15s), plus slack.
+const POST_OVERHEAD_RESERVE_MS = 30_000;
+const MIN_UPLOAD_TIMEOUT_MS = 10_000;
+const DEFAULT_COMMAND_TIMEOUT_SECONDS = 60;
 const COMPOSER_POLL_MS = 250;
 const COMPOSER_TIMEOUT_MS = 10_000;
 const SUBMIT_POLL_MS = 500;
 const SUBMIT_TIMEOUT_MS = 15_000;
 const COMPOSE_URL = 'https://x.com/compose/post';
 const FILE_INPUT_SELECTOR = 'input[type="file"][data-testid="fileInput"]';
-const SUPPORTED_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp']);
+const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp']);
+const VIDEO_EXTENSIONS = new Set(['.mp4', '.m4v', '.mov']);
+const MIME_BY_EXTENSION = {
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.png': 'image/png',
+    '.gif': 'image/gif',
+    '.webp': 'image/webp',
+    '.mp4': 'video/mp4',
+    '.m4v': 'video/mp4',
+    '.mov': 'video/quicktime',
+};
 
-function validateImagePaths(raw) {
+function validateMediaPaths(raw) {
     const paths = raw.split(',').map(s => s.trim()).filter(Boolean);
     if (paths.length > MAX_IMAGES) {
         throw new CommandExecutionError(`Too many images: ${paths.length} (max ${MAX_IMAGES})`);
     }
-    return paths.map(p => {
+    const absPaths = paths.map(p => {
         const absPath = path.resolve(p);
         const ext = path.extname(absPath).toLowerCase();
-        if (!SUPPORTED_EXTENSIONS.has(ext)) {
-            throw new CommandExecutionError(`Unsupported image format "${ext}". Supported: jpg, png, gif, webp`);
+        if (!IMAGE_EXTENSIONS.has(ext) && !VIDEO_EXTENSIONS.has(ext)) {
+            throw new CommandExecutionError(`Unsupported media format "${ext}". Supported: jpg, png, gif, webp, mp4, mov`);
         }
         const stat = fs.statSync(absPath, { throwIfNoEntry: false });
         if (!stat || !stat.isFile()) {
@@ -33,6 +54,20 @@ function validateImagePaths(raw) {
         }
         return absPath;
     });
+    // X accepts up to 4 images or a single video, never both in one post; the
+    // composer silently drops the extra attachments instead of reporting an error.
+    const videoCount = absPaths.filter(isVideoPath).length;
+    if (videoCount > 0 && videoCount !== absPaths.length) {
+        throw new CommandExecutionError('Cannot mix a video with images: X allows either up to 4 images or a single video.');
+    }
+    if (videoCount > 1) {
+        throw new CommandExecutionError(`Too many videos: ${videoCount} (max 1)`);
+    }
+    return absPaths;
+}
+
+function isVideoPath(absPath) {
+    return VIDEO_EXTENSIONS.has(path.extname(absPath).toLowerCase());
 }
 
 function isUnsupportedInsertTextError(err) {
@@ -158,40 +193,91 @@ async function insertComposerText(page, text) {
     })()`), 'Twitter composer DOM insertion');
 }
 
-async function waitForImageUpload(page, expectedCount) {
-    const iterations = Math.ceil(UPLOAD_TIMEOUT_MS / UPLOAD_POLL_MS);
-    return requirePostActionResult(await page.evaluate(`(async () => {
-        const expected = ${JSON.stringify(expectedCount)};
-        const visible = (el) => !!el && (el.offsetParent !== null || el.getClientRects().length > 0);
-        for (let i = 0; i < ${JSON.stringify(iterations)}; i++) {
-            await new Promise(r => setTimeout(r, ${JSON.stringify(UPLOAD_POLL_MS)}));
-            const attachments = document.querySelector('[data-testid="attachments"]');
-            const previewCount = Math.max(
-                attachments ? attachments.querySelectorAll('[role="group"], img, video').length : 0,
-                document.querySelectorAll('[data-testid="tweetPhoto"], img[src^="blob:"], video[src^="blob:"]').length,
-                Array.from(document.querySelectorAll('button,[role="button"]')).filter((el) =>
-                    /remove media|remove image|remove/i.test((el.getAttribute('aria-label') || '') + ' ' + (el.textContent || ''))
-                ).length
-            );
-            const button = Array.from(document.querySelectorAll('[data-testid="tweetButtonInline"], [data-testid="tweetButton"]'))
-                .find((el) => visible(el));
-            const buttonReady = !!button && !button.disabled && button.getAttribute('aria-disabled') !== 'true';
-            if (previewCount >= expected && buttonReady) return { ok: true, previewCount };
-        }
-        return { ok: false, message: 'Image upload timed out (${UPLOAD_TIMEOUT_MS / 1000}s).' };
-    })()`), 'Twitter image upload verification');
+function resolveUploadTimeoutMs(absPaths, timeoutSeconds) {
+    const cap = absPaths.some(isVideoPath) ? VIDEO_UPLOAD_TIMEOUT_CAP_MS : IMAGE_UPLOAD_TIMEOUT_MS;
+    // Without an explicit budget (direct `func` calls from tests or embedders)
+    // fall back to the ceiling; through the CLI `timeout` always has a default.
+    if (!Number.isFinite(timeoutSeconds) || timeoutSeconds <= 0) return cap;
+    const budget = timeoutSeconds * 1000 - POST_OVERHEAD_RESERVE_MS;
+    return Math.max(MIN_UPLOAD_TIMEOUT_MS, Math.min(cap, budget));
 }
 
-async function attachImagesViaDataTransfer(page, absPaths) {
+async function pollMediaUploadState(page, expectedCount) {
+    return requirePostActionResult(await page.evaluate(`(() => {
+        const expected = ${JSON.stringify(expectedCount)};
+        const visible = (el) => !!el && (el.offsetParent !== null || el.getClientRects().length > 0);
+        const attachments = document.querySelector('[data-testid="attachments"]');
+        const previewCount = Math.max(
+            attachments ? attachments.querySelectorAll('[role="group"], img, video').length : 0,
+            document.querySelectorAll('[data-testid="tweetPhoto"], img[src^="blob:"], video[src^="blob:"]').length,
+            Array.from(document.querySelectorAll('button,[role="button"]')).filter((el) =>
+                /remove media|remove image|remove/i.test((el.getAttribute('aria-label') || '') + ' ' + (el.textContent || ''))
+            ).length
+        );
+        const button = Array.from(document.querySelectorAll('[data-testid="tweetButtonInline"], [data-testid="tweetButton"]'))
+            .find((el) => visible(el));
+        const buttonReady = !!button && !button.disabled && button.getAttribute('aria-disabled') !== 'true';
+        return { ok: previewCount >= expected && buttonReady, previewCount };
+    })()`), 'Twitter media upload verification');
+}
+
+async function waitForMediaUpload(page, expectedCount, timeoutMs) {
+    // Poll from Node with one instantaneous DOM check per evaluate. Polling
+    // inside a single long-lived evaluate caps the real wait at the transport
+    // deadline -- direct CDP rejects a Runtime.evaluate after 30s and the
+    // Browser Bridge daemon closes a command at 120s -- so a longer budget is
+    // unreachable however long the in-page loop claims to wait.
+    const deadline = Date.now() + timeoutMs;
+    const maxPolls = Math.max(1, Math.ceil(timeoutMs / UPLOAD_POLL_MS));
+    for (let i = 0; i < maxPolls; i++) {
+        const state = await pollMediaUploadState(page, expectedCount);
+        if (state.ok) return state;
+        if (Date.now() >= deadline) break;
+        await page.wait(UPLOAD_POLL_MS / 1000);
+    }
+    return { ok: false, message: `Media upload timed out (${Math.round(timeoutMs / 1000)}s).` };
+}
+
+async function attachMedia(page, absPaths) {
+    const hasVideo = absPaths.some(isVideoPath);
+    if (page.setFileInput) {
+        try {
+            await page.setFileInput(absPaths, FILE_INPUT_SELECTOR);
+            return;
+        } catch (err) {
+            if (!isRecoverableFileInputError(err)) {
+                throw err;
+            }
+        }
+    }
+    // Shared upload primitive: setFileInput on the extension, DOM.setFileInputFiles
+    // on direct CDP. Neither streams bytes through the page, so it is the only
+    // path a video may take.
+    if (typeof page.uploadFiles === 'function') {
+        try {
+            await page.uploadFiles(FILE_INPUT_SELECTOR, absPaths);
+            return;
+        } catch (err) {
+            // Images still have the proven composer fallback below; a video has
+            // nowhere safe to go, so surface why the native path failed.
+            if (hasVideo) {
+                throw err;
+            }
+        }
+    }
+    if (hasVideo) {
+        throw new CommandExecutionError(
+            'Video upload needs a backend with native file-input support.',
+            'The composer fallback is images-only: it reads the whole file into memory, base64-expands it and embeds it in page JavaScript, which does not scale to video. Use the Browser Bridge extension or a direct CDP endpoint.',
+        );
+    }
+    await attachMediaViaDataTransfer(page, absPaths);
+}
+
+async function attachMediaViaDataTransfer(page, absPaths) {
     const files = absPaths.map((absPath) => {
         const ext = path.extname(absPath).toLowerCase();
-        const mime = ext === '.png'
-            ? 'image/png'
-            : ext === '.gif'
-                ? 'image/gif'
-                : ext === '.webp'
-                    ? 'image/webp'
-                    : 'image/jpeg';
+        const mime = MIME_BY_EXTENSION[ext] ?? 'application/octet-stream';
         return {
             name: path.basename(absPath),
             mime,
@@ -225,9 +311,9 @@ async function attachImagesViaDataTransfer(page, absPaths) {
         input.dispatchEvent(new Event('change', { bubbles: true }));
         input.dispatchEvent(new Event('input', { bubbles: true }));
         return { ok: true };
-    })()`), 'Twitter image upload fallback');
+    })()`), 'Twitter media upload fallback');
     if (!upload?.ok) {
-        throw new CommandExecutionError(`Image upload failed (base64 fallback): ${upload?.error ?? 'unknown error'}`);
+        throw new CommandExecutionError(`Media upload failed (base64 fallback): ${upload?.error ?? 'unknown error'}`);
     }
 }
 
@@ -300,15 +386,17 @@ cli({
     browser: true,
     args: [
         { name: 'text', type: 'string', required: true, positional: true, help: 'The text content of the tweet' },
-        { name: 'images', type: 'string', required: false, help: 'Image paths, comma-separated, max 4 (jpg/png/gif/webp)' },
+        { name: 'images', type: 'string', required: false, help: 'Media paths, comma-separated: up to 4 images (jpg/png/gif/webp) or 1 video (mp4/mov)' },
+        { name: 'timeout', type: 'int', required: false, default: DEFAULT_COMMAND_TIMEOUT_SECONDS, help: `Max seconds for the overall command (default: ${DEFAULT_COMMAND_TIMEOUT_SECONDS}). The media upload wait is derived from it, so raise it for video: X transcodes server-side and a longer clip needs well past the default.` },
     ],
     columns: ['status', 'message', 'text', 'id', 'url'],
     func: async (page, kwargs) => {
         if (!page)
             throw new CommandExecutionError('Browser session required for twitter post');
 
-        // Validate images upfront before any browser interaction.
-        const absPaths = kwargs.images ? validateImagePaths(String(kwargs.images)) : [];
+        // Validate media upfront before any browser interaction.
+        const absPaths = kwargs.images ? validateMediaPaths(String(kwargs.images)) : [];
+        const uploadTimeoutMs = resolveUploadTimeoutMs(absPaths, Number(kwargs.timeout));
         const text = String(kwargs.text ?? '');
 
         // The current X standalone composer is /compose/post. It keeps a single,
@@ -320,21 +408,13 @@ cli({
         // text can re-render/reset the editor, causing image-only posts.
         if (absPaths.length > 0) {
             await page.wait({ selector: FILE_INPUT_SELECTOR, timeout: 20 });
-            if (page.setFileInput) {
-                try {
-                    await page.setFileInput(absPaths, FILE_INPUT_SELECTOR);
-                } catch (err) {
-                    if (!isRecoverableFileInputError(err)) {
-                        throw err;
-                    }
-                    await attachImagesViaDataTransfer(page, absPaths);
-                }
-            } else {
-                await attachImagesViaDataTransfer(page, absPaths);
-            }
-            const uploadState = await waitForImageUpload(page, absPaths.length);
+            await attachMedia(page, absPaths);
+            const uploadState = await waitForMediaUpload(page, absPaths.length, uploadTimeoutMs);
             if (!uploadState?.ok) {
-                throw new TimeoutError('twitter image upload', UPLOAD_TIMEOUT_MS / 1000, 'Nothing was posted. Retry, or attach a smaller image.');
+                const hint = absPaths.some(isVideoPath)
+                    ? `Nothing was posted. X was still transcoding after ${Math.round(uploadTimeoutMs / 1000)}s; retry with a longer --timeout (up to ${VIDEO_UPLOAD_TIMEOUT_CAP_MS / 1000}s of upload wait) or a shorter clip.`
+                    : 'Nothing was posted. Retry, or attach a smaller image.';
+                throw new TimeoutError('twitter media upload', uploadTimeoutMs / 1000, hint);
             }
         }
 
