@@ -1,4 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { fetchRankedTickers } from './market.js';
 
 cli({
   site: 'binance',
@@ -12,12 +13,11 @@ cli({
     { name: 'limit', type: 'int', default: 10, help: 'Number of trading pairs' },
   ],
   columns: ['rank', 'symbol', 'price', 'change_24h', 'volume'],
-  pipeline: [
-    { fetch: { url: 'https://data-api.binance.vision/api/v3/ticker/24hr' } },
-    { filter: 'item.priceChangePercent' },
-    { map: { symbol: '${{ item.symbol }}', price: '${{ item.lastPrice }}', change_24h: '${{ item.priceChangePercent }}', volume: '${{ item.quoteVolume }}', sort_change: '${{ Number(item.priceChangePercent) }}' } },
-    { sort: { by: 'sort_change' } },
-    { map: { rank: '${{ index + 1 }}', symbol: '${{ item.symbol }}', price: '${{ item.lastPrice }}', change_24h: '${{ item.priceChangePercent }}', volume: '${{ item.quoteVolume }}' } },
-    { limit: '${{ args.limit }}' },
-  ],
+  func: async (kwargs) => (await fetchRankedTickers(kwargs.limit, 'priceChangePercent', 'asc')).map((ticker, index) => ({
+    rank: index + 1,
+    symbol: ticker.symbol,
+    price: ticker.lastPrice,
+    change_24h: ticker.priceChangePercent,
+    volume: ticker.quoteVolume,
+  })),
 });
