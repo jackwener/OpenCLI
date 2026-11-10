@@ -287,34 +287,6 @@
     ]
   },
   {
-    "command": "binance/gainers",
-    "file": "clis/binance/gainers.js",
-    "missing": [
-      "sort_change"
-    ]
-  },
-  {
-    "command": "binance/losers",
-    "file": "clis/binance/losers.js",
-    "missing": [
-      "sort_change"
-    ]
-  },
-  {
-    "command": "binance/ticker",
-    "file": "clis/binance/ticker.js",
-    "missing": [
-      "sort_volume"
-    ]
-  },
-  {
-    "command": "binance/top",
-    "file": "clis/binance/top.js",
-    "missing": [
-      "sort_volume"
-    ]
-  },
-  {
     "command": "bloomberg/news",
     "file": "clis/bloomberg/news.js",
     "missing": [
