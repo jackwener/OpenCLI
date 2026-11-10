@@ -12,6 +12,7 @@
 | `opencli facebook search` | Search people, pages, posts |
 | `opencli facebook marketplace-listings` | List your Marketplace seller listings |
 | `opencli facebook marketplace-inbox` | List recent Marketplace buyer/seller conversations |
+| `opencli facebook marketplace-search` | Search Marketplace listings for sale (buyer side) with location / price / sort / recency filters |
 
 ## Usage Examples
 
@@ -31,6 +32,11 @@ opencli facebook search "OpenAI" --limit 5
 # Marketplace seller listings and inbox
 opencli facebook marketplace-listings --limit 10
 opencli facebook marketplace-inbox --limit 10
+
+# Marketplace buyer search (defaults to your saved location)
+opencli facebook marketplace-search "road bike" --limit 10
+opencli facebook marketplace-search "bike" --location chicago --min-price 100 --max-price 300 --sort newest --days 7
+opencli facebook marketplace-search "schwinn" --exact --sort price-asc -f json
 
 # JSON output
 opencli facebook profile zuck -f json
@@ -58,6 +64,36 @@ If Facebook redirects to a login/checkpoint path (for example
 the command raises `AuthRequiredError`. An empty notification list after
 a successful auth check raises `EmptyResultError` instead of a silent
 `[]`.
+
+### `marketplace-search`
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `index` | int | 1-based row number |
+| `id` | string | Marketplace listing id |
+| `title` | string | Listing title |
+| `price` | number | Asking price as a plain number; `0` for "Free" |
+| `currency` | string \| null | Currency prefix as shown (`$`, `CA$`, `€`); `null` for "Free" |
+| `originalPrice` | number \| null | Previous price when the card shows "reduced from …"; otherwise `null` |
+| `location` | string \| null | `City, ST` as shown on the card; `null` for shipped-only items |
+| `badge` | string \| null | Card badge such as `Just listed`; otherwise `null` |
+| `image` | string \| null | Thumbnail URL |
+| `url` | string | Canonical `https://www.facebook.com/marketplace/item/<id>/` |
+
+Options: `--location <slug|id>` (the city segment of a Marketplace URL: a
+named slug such as `chicago` or `nyc`, which only major cities have, or the
+numeric city id such as `108659242498155`; omit to use the account's saved
+location), `--limit` (1-100; the command scrolls when more than one batch of
+24 is requested), `--min-price` / `--max-price`, `--sort`
+(`best` | `newest` | `price-asc` | `price-desc` | `distance`), `--days`
+(`1` | `7` | `30`), `--exact`.
+
+Facebook silently drops an unknown city slug and falls back to the saved
+location; the command detects that redirect and raises `ArgumentError`
+rather than returning listings for the wrong place. Rows are read from each
+card's `aria-label` (Facebook's accessibility contract:
+`"<title>, <price>[, reduced from <price>], <city>, <state>, listing <id>"`)
+with the inner spans as a fallback.
 
 ## Prerequisites
 
