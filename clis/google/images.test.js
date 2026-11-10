@@ -204,7 +204,9 @@ describe('google images', () => {
         expect(page.wait).toHaveBeenCalledWith(1);
     });
 
-    it('drops the current tab lease and retries once when navigation is rejected', async () => {
+    // 5d24af75 stopped gotoResilient from releasing the lease on a rejected navigation: dropping it
+    // threw away the page identity the adapter still held and churned the owned window.
+    it('retries in the same lease when navigation is rejected, without dropping it', async () => {
         const page = createPageMock([[
             'A tabby cat',
             'https://cdn.example.com/cat.jpg',
@@ -221,7 +223,7 @@ describe('google images', () => {
         await expect(command.func(page, { keyword: 'cats', limit: 1, resolve: false })).resolves.toHaveLength(1);
 
         expect(page.goto).toHaveBeenCalledTimes(2);
-        expect(page.closeWindow).toHaveBeenCalledTimes(1);
+        expect(page.closeWindow).not.toHaveBeenCalled();
         expect(page.goto.mock.calls[1][0]).toContain('tbm=isch');
     });
 
@@ -238,11 +240,24 @@ describe('google images', () => {
         page.goto
             .mockRejectedValueOnce(new Error('Navigation rejected.'))
             .mockRejectedValueOnce(new Error('Navigation rejected.'));
+        // dc57b82d: the fallback tab starts blank, so gotoResilient polls it before returning. The
+        // first evaluate answers that poll; the rest are the adapter reading the page.
+        page.evaluate = vi.fn()
+            .mockResolvedValueOnce({ href: 'https://www.google.com/search?tbm=isch&q=cats', ready: 'complete' })
+            .mockResolvedValue([[
+                'A tabby cat',
+                'https://cdn.example.com/cat.jpg',
+                'https://encrypted-tbn0.gstatic.com/images?q=tbn:abc',
+                'https://example.com/cats',
+                'example.com',
+                320,
+                240,
+            ]]);
 
         await expect(command.func(page, { keyword: 'cats', limit: 1, resolve: false })).resolves.toHaveLength(1);
 
         expect(page.goto).toHaveBeenCalledTimes(2);
-        expect(page.closeWindow).toHaveBeenCalledTimes(1);
+        expect(page.closeWindow).not.toHaveBeenCalled();
         expect(page.newTab).toHaveBeenCalledTimes(1);
         expect(page.newTab.mock.calls[0][0]).toContain('tbm=isch');
         expect(page.setActivePage).toHaveBeenCalledWith('fresh-page');

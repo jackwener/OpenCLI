@@ -12,6 +12,7 @@ const {
     clampNote,
     assessProfileSafety,
     buildProfileProbeScript,
+    buildOpenConnectDialogScript,
 } = await import('./connect.js').then((m) => m.__test__);
 
 function makeFakePage(probe, sendResult = { ok: true, status: 'sent', reason: 'connection_request_sent' }) {
@@ -158,6 +159,56 @@ describe('linkedin connect helpers', () => {
         expect(probe.connectHref).toBe('');
     });
 
+    it('finds the action bar in 2026 markup that has no top card, h1 or section', () => {
+        // The geometry that produced connect_button_not_found on 7 of 26 real profiles: no h1, no
+        // .pv-top-card, obfuscated classes, and Follow/Message/More split across wrapper divs so
+        // closest() matches nothing and the old parentElement fallback saw only Follow.
+        const probe = evaluateProfileProbe(`
+          <main><div class="_02c5e36f">
+            <div class="_7e88b6e9">
+              <div><div><button aria-label="Follow Jane Doe">Follow</button></div></div>
+              <div><a href="/messaging/thread/x">Message</a></div>
+              <div><button aria-label="More">More</button></div>
+            </div>
+          </div></main>
+        `);
+        expect(probe.moreAvailable).toBe(true);
+        expect(probe.connectHref).toBe('');
+    });
+
+    it('refuses an action bar that also contains another member\'s Connect control', () => {
+        // The adversarial shape. The owner's bar exposes only ONE distinct action, so the walk keeps
+        // climbing and reaches an ancestor shared with "People also viewed". Bounding by depth alone
+        // let that ancestor through - measured live, the real margin was two levels - and turned a
+        // safe not_connectable into an invitation aimed at someone else.
+        const probe = evaluateProfileProbe(`
+          <main><div>
+            <div><div><button aria-label="Follow Jane Doe">Follow</button></div></div>
+            <aside>
+              <a href="/preload/custom-invite/?vanityName=someone-else">Connect</a>
+              <button aria-label="Invite Adrien Toupet to connect">Connect</button>
+              <button aria-label="Message Adrien Toupet">Message</button>
+            </aside>
+          </div></main>
+        `);
+        expect(probe.connectAvailable).toBe(false);
+        expect(probe.moreAvailable).toBe(false);
+        expect(probe.connectHref).toBe('');
+    });
+
+    it('never captures an invite href that does not belong to the profile owner', () => {
+        // connectHref feeds straight into a goto + Send. It carries ?vanityName=, which the URL
+        // canonicaliser preserves and the send path never re-checks against the intended person.
+        const probe = evaluateProfileProbe(`
+          <main><div>
+            <div><button aria-label="Follow Jane Doe">Follow</button></div>
+            <div><button aria-label="More">More</button></div>
+            <div><a href="/preload/custom-invite/?vanityName=someone-else">Connect</a></div>
+          </div></main>
+        `);
+        expect(probe.connectHref).not.toContain('someone-else');
+    });
+
     it('does not treat sidebar Connect as profile-owner connectable when the owner has no action menu', () => {
         const probe = evaluateProfileProbe(`
           <main>
@@ -173,6 +224,153 @@ describe('linkedin connect helpers', () => {
         expect(probe.connectAvailable).toBe(false);
         expect(probe.moreAvailable).toBe(false);
         expect(probe.connectHref).toBe('');
+    });
+});
+
+// Runs the real in-page SEND script against a fixture, with the page's reactions wired in by the
+// test: clicking the owner's More opens a menu holding Connect, and Connect opens the invite dialog.
+async function runOpenConnectDialog(html, wire = () => {}, expectedName = 'Jane Doe') {
+    const dom = new JSDOM(html, {
+        url: 'https://www.linkedin.com/in/jane/',
+        runScripts: 'outside-only',
+    });
+    Object.defineProperty(dom.window.HTMLElement.prototype, 'offsetParent', {
+        configurable: true,
+        get() {
+            return this.dataset.hidden === 'true' ? null : dom.window.document.body;
+        },
+    });
+    // The script paces its clicks with setTimeout; the fixture reacts synchronously.
+    dom.window.setTimeout = (fn) => { fn(); return 0; };
+    const clicked = [];
+    wire(dom.window.document, clicked);
+    const result = await dom.window.eval(buildOpenConnectDialogScript(expectedName));
+    return { result, clicked };
+}
+
+function wireConnectFlow(doc, clicked) {
+    const openDialog = () => doc.body.insertAdjacentHTML('beforeend', '<div role="dialog">Add a note to your invitation? Send without a note</div>');
+    for (const el of doc.querySelectorAll('[data-test]')) {
+        el.addEventListener('click', () => {
+            clicked.push(el.dataset.test);
+            if (el.dataset.test === 'owner-more') {
+                doc.body.insertAdjacentHTML('beforeend', '<div role="menu"><div role="menuitem" data-test="menu-connect">Connect</div></div>');
+                doc.querySelector('[data-test="menu-connect"]').addEventListener('click', () => { clicked.push('menu-connect'); openDialog(); });
+            }
+            if (el.dataset.test === 'owner-connect') openDialog();
+        });
+    }
+}
+
+// 2026-09-17/18: the probe's 2026 fixture, which the dry-run passes as verified_via_more. The send
+// used to look only in the Follow button's own wrapper and refused it owner_more_button_not_found.
+const MARKUP_2026_MORE_ONLY = `
+  <main><div class="_02c5e36f">
+    <div class="_7e88b6e9">
+      <div><div><button aria-label="Follow Jane Doe">Follow</button></div></div>
+      <div><a href="/messaging/thread/x">Message</a></div>
+      <div><button aria-label="More" data-test="owner-more">More</button></div>
+    </div>
+  </div></main>
+`;
+
+// 2026-09-19, measured live on a Follow-primary profile: plain <div> wrappers around each item, and
+// Connect is an <a role="menuitem"> to the invitation route with the owner-named aria-label on a
+// <div> inside it. The old send clicked the outer wrapper, whose text is also just "Connect".
+function wireLinkMenu(vanity) {
+    return (doc, clicked) => {
+        doc.querySelector('[data-test="owner-more"]').addEventListener('click', () => {
+            clicked.push('owner-more');
+            doc.body.insertAdjacentHTML('beforeend', `
+              <div role="menu">
+                <div><div><a role="menuitem" href="/messaging/compose/?body=x">Send profile in a message</a></div></div>
+                <div><div><div role="menuitem">Save to PDF</div></div></div>
+                <div data-test="menu-wrapper"><div><a role="menuitem" data-test="menu-link" href="/preload/custom-invite/?vanityName=${vanity}">
+                  <div aria-label="Invite Jane Doe to connect"><svg></svg><div><p>Connect</p></div></div>
+                </a></div></div>
+              </div>`);
+            for (const el of doc.querySelectorAll('[role="menu"] [data-test]')) {
+                el.addEventListener('click', (event) => {
+                    // Record only the element actually clicked; bubbling would log the wrapper twice.
+                    if (event.target === el) clicked.push(el.dataset.test);
+                });
+            }
+        });
+    };
+}
+
+describe('linkedin connect send script', () => {
+    it('opens Connect from the owner More menu that the dry-run verified', async () => {
+        const probe = evaluateProfileProbe(MARKUP_2026_MORE_ONLY);
+        expect(probe.moreAvailable).toBe(true);
+        const { result, clicked } = await runOpenConnectDialog(MARKUP_2026_MORE_ONLY, wireConnectFlow);
+        expect(result).toEqual({ ok: true, opened: 'dialog' });
+        expect(clicked).toEqual(['owner-more', 'menu-connect']);
+    });
+
+    it('hands back the More menu\'s invitation link instead of clicking its wrapper', async () => {
+        const { result, clicked } = await runOpenConnectDialog(MARKUP_2026_MORE_ONLY, wireLinkMenu('jane'));
+        expect(result).toEqual({ ok: true, opened: 'invite_link', inviteHref: '/preload/custom-invite/?vanityName=jane' });
+        expect(clicked).toEqual(['owner-more']);
+    });
+
+    it('refuses a More menu invitation link that names another member', async () => {
+        const { result, clicked } = await runOpenConnectDialog(MARKUP_2026_MORE_ONLY, wireLinkMenu('someone-else'));
+        expect(result).toEqual({ ok: false, reason: 'connect_link_not_owner' });
+        expect(clicked).toEqual(['owner-more']);
+    });
+
+    it('never clicks a Connect button that names nobody, even in the owner bar', async () => {
+        // The one click this path makes is a real invitation, and a bare "Connect" carries no
+        // recipient. Here the owner's More menu holds no Connect, so the send fails closed.
+        const html = `
+          <main><div>
+            <div>
+              <div><div><button aria-label="Follow Jane Doe">Follow</button></div></div>
+              <div><button data-test="bare-connect">Connect</button></div>
+              <div><button aria-label="More" data-test="empty-more">More</button></div>
+            </div>
+          </div></main>
+        `;
+        const wireEmptyMenu = (doc, clicked) => {
+            for (const el of doc.querySelectorAll('[data-test]')) {
+                el.addEventListener('click', () => {
+                    clicked.push(el.dataset.test);
+                    if (el.dataset.test === 'empty-more') doc.body.insertAdjacentHTML('beforeend', '<div role="menu"><div role="menuitem">Save to PDF</div></div>');
+                });
+            }
+        };
+        const { result, clicked } = await runOpenConnectDialog(html, wireEmptyMenu);
+        expect(result).toEqual({ ok: false, reason: 'connect_control_not_found' });
+        expect(clicked).toEqual(['empty-more']);
+    });
+
+    it('refuses a scope that holds another member\'s control and clicks nothing', async () => {
+        const html = `
+          <main><div>
+            <div><div><button aria-label="Follow Jane Doe">Follow</button></div></div>
+            <aside>
+              <button aria-label="Invite Adrien Toupet to connect" data-test="stranger-connect">Connect</button>
+              <button aria-label="More" data-test="stranger-more">More</button>
+            </aside>
+          </div></main>
+        `;
+        expect(evaluateProfileProbe(html).moreAvailable).toBe(false);
+        const { result, clicked } = await runOpenConnectDialog(html, wireConnectFlow);
+        expect(result).toEqual({ ok: false, reason: 'owner_more_button_not_found' });
+        expect(clicked).toEqual([]);
+    });
+
+    it('refuses the whole page as the owner scope when no control names the owner', async () => {
+        const html = `
+          <main>
+            <div><button data-test="unnamed-more">More</button></div>
+            <aside><button aria-label="Invite Adrien Toupet to connect" data-test="stranger-connect">Connect</button></aside>
+          </main>
+        `;
+        const { result, clicked } = await runOpenConnectDialog(html, wireConnectFlow);
+        expect(result).toEqual({ ok: false, reason: 'owner_action_bar_not_found' });
+        expect(clicked).toEqual([]);
     });
 });
 
@@ -304,6 +502,39 @@ describe('linkedin connect command', () => {
         });
         expect(rows[0]).toMatchObject({ status: 'sent_verified', recipient: 'Jane Doe', reason: 'sent_invitation_verified', delivery_verified: true });
         expect(page.goto).toHaveBeenCalledWith('https://www.linkedin.com/mynetwork/invitation-manager/sent/');
+    });
+
+    it('follows a More menu invitation link to the invitation route before sending', async () => {
+        const command = getRegistry().get('linkedin/connect');
+        const page = makeMoreMenuFakePage(
+            [
+                { name: 'Jane Doe', url: 'https://www.linkedin.com/in/jane/', connectAvailable: false, moreAvailable: true, connectHref: '', buttonLabels: ['Follow', 'Message', 'More'] },
+                { found: true, matchedName: 'Jane Doe', matchedUrl: 'https://www.linkedin.com/in/jane/' },
+            ],
+            { ok: true, opened: 'invite_link', inviteHref: '/preload/custom-invite/?vanityName=jane' },
+        );
+        const rows = await command.func(page, {
+            'profile-url': 'https://www.linkedin.com/in/jane/',
+            'expected-name': 'Jane Doe',
+            send: true,
+        });
+        expect(page.goto).toHaveBeenCalledWith('https://www.linkedin.com/preload/custom-invite/?vanityName=jane');
+        expect(rows[0]).toMatchObject({ status: 'sent_verified', reason: 'sent_invitation_verified', delivery_verified: true });
+    });
+
+    it('refuses a More menu link result that carries no link', async () => {
+        // An empty link would skip the navigation, find no dialog, and land in the no-dialog
+        // fallback, which assumes a clicked button already fired the invite.
+        const command = getRegistry().get('linkedin/connect');
+        const page = makeMoreMenuFakePage(
+            [{ name: 'Jane Doe', url: 'https://www.linkedin.com/in/jane/', connectAvailable: false, moreAvailable: true, connectHref: '', buttonLabels: ['Follow', 'Message', 'More'] }],
+            { ok: true, opened: 'invite_link', inviteHref: '' },
+        );
+        await expect(command.func(page, {
+            'profile-url': 'https://www.linkedin.com/in/jane/',
+            'expected-name': 'Jane Doe',
+            send: true,
+        })).rejects.toThrow('invalid_connect_link');
     });
 
     it('fails closed when the owner Connect control cannot be opened from the More menu', async () => {
