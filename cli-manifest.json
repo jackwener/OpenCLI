@@ -1952,6 +1952,36 @@
   },
   {
     "site": "arxiv",
+    "name": "bibtex",
+    "description": "Get the BibTeX citation record for an arXiv paper",
+    "access": "read",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "arXiv paper ID (e.g. 1706.03762 or 1706.03762v7)"
+      }
+    ],
+    "columns": [
+      "id",
+      "cite_key",
+      "title",
+      "authors",
+      "year",
+      "primary_class",
+      "bibtex",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "arxiv/bibtex.js",
+    "sourceFile": "arxiv/bibtex.js"
+  },
+  {
+    "site": "arxiv",
     "name": "paper",
     "description": "Get arXiv paper details by ID",
     "access": "read",
@@ -1982,6 +2012,41 @@
     "type": "js",
     "modulePath": "arxiv/paper.js",
     "sourceFile": "arxiv/paper.js"
+  },
+  {
+    "site": "arxiv",
+    "name": "pdf",
+    "description": "Download an arXiv paper PDF (arxiv.org/pdf/<id>)",
+    "access": "read",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "arXiv paper ID (e.g. 1706.03762 or cs/0701001)"
+      },
+      {
+        "name": "output",
+        "type": "str",
+        "default": "./arxiv-pdfs",
+        "required": false,
+        "help": "Output directory (default ./arxiv-pdfs)"
+      }
+    ],
+    "columns": [
+      "id",
+      "status",
+      "size",
+      "bytes",
+      "path",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "arxiv/pdf.js",
+    "sourceFile": "arxiv/pdf.js"
   },
   {
     "site": "arxiv",
@@ -2052,6 +2117,59 @@
     "type": "js",
     "modulePath": "arxiv/search.js",
     "sourceFile": "arxiv/search.js"
+  },
+  {
+    "site": "arxiv",
+    "name": "since",
+    "description": "List arXiv submissions in a category within a date window (default: last 7 days, UTC)",
+    "access": "read",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "category",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "arXiv category (e.g. cs.CL, cs.LG, math.PR, q-bio.NC)"
+      },
+      {
+        "name": "days",
+        "type": "int",
+        "required": false,
+        "help": "Look back N days including today (default 7). Cannot be combined with --from/--to."
+      },
+      {
+        "name": "from",
+        "type": "string",
+        "required": false,
+        "help": "Window start, inclusive (YYYY-MM-DD, UTC)"
+      },
+      {
+        "name": "to",
+        "type": "string",
+        "required": false,
+        "help": "Window end, inclusive (YYYY-MM-DD, UTC; default: today)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 50,
+        "required": false,
+        "help": "Max results (max 200)"
+      }
+    ],
+    "columns": [
+      "id",
+      "title",
+      "authors",
+      "published",
+      "primary_category",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "arxiv/since.js",
+    "sourceFile": "arxiv/since.js"
   },
   {
     "site": "autohome",
