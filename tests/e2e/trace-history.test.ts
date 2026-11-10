@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runCli } from './helpers.js';
@@ -22,11 +22,11 @@ describe('offline trace CLI contract', () => {
 
   function run(args: string[]) {
     return runCli(args, { env: {
-      OPENCLI_CONFIG_DIR: baseDir, OPENCLI_PROFILE: '', OPENCLI_DAEMON_PORT: 'invalid-offline-port',
+      OPENCLI_CONFIG_DIR: baseDir, OPENCLI_PROFILE: '', OPENCLI_DAEMON_PORT: '',
     } });
   }
 
-  it('reads history with no browser dependency or adapter setup', async () => {
+  it('reads history through normal startup without connecting to a browser', async () => {
     const dir = fixture();
     const before = readFileSync(join(dir, 'trace.jsonl'), 'utf-8');
     const files = readdirSync(baseDir, { recursive: true });
@@ -37,10 +37,9 @@ describe('offline trace CLI contract', () => {
     expect(show.code).toBe(0);
     expect(JSON.parse(show.stdout)).toMatchObject({ ok: true, data: { summary: { events: 1, issues: 1 }, events: [{ stream: 'error' }] } });
     expect(show.stdout).not.toContain('PRIVATE_VALUE');
-    expect(show.stderr).toBe('');
+    expect(show.stderr).not.toContain('PRIVATE_VALUE');
     expect(readFileSync(join(dir, 'trace.jsonl'), 'utf-8')).toBe(before);
     expect(readdirSync(baseDir, { recursive: true })).toEqual(files);
-    expect(existsSync(join(baseDir, 'adapter-manifest.json'))).toBe(false);
   });
 
   it('provides machine-readable nested help and stable failures', async () => {
@@ -55,6 +54,14 @@ describe('offline trace CLI contract', () => {
     expect(invalid.code).toBe(2);
     expect(JSON.parse(invalid.stdout)).toMatchObject({ ok: false, error: { exitCode: 2 } });
     expect(readdirSync(baseDir)).toEqual([]);
+  });
+
+  it('uses normal startup configuration checks for trace commands', async () => {
+    const result = await runCli(['trace', 'list'], { env: {
+      OPENCLI_CONFIG_DIR: baseDir, OPENCLI_DAEMON_PORT: 'invalid-offline-port',
+    } });
+    expect(result.code).toBe(78);
+    expect(JSON.parse(result.stdout)).toMatchObject({ ok: false, error: { code: 'CONFIG' } });
   });
 
   it('flushes a large event page as one complete JSON result', async () => {

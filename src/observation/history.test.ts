@@ -52,11 +52,11 @@ describe('offline trace history', () => {
     fixture('new');
     const filtered = await listTraceHistory({ baseDir, now: NOW, since: '24h', site: 'demo', command: 'demo/search', session: 'site:demo' });
     expect(filtered.traces.map(row => row.traceId)).toEqual(['new']);
-    expect((await listTraceHistory({ baseDir, since: '2026-11-05' })).total).toBe(1);
+    expect((await listTraceHistory({ baseDir, now: NOW, since: '30s' })).total).toBe(1);
     expect((await listTraceHistory({ baseDir, command: 'search' })).total).toBe(0);
     expect((await listTraceHistory({ baseDir, site: 'other' })).total).toBe(0);
     expect((await listTraceHistory({ baseDir, session: 'other' })).total).toBe(0);
-    for (const since of ['yesterday', '', 'NaN', '2.5d', '999999999999999999999w']) {
+    for (const since of ['yesterday', '2026-11-05', 'NaN', '7d', '2.5d', '999999999999999999999h']) {
       await expect(listTraceHistory({ baseDir, since })).rejects.toMatchObject({ code: 'ARGUMENT', exitCode: 2 });
     }
   });
@@ -147,7 +147,7 @@ describe('offline trace history', () => {
   });
 
   it('classifies issue events using explicit status and severity', async () => {
-    fixture('issues', { events: [
+    const exported = fixture('issues', { events: [
       { stream: 'network', url: 'https://example.com/a', status: 0 },
       { stream: 'network', url: 'https://example.com/b' },
       { stream: 'network', url: 'https://example.com/c', status: 200, responseBody: 'error' },
@@ -155,8 +155,12 @@ describe('offline trace history', () => {
       { stream: 'console', level: 'ASSERT', text: 'failed' },
     ] });
     const report = await showTraceHistory('issues', { baseDir, issues: true });
-    expect(report.events.map(event => event.stream)).toEqual(['network', 'console']);
-    expect(report.summary.issues).toBe(2);
+    expect(report.events.map(event => event.stream)).toEqual(['network', 'network', 'console']);
+    expect(report.summary.issues).toBe(3);
+    const markdown = readFileSync(exported.summaryPath, 'utf-8');
+    expect(markdown).toContain('https://example.com/a');
+    expect(markdown).toContain('https://example.com/b');
+    expect(markdown).not.toContain('https://example.com/c');
   });
 
   it('retains line numbers and diagnostic counts for damaged or future records', async () => {

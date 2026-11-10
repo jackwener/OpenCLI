@@ -51,59 +51,32 @@ Only proceed to Step 1 if the empty/selector-missing result is **reproducible ac
 
 ## Step 1: Collect Trace Context
 
-Run the failing command with failure-retained trace enabled:
+Run the failing command with failure-retained trace enabled and read its JSON
+error envelope on stdout:
 
 ```bash
-opencli <site> <command> [args...] --trace retain-on-failure 2>trace-error.yaml
+opencli <site> <command> [args...] --trace retain-on-failure >trace-result.json
 ```
 
-On failure, stderr contains the normal error envelope plus a small `trace` block:
+Take the returned trace ID and inspect the saved evidence:
 
-```yaml
-ok: false
-error:
-  code: SELECTOR
-  message: "Could not find element: .old-selector"
-trace:
-  schemaVersion: 1
-  opencliVersion: "..."
-  traceId: "..."
-  dir: "/path/to/.opencli/profiles/default/traces/..."
-  summaryPath: "/path/to/.opencli/profiles/default/traces/.../summary.md"
-  receiptPath: "/path/to/.opencli/profiles/default/traces/.../receipt.json"
+```bash
+opencli trace show <trace-id> --issues
+opencli trace show <trace-id> --stream network --issues --include-data --limit 20
 ```
 
-Read `summaryPath` first. It is the LLM-oriented entry point and includes front matter:
+If the receipt is unavailable, find the run with
+`opencli trace list --status failure --site <site> --since 24h`.
+Use `--profile` when the same ID exists in multiple profiles. Follow
+`selection.nextOffset` with `--offset` and the same filters; inspect read
+diagnostics before treating a missing event as evidence that nothing happened.
+Missing/zero network status means no response was recorded, not a proven outage.
 
-```yaml
----
-schemaVersion: 1
-opencliVersion: "..."
-traceId: "..."
-status: failure
-site: "example"
-command: "example/search"
-adapterSourcePath: "/path/to/clis/example/search.js"
-errorCode: "SELECTOR"
-errorMessage: "Could not find element: .old-selector"
----
-```
-
-The artifact directory contains:
-
-```text
-summary.md      # start here
-receipt.json    # machine-readable trace receipt
-trace.jsonl     # full redacted timeline
-network.jsonl   # redacted network events
-console.jsonl   # redacted console events
-state/          # final snapshots when available
-screenshots/    # final screenshots when available
-```
-
-If you redirected stderr to a file, read that file and copy `trace.summaryPath`.
-
-Do not ask the user to rerun with legacy diagnostic env vars. Trace is the repair evidence path.
+Read the receipt's `summaryPath` for `adapterSourcePath`, the authoritative file
+you may patch. The summary and referenced `state/` or `screenshots/` artifacts
+supply context beyond the event report. `--include-data` exposes bounded,
+redacted payloads; review them before sharing. Do not enable legacy diagnostic
+environment variables or patch core files to investigate an adapter failure.
 
 ## Step 2: Analyze the Failure
 
@@ -121,7 +94,7 @@ Read the trace summary and the adapter source. Classify the root cause:
 **Key questions to answer:**
 1. What is the adapter trying to do? (Read the file at `adapterSourcePath`)
 2. What did the page look like when it failed? (Read `summary.md`, then `state/` if needed)
-3. What network requests happened? (Read `Failed Network` in `summary.md`, then `network.jsonl` if needed)
+3. What network requests happened? (Use `trace show <trace-id> --stream network --issues --include-data`)
 4. What's the gap between what the adapter expects and what the page provides?
 
 ## Step 3: Explore the Current Website
@@ -278,8 +251,8 @@ In all stop cases, clearly communicate the situation to the user rather than mak
 1. User runs: opencli zhihu hot
    → Fails: SELECTOR "Could not find element: .HotList-item"
 
-2. AI runs: opencli zhihu hot --trace retain-on-failure 2>trace-error.yaml
-   → Gets trace summary with final state and failed action evidence
+2. AI runs: opencli zhihu hot --trace retain-on-failure >trace-result.json
+   → Gets a trace receipt; inspects it with opencli trace show <trace-id> --issues
 
 3. AI reads summary/state: page loaded but uses ".HotItem" instead of ".HotList-item"
 

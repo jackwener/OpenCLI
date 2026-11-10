@@ -111,9 +111,9 @@ opencli bilibili hot --limit 5
 ### 离线查看执行追踪
 
 执行命令时加上 `--trace on` 或 `--trace retain-on-failure` 可保留追踪记录。
-使用 `opencli trace list --status failure --since 7d` 查找失败的执行，
+使用 `opencli trace list --status failure --since 24h` 查找失败的执行，
 再运行 `opencli trace show <trace-id> --issues` 查看问题事件。
-支持配置文件别名、唯一 ID 前缀、事件筛选、分页和 JSON / 纯文本输出。
+支持配置文件别名、唯一 ID 前缀、事件筛选、分页和 标准输出格式。
 详细用法见[追踪历史指南](./docs/guide/trace-history.md)。
 
 ## 给 AI Agent

@@ -2,21 +2,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { runTraceCli } from './trace.js';
-import { isTraceInvocation } from '../cli-argv-preprocess.js';
+import { runCli } from '../cli.js';
+import { load as loadYaml } from 'js-yaml';
 import { exportObservationSession } from '../observation/artifact.js';
 import { ObservationSession } from '../observation/session.js';
 
-describe('trace command routing', () => {
-  it.each([
-    [['trace', 'list'], true], [['--profile', 'work', 'trace', 'show', 'id'], true],
-    [['--profile=work', 'trace', '--help'], true], [['--profile=a', '--profile', 'b', 'trace'], true],
-    [['browser', 'trace'], false], [['--profile', 'trace', 'list'], false],
-    [['--help', 'trace'], false], [['--profile'], false], [[], false],
-  ] as Array<[string[], boolean]>)('selects the offline route for %j', (args, expected) => {
-    expect(isTraceInvocation(args)).toBe(expected);
-  });
-});
+async function invoke(args: string[]): Promise<void> {
+  const originalArgv = process.argv;
+  process.argv = ['node', 'opencli', ...args];
+  try { await runCli('', ''); }
+  finally { process.argv = originalArgv; }
+}
 
 describe('trace commands', () => {
   let baseDir: string;
@@ -44,7 +40,7 @@ describe('trace commands', () => {
   async function run(args: string[]) {
     stdout.mockClear();
     process.exitCode = undefined;
-    await runTraceCli(args);
+    await invoke(args);
     expect(stdout).toHaveBeenCalledTimes(1);
     return JSON.parse(stdout.mock.calls[0][0]);
   }
@@ -88,7 +84,7 @@ describe('trace commands', () => {
   it.each([
     ['list', '--limit=0'], ['list', '--limit=2oops'], ['list', '--limit=1001'], ['list', '--offset=-1'],
     ['list', '--since=tomorrow'], ['list', '--status=pending'], ['show'], ['show', 'id', '--stream=unknown'],
-    ['show', 'id', '--format=csv'], ['list', '--profile='], ['list', '--site='], ['unknown'],
+    ['show', 'id', '--format=unsupported'], ['list', '--profile='], ['list', '--site='], ['unknown'],
   ])('rejects invalid command arguments %j', async (...args) => {
     expect(await run(['trace', ...args])).toMatchObject({ ok: false, error: { exitCode: 2 } });
     expect(process.exitCode).toBe(2);
@@ -104,15 +100,28 @@ describe('trace commands', () => {
     expect(readdirSync(baseDir, { recursive: true })).toEqual(files);
   });
 
-  it('renders plain output with control characters removed and diagnostics visible', async () => {
-    const exported = fixture('work', 'trace\nforged\u001b[31m');
-    writeFileSync(join(exported.dir, 'trace.jsonl'), '{broken\n');
-    await runTraceCli(['trace', 'list', '-f', 'plain']);
-    expect(stdout.mock.calls[0][0]).toContain('Traces (1 shown of 1)');
-    expect(stdout.mock.calls[0][0]).not.toMatch(/\nforged|\u001b/);
+  it('keeps optional event payloads in CSV when the first event has no data', async () => {
+    const session = new ObservationSession({ id: 'payloads', scope: { contextId: 'work', session: 'test' } });
+    session.record({ stream: 'network', url: 'https://example.com/a', status: 0 });
+    session.record({ stream: 'network', url: 'https://example.com/b', status: 500, responseBody: { message: 'visible payload' } });
+    exportObservationSession(session, { baseDir });
+    await invoke(['trace', 'show', 'payloads', '--include-data', '-f', 'csv']);
+    const output = stdout.mock.calls.map((call: unknown[]) => call[0]).join('\n');
+    expect(output).toContain('line,time,stream,issue,summary,data');
+    expect(output).toContain('visible payload');
+  });
+
+  it('uses shared plain, CSV and YAML formats while keeping terminal labels safe', async () => {
+    fixture('work', 'trace\nforged\u001b[31m');
+    await invoke(['trace', 'list', '-f', 'plain']);
+    const plain = stdout.mock.calls.map((call: unknown[]) => call[0]).join('\n');
+    expect(plain).toContain('traceId: trace forged');
+    expect(plain).not.toMatch(/\nforged|\u001b/);
     stdout.mockClear();
-    await runTraceCli(['trace', 'show', 'trace', '-f', 'plain']);
-    expect(stdout.mock.calls[0][0]).toContain('Read gaps: malformed=1');
-    expect(stdout.mock.calls[0][0]).not.toMatch(/\nforged|\u001b/);
+    await invoke(['trace', 'show', 'trace', '-f', 'csv']);
+    expect(stdout.mock.calls.map((call: unknown[]) => call[0]).join('\n')).toContain('line,time,stream,issue,summary');
+    stdout.mockClear();
+    await invoke(['trace', 'show', 'trace', '-f', 'yml']);
+    expect(loadYaml(stdout.mock.calls[0][0])).toMatchObject({ trace: { traceId: 'trace\nforged\u001b[31m' }, summary: { events: 1, issues: 1 } });
   });
 });

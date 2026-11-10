@@ -4,7 +4,8 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { createInterface } from 'node:readline';
 import { ArgumentError, CliError, EXIT_CODES } from '../errors.js';
-import type { ObservationExportStatus, ObservationStream } from './events.js';
+import { isFailedNetworkStatus, type ObservationExportStatus, type ObservationStream } from './events.js';
+import { parseDurationMs } from '../duration.js';
 import { redactText, redactUrl, redactValue } from './redaction.js';
 
 export const TRACE_STREAMS: ObservationStream[] = ['action', 'network', 'console', 'screenshot', 'state', 'error'];
@@ -119,16 +120,11 @@ function pagination(options: HistoryOptions, defaultLimit: number): { limit: num
 }
 
 function cutoff(value: string | undefined, now: number): number | null {
-  if (value === undefined) return null;
-  const duration = /^(\d+)([mhdw])$/.exec(value);
-  if (duration) {
-    const units: Record<string, number> = { m: 60_000, h: 3_600_000, d: 86_400_000, w: 604_800_000 };
-    const ms = Number(duration[1]) * units[duration[2]];
-    if (Number.isSafeInteger(ms) && Math.abs(now - ms) <= 8.64e15) return now - ms;
-  } else if (/^\d{4}-\d{2}-\d{2}(?:T.*)?$/.test(value) && Number.isFinite(Date.parse(value))) {
-    return Date.parse(value);
-  }
-  throw new ArgumentError('--since must be a duration such as 24h or 7d, or an ISO date.');
+  const duration = parseDurationMs(value, 'since');
+  if (duration === null) return null;
+  if (typeof duration === 'object') throw new ArgumentError(duration.error);
+  if (Math.abs(now - duration) > 8.64e15) throw new ArgumentError('--since exceeds the supported time range.');
+  return now - duration;
 }
 
 async function directories(dir: string): Promise<string[]> {
@@ -250,7 +246,7 @@ function projectEvent(record: Record<string, unknown>, line: number, includeData
         contentType: safeText(record.contentType),
         size: typeof record.size === 'number' && Number.isSafeInteger(record.size) && record.size >= 0 ? record.size : null,
       };
-      issue = summary.status === 0 || (typeof summary.status === 'number' && summary.status >= 400);
+      issue = isFailedNetworkStatus(record.status);
       break;
     case 'console':
       if (typeof record.text !== 'string') return null;

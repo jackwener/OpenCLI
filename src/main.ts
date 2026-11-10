@@ -22,7 +22,6 @@ import { PKG_VERSION } from './version.js';
 import { EXIT_CODES } from './errors.js';
 import { isSupportedNodeVersion, MIN_SUPPORTED_NODE_MAJOR } from './runtime-detect.js';
 import { isIgnorableDaemonPortEnv, unsupportedDaemonPortEnvMessage } from './constants.js';
-import { isTraceInvocation } from './cli-argv-preprocess.js';
 
 const __filename = fileURLToPath(import.meta.url);
 // Adapters are JS-first and live at <package-root>/clis/.
@@ -40,7 +39,7 @@ if (typeof (globalThis as { Bun?: unknown }).Bun === 'undefined' && !isSupported
   process.exit(EXIT_CODES.CONFIG_ERROR);
 }
 
-if (!isTraceInvocation(argv) && !isIgnorableDaemonPortEnv(process.env.OPENCLI_DAEMON_PORT)) {
+if (!isIgnorableDaemonPortEnv(process.env.OPENCLI_DAEMON_PORT)) {
   const { emitFailure } = await import('./command-output.js');
   emitFailure({ code: 'CONFIG', message: unsupportedDaemonPortEnvMessage(process.env.OPENCLI_DAEMON_PORT) }, EXIT_CODES.CONFIG_ERROR);
   process.exit(EXIT_CODES.CONFIG_ERROR);
@@ -93,10 +92,7 @@ if (getCompIdx !== -1) {
 
 // ── Full startup path ───────────────────────────────────────────────────
 // Dynamic imports: these are deferred so the fast path above never pays the cost.
-if (isTraceInvocation(argv)) {
-  const { runTraceCli } = await import('./commands/trace.js');
-  await runTraceCli(argv);
-} else try {
+try {
   const { discoverClis, discoverPlugins, ensureUserCliCompatShims, ensureUserAdapters } = await import('./discovery.js');
   const { getCompletions } = await import('./completion.js');
   const { runCli } = await import('./cli.js');

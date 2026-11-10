@@ -112,10 +112,10 @@ Use OpenCLI directly when you want a reliable command instead of a live browser 
 
 ### Inspect saved execution traces
 
-Use `opencli trace list --status failure --since 7d` to find retained runs and
+Use `opencli trace list --status failure --since 24h` to find retained runs and
 `opencli trace show <trace-id> --issues` to inspect their captured events offline.
 Trace history supports profile aliases, exact IDs or unique prefixes, event
-filters, pagination, and JSON or plain output. Capture evidence with `--trace on`
+filters, pagination, and standard output formats. Capture evidence with `--trace on`
 or `--trace retain-on-failure`. See [trace history](./docs/guide/trace-history.md)
 for profile selection, payload handling, and read diagnostics.
 
