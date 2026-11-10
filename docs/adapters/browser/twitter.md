@@ -11,7 +11,7 @@
 | `opencli twitter profile` | |
 | `opencli twitter search` | |
 | `opencli twitter timeline` | |
-| `opencli twitter thread` | |
+| `opencli twitter thread` | A tweet and its replies. `--sort relevance` (default) pages through every reply X serves, including the "probable spam" section; `--sort recency` is newest-first but X ends it early on busy posts |
 | `opencli twitter following` | |
 | `opencli twitter followers` | |
 | `opencli twitter notifications` | |

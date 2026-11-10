@@ -19,13 +19,21 @@ const FEATURES = {
     freedom_of_speech_not_reach_fetch_enabled: true,
 };
 const FIELD_TOGGLES = { withArticleRichContentState: true, withArticlePlainText: false };
-function buildTweetDetailUrl(tweetId, cursor) {
+// Recency ends the reply feed early on busy posts (26 of ~380 replies in one case);
+// Relevance keeps paging and also offers the "Show probable spam" (ShowMoreThreads) cursor.
+const RANKING_MODES = { relevance: 'Relevance', recency: 'Recency' };
+const MAX_PAGES = 50;
+// X occasionally returns one empty page mid-thread; two in a row means the feed is done.
+const EMPTY_PAGES_TO_END = 2;
+// Bottom, ShowMore, ShowMoreThreads and ShowMoreThreadsPrompt all lead to more replies.
+const NEXT_CURSOR_ENTRY = /^cursor-(bottom|showmore)/i;
+function buildTweetDetailUrl(tweetId, cursor, rankingMode = 'Relevance') {
     const vars = {
         focalTweetId: tweetId,
         referrer: 'tweet',
         with_rux_injections: false,
         includePromotedContent: false,
-        rankingMode: 'Recency',
+        rankingMode,
         withCommunity: true,
         withQuickPromoteEligibilityTweetFields: true,
         withBirdwatchNotes: true,
@@ -81,11 +89,11 @@ function parseTweetDetail(data, seen) {
             // Cursor entries
             const c = entry.content;
             if (c?.entryType === 'TimelineTimelineCursor' || c?.__typename === 'TimelineTimelineCursor') {
-                if (c.cursorType === 'Bottom' || c.cursorType === 'ShowMore')
+                if (/^(Bottom|ShowMore)/.test(c.cursorType || ''))
                     nextCursor = c.value;
                 continue;
             }
-            if (entry.entryId?.startsWith('cursor-bottom-') || entry.entryId?.startsWith('cursor-showMore-')) {
+            if (NEXT_CURSOR_ENTRY.test(entry.entryId || '')) {
                 nextCursor = c?.itemContent?.value || c?.value || nextCursor;
                 continue;
             }
@@ -119,6 +127,7 @@ cli({
     args: [
         { name: 'tweet-id', positional: true, type: 'string', required: true, help: 'Tweet numeric ID (e.g. 1234567890) or full status URL' },
         { name: 'limit', type: 'int', default: 50 },
+        { name: 'sort', type: 'string', default: 'relevance', choices: Object.keys(RANKING_MODES), help: 'Reply order X serves: relevance (default; reaches every reply, including the "probable spam" section) or recency (newest first; X stops it early on busy posts).' },
         { name: 'top-by-engagement', type: 'int', default: 0, help: 'When set to N>0, re-rank the thread by weighted engagement (likes×1 + retweets×3 + replies×2 + bookmarks×5 + log10(views+1)×0.5) and return the top N. Default 0 keeps the conversation\'s structural ordering.' },
     ],
     columns: ['id', 'author', 'author_avatar', 'bio', 'text', 'likes', 'retweets', 'views', 'url', 'has_media', 'media_urls', 'media_posters', 'media_durations', 'card', 'quoted_tweet', 'author_verified'],
@@ -143,9 +152,12 @@ cli({
         // Paginate — fetch in browser, parse in TypeScript
         const allTweets = [];
         const seen = new Set();
+        const usedCursors = new Set();
+        const rankingMode = RANKING_MODES[kwargs.sort] || RANKING_MODES.relevance;
         let cursor = null;
-        for (let i = 0; i < 5; i++) {
-            const apiUrl = buildTweetDetailUrl(tweetId, cursor);
+        let emptyPages = 0;
+        for (let i = 0; i < MAX_PAGES && allTweets.length < kwargs.limit; i++) {
+            const apiUrl = buildTweetDetailUrl(tweetId, cursor, rankingMode);
             // Browser-side: fetch + JSON parse with HTML-as-JSON sniffer so a
             // login wall / WAF page surfaces as a structured LoginWallError
             // instead of `SyntaxError: Unexpected token '<'`.
@@ -161,8 +173,10 @@ cli({
             // TypeScript-side: type-safe parsing + cursor extraction
             const { tweets, nextCursor } = parseTweetDetail(data, seen);
             allTweets.push(...tweets);
-            if (!nextCursor || nextCursor === cursor)
+            emptyPages = tweets.length ? 0 : emptyPages + 1;
+            if (!nextCursor || usedCursors.has(nextCursor) || emptyPages >= EMPTY_PAGES_TO_END)
                 break;
+            usedCursors.add(nextCursor);
             cursor = nextCursor;
         }
         const trimmed = allTweets.slice(0, kwargs.limit);
