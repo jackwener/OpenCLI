@@ -51,7 +51,9 @@ cli({
         if (!data?.data) {
             throw new Error('Unexpected response structure');
         }
-        const stats = data.data[period];
+        // The creator API currently exposes period buckets as set_seven /
+        // set_thirty while older fixtures used seven / thirty.
+        const stats = data.data[`set_${period}`] ?? data.data[period];
         if (!stats) {
             throw new EmptyResultError('xiaohongshu creator-stats', `No data for period "${period}". Available: ${Object.keys(data.data).join(', ')}`);
         }
