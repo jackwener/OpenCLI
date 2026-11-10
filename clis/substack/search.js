@@ -21,7 +21,7 @@ async function searchPosts(keyword, limit) {
     url.searchParams.set('query', keyword);
     url.searchParams.set('page', '0');
     url.searchParams.set('includePlatformResults', 'true');
-    const resp = await fetch(url, { headers: headers() });
+    const resp = await fetch(url, { headers: headers(), signal: AbortSignal.timeout(8000) });
     if (!resp.ok)
         throw new CommandExecutionError(`Substack post search failed: HTTP ${resp.status}`);
     const data = await resp.json();
@@ -39,7 +39,7 @@ async function searchPublications(keyword, limit) {
     const url = new URL('https://substack.com/api/v1/profile/search');
     url.searchParams.set('query', keyword);
     url.searchParams.set('page', '0');
-    const resp = await fetch(url, { headers: headers() });
+    const resp = await fetch(url, { headers: headers(), signal: AbortSignal.timeout(8000) });
     if (!resp.ok)
         throw new CommandExecutionError(`Substack publication search failed: HTTP ${resp.status}`);
     const data = await resp.json();

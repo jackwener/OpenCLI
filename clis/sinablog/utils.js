@@ -96,7 +96,7 @@ export async function loadSinaBlogHot(page, limit) {
           url: item.url,
         };
         try {
-          const resp = await fetch(item.url, { credentials: 'include' });
+          const resp = await fetch(item.url, { credentials: 'include', signal: AbortSignal.timeout(5000) });
           if (resp.ok) {
             const html = await resp.text();
             const doc = new DOMParser().parseFromString(html, 'text/html');
