@@ -16,6 +16,7 @@ function createChromeMock() {
   const debuggerApi = {
     attach: vi.fn(async () => {}),
     detach: vi.fn(async () => {}),
+    getTargets: vi.fn(async () => [] as Array<{ id: string; type: string; url: string; title?: string; tabId?: number }>),
     sendCommand: vi.fn(async (_target: unknown, method: string) => {
       if (method === 'Runtime.evaluate') return { result: { value: 'ok' } };
       return {};
@@ -95,10 +96,10 @@ describe('cdp attach recovery', () => {
 
   it('falls back to a frame target when no same-target execution context exists', async () => {
     const { chrome, debuggerApi, debuggerEventListeners } = createChromeMock();
+    debuggerApi.getTargets = vi.fn(async () => [
+      { id: 'oopif-frame', type: 'other', url: 'https://frame.test', tabId: 1 },
+    ]);
     debuggerApi.sendCommand = vi.fn(async (target: any, method: string, _params?: any) => {
-      if (method === 'Target.setDiscoverTargets') return {};
-      if (method === 'Target.setAutoAttach') return {};
-      if (method === 'Target.getTargets') return { targetInfos: [{ targetId: 'oopif-frame', type: 'iframe', url: 'https://frame.test' }] };
       if (target?.targetId === 'oopif-frame' && method === 'Runtime.enable') return {};
       if (target?.targetId === 'oopif-frame' && method === 'Runtime.evaluate') {
         return { result: { value: 'frame-ok' } };
@@ -119,6 +120,53 @@ describe('cdp attach recovery', () => {
       { targetId: 'oopif-frame' },
       'Runtime.evaluate',
       expect.any(Object),
+    );
+    // CDP Target.getTargets is forbidden for extension clients — it must not be called.
+    expect(debuggerApi.sendCommand).not.toHaveBeenCalledWith(
+      expect.objectContaining({ tabId: 1 }),
+      'Target.getTargets',
+      expect.anything(),
+    );
+  });
+
+  it('does not fall back by URL when a same-src frame has a different target id (#2223)', async () => {
+    const { chrome, debuggerApi } = createChromeMock();
+    debuggerApi.getTargets = vi.fn(async () => [
+      { id: 'other-frame', type: 'other', url: 'https://frame.test', tabId: 1 },
+    ]);
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./cdp');
+    mod.registerFrameTracking();
+
+    await expect(mod.evaluateInFrame(1, 'document.title', 'wanted-frame'))
+      .rejects.toThrow(/No iframe target found for frame wanted-frame.*other-frame https:\/\/frame\.test/);
+    // tab-level attach is legitimate; no frame target may be attached
+    expect(debuggerApi.attach).not.toHaveBeenCalledWith(
+      expect.objectContaining({ targetId: expect.anything() }),
+      expect.anything(),
+    );
+  });
+
+  it('resolves a frame only inside its own tab and only for frame-like target types', async () => {
+    const { chrome, debuggerApi } = createChromeMock();
+    debuggerApi.getTargets = vi.fn(async () => [
+      // exact id match, but the target belongs to another tab — must not resolve
+      { id: 'frame-1', type: 'other', url: 'https://elsewhere.test', tabId: 2 },
+      // exact id match, but page/service_worker targets are not frames
+      { id: 'frame-1', type: 'page', url: 'https://page.test', tabId: 1 },
+      { id: 'frame-1', type: 'service_worker', url: 'chrome-extension://x/sw.js', tabId: 1 },
+    ]);
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./cdp');
+    mod.registerFrameTracking();
+
+    await expect(mod.evaluateInFrame(1, 'document.title', 'frame-1'))
+      .rejects.toThrow(/No iframe target found for frame frame-1/);
+    expect(debuggerApi.attach).not.toHaveBeenCalledWith(
+      expect.objectContaining({ targetId: expect.anything() }),
+      expect.anything(),
     );
   });
 
@@ -647,16 +695,14 @@ describe('cdp evaluateInFrame stale context fallback', () => {
     const debuggerApi = {
       attach: vi.fn(async () => {}),
       detach: vi.fn(async () => {}),
+      getTargets: vi.fn(async () => [
+        { id: 'stale-frame', type: 'other', url: 'https://frame.test', tabId: 1 },
+      ]),
       sendCommand: vi.fn(async (target, method, params) => {
         if (method === 'Runtime.enable') return {};
         // The cached context id is stale after the frame navigated: CDP rejects.
         if (method === 'Runtime.evaluate' && params?.contextId === 99) {
           throw new Error('Cannot find context with specified id');
-        }
-        if (method === 'Target.setDiscoverTargets') return {};
-        if (method === 'Target.setAutoAttach') return {};
-        if (method === 'Target.getTargets') {
-          return { targetInfos: [{ targetId: 'stale-frame', type: 'iframe', url: 'https://frame.test' }] };
         }
         if (target?.targetId === 'stale-frame' && method === 'Runtime.evaluate') {
           return { result: { value: 'frame-ok' } };
