@@ -2,7 +2,7 @@
  * Weibo hot search — browser cookie API.
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { requireArrayEvaluateResult, unwrapEvaluateResult } from './utils.js';
+import { ensureWeiboPage, requireArrayEvaluateResult, unwrapEvaluateResult } from './utils.js';
 cli({
     site: 'weibo',
     name: 'hot',
@@ -10,13 +10,15 @@ cli({
     description: '微博热搜',
     domain: 'weibo.com',
     strategy: Strategy.COOKIE,
+    siteSession: 'persistent',
+    navigateBefore: false,
     args: [
         { name: 'limit', type: 'int', default: 30, help: 'Number of items (max 50)' },
     ],
     columns: ['rank', 'word', 'hot_value', 'category', 'label', 'url'],
     func: async (page, kwargs) => {
         const count = Math.min(kwargs.limit || 30, 50);
-        await page.goto('https://weibo.com');
+        await ensureWeiboPage(page);
         const data = requireArrayEvaluateResult(unwrapEvaluateResult(await page.evaluate(`
       (async () => {
         const resp = await fetch('/ajax/statuses/hot_band', {credentials: 'include'});

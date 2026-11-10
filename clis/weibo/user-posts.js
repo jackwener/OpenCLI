@@ -3,7 +3,7 @@
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { unwrapEvaluateResult } from './utils.js';
+import { ensureWeiboPage, unwrapEvaluateResult } from './utils.js';
 
 const MAX_LIMIT = 100;
 const DEFAULT_LIMIT = 20;
@@ -84,6 +84,8 @@ cli({
     description: 'List Weibo posts from a user, optionally filtered by date range',
     domain: 'weibo.com',
     strategy: Strategy.COOKIE,
+    siteSession: 'persistent',
+    navigateBefore: false,
     args: [
         { name: 'id', positional: true, required: true, help: 'User ID (numeric uid) or screen name' },
         { name: 'start', help: 'Start date in Asia/Shanghai (YYYY-MM-DD)' },
@@ -102,8 +104,7 @@ cli({
         const starttime = start ? dateToTimestamp(start) : null;
         const endtime = end ? dateToTimestamp(end) + 24 * 60 * 60 - 1 : null;
 
-        await page.goto('https://weibo.com');
-        await page.wait(2);
+        await ensureWeiboPage(page);
 
         const evaluateResult = await page.evaluate(`
       (async () => {

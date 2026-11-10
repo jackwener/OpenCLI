@@ -1,6 +1,38 @@
-import { describe, expect, it } from 'vitest';
-import { CommandExecutionError } from '@jackwener/opencli/errors';
-import { requireArrayEvaluateResult, requireObjectEvaluateResult, unwrapEvaluateResult } from './utils.js';
+import { describe, expect, it, vi } from 'vitest';
+import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { getSelfUid, requireArrayEvaluateResult, requireObjectEvaluateResult, unwrapEvaluateResult } from './utils.js';
+
+function makeUidPage(evalResults) {
+    let i = 0;
+    return {
+        goto: vi.fn().mockResolvedValue(undefined),
+        wait: vi.fn().mockResolvedValue(undefined),
+        evaluate: vi.fn().mockImplementation(() => Promise.resolve(evalResults[i++])),
+    };
+}
+
+describe('getSelfUid (stale warm-tab recovery)', () => {
+    it('returns the uid without reloading when the store already knows it', async () => {
+        const page = makeUidPage(['1931632001']);
+        await expect(getSelfUid(page)).resolves.toBe('1931632001');
+        expect(page.goto).not.toHaveBeenCalled();
+    });
+
+    it('reloads once and retries when a warm tab predates the login (store and config both empty)', async () => {
+        // Persistent site session: the tab may still show the pre-login page,
+        // whose Vue store has no uid. A single reload must bring it current.
+        const page = makeUidPage([null, null, '1931632001']);
+        await expect(getSelfUid(page)).resolves.toBe('1931632001');
+        expect(page.goto).toHaveBeenCalledExactlyOnceWith('https://weibo.com');
+        expect(page.wait).toHaveBeenCalledWith(2);
+    });
+
+    it('throws AuthRequiredError only after the reload retry also fails', async () => {
+        const page = makeUidPage([null, null, null, null]);
+        await expect(getSelfUid(page)).rejects.toBeInstanceOf(AuthRequiredError);
+        expect(page.goto).toHaveBeenCalledExactlyOnceWith('https://weibo.com');
+    });
+});
 
 describe('unwrapEvaluateResult (browser-bridge envelope normalization)', () => {
     it('returns the raw array unchanged when payload is already an array', () => {

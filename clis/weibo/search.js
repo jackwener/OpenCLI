@@ -12,6 +12,8 @@ cli({
     domain: 'weibo.com',
     browser: true,
     strategy: Strategy.COOKIE,
+    siteSession: 'persistent',
+    navigateBefore: false,
     args: [
         { name: 'keyword', required: true, positional: true, help: 'Search keyword' },
         { name: 'limit', type: 'int', default: 10, help: 'Number of results (max 50)' },

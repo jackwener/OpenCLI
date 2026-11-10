@@ -76,6 +76,8 @@ cli({
     domain: 'weibo.com',
     strategy: Strategy.UI,
     browser: true,
+    siteSession: 'persistent',
+    navigateBefore: false,
     args: [
         {
             name: 'text',

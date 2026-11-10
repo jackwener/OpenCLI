@@ -31,8 +31,25 @@ export function requireObjectEvaluateResult(payload, label) {
     }
     return payload;
 }
-/** Get the currently logged-in user's uid from Vue store or config API. */
-export async function getSelfUid(page) {
+// Origin check must be exact: cookies are shared across *.weibo.com, but the
+// relative /ajax fetches only work from weibo.com (not s.weibo.com).
+const WEIBO_ORIGIN_RE = /^https?:\/\/(?:www\.)?weibo\.com\//;
+/**
+ * Navigate to weibo.com only when the tab is not already there.
+ * Under a persistent site session the tab stays warm between commands,
+ * so consecutive invocations skip both the navigation and the settle wait.
+ */
+export async function ensureWeiboPage(page) {
+    const currentUrl = typeof page.getCurrentUrl === 'function'
+        ? await page.getCurrentUrl().catch(() => null)
+        : null;
+    if (typeof currentUrl === 'string' && WEIBO_ORIGIN_RE.test(currentUrl)) {
+        return;
+    }
+    await page.goto('https://weibo.com');
+    await page.wait(2);
+}
+async function probeSelfUid(page) {
     const uid = unwrapEvaluateResult(await page.evaluate(`
     (() => {
       const app = document.querySelector('#app')?.__vue_app__;
@@ -42,7 +59,7 @@ export async function getSelfUid(page) {
       return null;
     })()
   `));
-    if (uid)
+    if (typeof uid === 'string' && uid)
         return uid;
     // Fallback: config API
     const config = unwrapEvaluateResult(await page.evaluate(`
@@ -53,7 +70,20 @@ export async function getSelfUid(page) {
       return data.ok && data.data?.uid ? String(data.data.uid) : null;
     })()
   `));
-    if (config)
-        return config;
+    return typeof config === 'string' && config ? config : null;
+}
+/** Get the currently logged-in user's uid from Vue store or config API. */
+export async function getSelfUid(page) {
+    const uid = await probeSelfUid(page);
+    if (uid)
+        return uid;
+    // A warm persistent tab may predate a login-state change: its page (and
+    // Vue store) still reflect the old session. Reload once so the probe runs
+    // against the current login state before concluding the user is logged out.
+    await page.goto('https://weibo.com');
+    await page.wait(2);
+    const retried = await probeSelfUid(page);
+    if (retried)
+        return retried;
     throw new AuthRequiredError('weibo.com');
 }
