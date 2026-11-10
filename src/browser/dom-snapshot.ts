@@ -101,13 +101,13 @@ export function getFormStateJs(): string {
       // Collect all forms
       for (const form of document.forms) {
         const formData = {
-          id: form.id || null,
-          name: form.name || null,
-          action: form.action || null,
-          method: (form.method || 'get').toUpperCase(),
+          id: form.getAttribute('id') || null,
+          name: form.getAttribute('name') || null,
+          action: new URL(form.getAttribute('action') || location.href, document.baseURI).href,
+          method: (form.getAttribute('method') || 'get').toUpperCase(),
           fields: [],
         };
-        for (const el of form.elements) {
+        for (const el of Object.getOwnPropertyDescriptor(HTMLFormElement.prototype, 'elements').get.call(form)) {
           const field = extractField(el);
           if (field) formData.fields.push(field);
         }
@@ -124,6 +124,7 @@ export function getFormStateJs(): string {
 
       function extractField(el) {
         const tag = el.tagName.toLowerCase();
+        if (!['input', 'textarea', 'select'].includes(tag) && el.getAttribute('contenteditable') !== 'true') return null;
         const type = (el.getAttribute('type') || (tag === 'textarea' ? 'textarea' : tag === 'select' ? 'select' : 'text')).toLowerCase();
         if (type === 'hidden' || type === 'submit' || type === 'button' || type === 'reset') return null;
         const name = el.name || el.id || null;
@@ -136,23 +137,37 @@ export function getFormStateJs(): string {
         } else if (type === 'checkbox' || type === 'radio') {
           value = el.checked;
         } else if (type === 'password') {
-          value = el.value ? '••••' : '';
+          value = '••••';
         } else if (el.isContentEditable) {
           value = (el.textContent || '').trim().slice(0, 200);
         } else {
           value = (el.value || '').slice(0, 200);
         }
-        return { tag, type, name, ref, label, value, required: el.required || false, disabled: el.disabled || false };
+        // Read validity properties only: checkValidity() dispatches invalid events.
+        const validity = el.validity;
+        const invalid = validity && el.willValidate ? Object.keys({
+          valueMissing: 1, typeMismatch: 1, patternMismatch: 1, tooLong: 1,
+          tooShort: 1, rangeUnderflow: 1, rangeOverflow: 1, stepMismatch: 1,
+          badInput: 1, customError: 1,
+        }).filter(key => validity[key]) : [];
+        const rawLength = ['password', 'checkbox', 'radio', 'select'].includes(type) ? null
+          : String(el.isContentEditable ? el.textContent || '' : el.value || '').length;
+        return { tag, type, id: el.id || null, name, ref, label, value,
+          required: !!el.required || el.getAttribute('aria-required') === 'true',
+          disabled: el.matches(':disabled'), readOnly: !!el.readOnly,
+          valueLength: rawLength, valueTruncated: typeof value === 'string' && rawLength !== null && rawLength > value.length,
+          willValidate: !!el.willValidate, invalid,
+          ...(tag === 'select' ? { options: Array.from(el.options).map(o => ({
+            value: o.value, label: o.label, selected: o.selected, disabled: o.disabled || !!o.closest('optgroup[disabled]'),
+          })) } : {}),
+        };
       }
 
       function findLabel(el) {
         // 1. aria-label
         if (el.getAttribute('aria-label')) return el.getAttribute('aria-label');
-        // 2. associated <label>
-        if (el.id) {
-          const label = document.querySelector('label[for="' + el.id + '"]');
-          if (label) return label.textContent.trim().slice(0, 80);
-        }
+        // Native label association handles IDs containing quotes or CSS metacharacters.
+        if (el.labels && el.labels.length) return Array.from(el.labels).map(l => l.textContent.trim()).join(' ').slice(0, 80);
         // 3. parent label
         const parentLabel = el.closest('label');
         if (parentLabel) return parentLabel.textContent.trim().slice(0, 80);
