@@ -4,6 +4,7 @@ import {
     CHATGPT_DOMAIN,
     ensureChatGPTLogin,
     ensureOnChatGPT,
+    getChatGPTAppPermissionPrompt,
     getVisibleMessages,
     messageHtmlToMarkdown,
     normalizeBooleanFlag,
@@ -33,12 +34,22 @@ export const readCommand = cli({
         if (!messages.length) {
             throw new EmptyResultError('chatgpt read', 'No visible ChatGPT messages were found in the current conversation.');
         }
-        return messages.map((message) => ({
+        const rows = messages.map((message) => ({
             Index: message.Index,
             Role: message.Role,
             Text: wantMarkdown && message.Role === 'Assistant' && message.Html
                 ? (messageHtmlToMarkdown(message.Html) || message.Text)
                 : message.Text,
         }));
+        // A pending app permission dialog holds the turn; show it as the last row.
+        const permission = await getChatGPTAppPermissionPrompt(page);
+        if (permission) {
+            rows.push({
+                Index: rows.length,
+                Role: 'Permission',
+                Text: `${permission.prompt} [answer with: opencli chatgpt allow once|always|deny]`,
+            });
+        }
+        return rows;
     },
 });

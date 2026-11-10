@@ -666,6 +666,113 @@ async function selectModernChatGPTIntelligence(page, target) {
     }
 }
 
+// PROBLEM: 2026-10-07 the `main` account had lapsed to the free plan; its page has
+// no model picker, and `model` failed with a click error (or hung on the
+// preference API) that read like a broken selector. DESIGN: look for the picker
+// on the page, synchronously, before any API call: no picker means this account
+// cannot switch models, and the caller should use another provider. An in-page
+// fetch of the account endpoint hung in the hidden tab and a node-side fetch was
+// refused (both 2026-10-07), so the plan is not read from the API.
+export async function getChatGPTModelPicker(page) {
+    const value = unwrapEvaluateResult(await page.evaluate(`(() => {
+        const visible = (el) => {
+            if (!(el instanceof HTMLElement)) return false;
+            const style = window.getComputedStyle(el);
+            if (style.display === 'none' || style.visibility === 'hidden') return false;
+            const rect = el.getBoundingClientRect();
+            return rect.width > 0 && rect.height > 0;
+        };
+        // Not a loose aria-label*="model" match: sidebar chats can be named "... Model ...".
+        const selectors = [
+            'button[data-selected-reasoning-effort]',
+            'button[aria-label="Select ChatGPT model"]',
+            'button[data-testid="model-switcher-dropdown-button"]',
+            '[data-testid="composer-intelligence-picker"]',
+        ];
+        const picker = selectors.some((selector) => Array.from(document.querySelectorAll(selector)).some(visible));
+        const upgrade = Array.from(document.querySelectorAll('button, a'))
+            .some((node) => visible(node) && /^upgrade\\b/i.test(String(node.innerText || node.textContent || node.getAttribute('aria-label') || '').trim()));
+        return { picker, upgrade };
+    })()`));
+    const state = value && typeof value === 'object' ? value : {};
+    return { picker: Boolean(state.picker), upgrade: Boolean(state.upgrade) };
+}
+
+export function describeChatGPTModelPicker(state) {
+    if (state.picker) return 'model picker present';
+    return state.upgrade
+        ? 'no model picker; the page offers Upgrade (free plan)'
+        : 'no model picker (the account plan has none, or the page is not ready)';
+}
+
+// The app connector dialog ("Allow ChatGPT to use <app>?") blocks a tool-using
+// turn until someone answers; ask/read must surface it instead of waiting silently.
+const CHATGPT_PERMISSION_CHOICES = {
+    once: ['Allow once', 'Allow'],
+    always: ['Always allow'],
+    deny: ['Deny', "Don't allow", 'Don’t allow', 'Decline'],
+};
+
+export async function getChatGPTAppPermissionPrompt(page) {
+    const value = unwrapEvaluateResult(await page.evaluate(`(() => {
+        const visible = (el) => {
+            if (!(el instanceof HTMLElement)) return false;
+            const style = window.getComputedStyle(el);
+            if (style.display === 'none' || style.visibility === 'hidden') return false;
+            const rect = el.getBoundingClientRect();
+            return rect.width > 0 && rect.height > 0;
+        };
+        const labels = ${JSON.stringify(Object.values(CHATGPT_PERMISSION_CHOICES).flat())};
+        const buttons = Array.from(document.querySelectorAll('button')).filter((button) =>
+            visible(button) && labels.includes(button.textContent.replace(/\\s+/g, ' ').trim()));
+        const allow = buttons.find((button) => /allow/i.test(button.textContent));
+        if (!allow) return null;
+        let box = allow.parentElement;
+        const text = (node) => String(node.innerText || node.textContent || '');
+        while (box && !/Allow ChatGPT to use/i.test(text(box)) && box !== document.body) box = box.parentElement;
+        if (!box || box === document.body) return null;
+        return {
+            prompt: text(box).replace(/\\s+/g, ' ').trim().slice(0, 600),
+            buttons: Array.from(new Set(Array.from(box.querySelectorAll('button')).filter(visible)
+                .map((button) => button.textContent.replace(/\\s+/g, ' ').trim())
+                .filter((text) => labels.includes(text)))),
+        };
+    })()`));
+    return value && typeof value === 'object' && value.prompt ? value : null;
+}
+
+export async function answerChatGPTAppPermission(page, choice) {
+    const wanted = CHATGPT_PERMISSION_CHOICES[choice];
+    if (!wanted) {
+        throw new ArgumentError(`Unknown permission choice: ${choice}`, 'Use once, always or deny.');
+    }
+    const prompt = await getChatGPTAppPermissionPrompt(page);
+    if (!prompt) {
+        throw new CommandExecutionError('No ChatGPT app permission prompt is open on this page.');
+    }
+    const clicked = unwrapEvaluateResult(await page.evaluate(`(() => {
+        const wanted = ${JSON.stringify(wanted)};
+        const button = Array.from(document.querySelectorAll('button'))
+            .find((node) => wanted.includes(node.textContent.replace(/\\s+/g, ' ').trim()));
+        if (!(button instanceof HTMLElement)) return '';
+        // A background window ignores native clicks; page-level events reach React.
+        for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup']) {
+            button.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window }));
+        }
+        button.click();
+        return button.textContent.replace(/\\s+/g, ' ').trim();
+    })()`));
+    if (!clicked) {
+        throw new CommandExecutionError(`The permission prompt has no "${wanted[0]}" button; it offers: ${prompt.buttons.join(', ')}`);
+    }
+    return { prompt: prompt.prompt, clicked };
+}
+
+function permissionPromptMessage(prompt) {
+    return `ChatGPT is waiting on an app permission prompt: "${prompt.prompt}". `
+        + 'Answer it with `opencli chatgpt allow once|always|deny`, then read the reply with `opencli chatgpt read`.';
+}
+
 export async function selectChatGPTModel(page, model) {
     const target = requireKnownChatGPTModel(model);
     debugChatGPTModel(`target=${target.key}`);
@@ -682,11 +789,21 @@ export async function selectChatGPTModel(page, model) {
     }
     await ensureChatGPTComposer(page, 'ChatGPT model selection requires a logged-in ChatGPT session with a visible composer.');
     debugChatGPTModel('composer ok');
-
     const before = await getCurrentChatGPTModel(page);
     debugChatGPTModel(`before=${before.model || 'none'}`);
     if (before.ambiguousReasoning) {
         throw new CommandExecutionError('ChatGPT reasoning control is ambiguous.');
+    }
+    if (!before.model) {
+        // No current model read back: check for a picker before any API call.
+        const picker = await getChatGPTModelPicker(page);
+        debugChatGPTModel(`picker=${JSON.stringify(picker)}`);
+        if (!picker.picker) {
+            throw new CommandExecutionError(
+                `ChatGPT shows ${describeChatGPTModelPicker(picker)}, so the model cannot be set to ${target.label}.`,
+                'Use another provider, or sign this profile in to an account whose plan has a model picker.',
+            );
+        }
     }
     if (before.model === target.key) {
         return { Status: 'Already selected', Model: target.label };
@@ -2356,6 +2473,10 @@ export async function waitForChatGPTResponse(page, baselineCount, prompt, timeou
                 );
             }
         }
+        const permission = await getChatGPTAppPermissionPrompt(page);
+        if (permission) {
+            throw new CommandExecutionError(permissionPromptMessage(permission));
+        }
         if (await isGenerating(page)) {
             stableCount = 0;
             continue;
@@ -2374,10 +2495,13 @@ export async function waitForChatGPTResponse(page, baselineCount, prompt, timeou
         }
     }
 
+    const stillWorking = await isGenerating(page).catch(() => false);
     throw new TimeoutError(
         'chatgpt ask',
         timeoutSeconds,
-        'Your message may already be submitted. Check "opencli chatgpt read" before sending again. For future requests, use a higher --timeout.',
+        stillWorking
+            ? `ChatGPT is still working on this turn${options.conversationUrl ? ` (${options.conversationUrl})` : ''}; nothing was lost. Read it later with \`opencli chatgpt detail <conversation id> --wait true\`.`
+            : 'Your message may already be submitted. Check "opencli chatgpt read" before sending again. For future requests, use a higher --timeout.',
     );
 }
 

@@ -5368,6 +5368,81 @@
   },
   {
     "site": "chatgpt",
+    "name": "allow",
+    "description": "Answer the open ChatGPT app permission prompt (\"Allow ChatGPT to use <app>?\")",
+    "access": "write",
+    "domain": "chatgpt.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "choice",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Allow once, always allow, or deny",
+        "choices": [
+          "once",
+          "always",
+          "deny"
+        ]
+      }
+    ],
+    "columns": [
+      "Status",
+      "Clicked",
+      "Prompt"
+    ],
+    "type": "js",
+    "modulePath": "chatgpt/allow.js",
+    "sourceFile": "chatgpt/allow.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "chatgpt",
+    "name": "app",
+    "description": "Refresh an installed ChatGPT app's tool list, or disconnect and reconnect it (to test ChatGPT with and without the app)",
+    "access": "write",
+    "domain": "chatgpt.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "app",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "The app's name as Settings > Plugins shows it; for connect, the plugin id (plugin_...) or its /plugins/ URL that disconnect printed"
+      },
+      {
+        "name": "action",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "refresh re-reads the tool list; disconnect removes the app from chats; connect installs it again",
+        "choices": [
+          "refresh",
+          "disconnect",
+          "connect"
+        ]
+      }
+    ],
+    "columns": [
+      "Status",
+      "App",
+      "Plugin",
+      "Tools",
+      "Changed"
+    ],
+    "type": "js",
+    "modulePath": "chatgpt/app.js",
+    "sourceFile": "chatgpt/app.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "chatgpt",
     "name": "ask",
     "description": "Send a prompt to ChatGPT web and wait for the response",
     "access": "write",
@@ -5982,7 +6057,7 @@
   {
     "site": "chatgpt",
     "name": "status",
-    "description": "Check ChatGPT web page availability and login state",
+    "description": "Check ChatGPT web page availability, login state, and whether the account can switch models",
     "access": "read",
     "domain": "chatgpt.com",
     "strategy": "cookie",
@@ -5991,6 +6066,7 @@
     "columns": [
       "Status",
       "Login",
+      "Models",
       "Url"
     ],
     "type": "js",
