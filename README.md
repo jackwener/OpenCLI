@@ -200,6 +200,11 @@ The agent handles all the `opencli browser` commands internally — you just des
 
 Available browser commands include `open`, `state`, `click`, `type`, `fill`, `select`, `keys`, `wait`, `get`, `find`, `extract`, `frames`, `screenshot`, `scroll`, `back`, `eval`, `network`, `tab list`, `tab new`, `tab select`, `tab close`, `chrome describe`, `chrome call`, and `close`.
 
+Use `opencli browser network --session research --summary --sort failures` to
+aggregate captured requests by endpoint, or `--group-by origin --sort size` to
+compare sites by recorded response-character totals. Summaries support filters
+and detail keys without emitting bodies. See the [browser skill](./skills/opencli-browser/SKILL.md#network-and-scripts).
+
 `opencli browser` commands require a `--session <name>` option for page operations. `opencli browser --session work open <url>` and `opencli browser --session work tab new [url]` both return a target ID. Use `opencli browser --session work tab list` to inspect target IDs, then pass `--tab <targetId>` to route a command to a specific tab. `tab new` creates a new tab without changing the default browser target; only `tab select <targetId>` promotes that tab to the default target for later untargeted commands in the same session.
 
 ## Writing a new adapter
