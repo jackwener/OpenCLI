@@ -88,3 +88,19 @@ supported methods, signatures, live permissions and official documentation.
 Native-created tabs/windows persist. Mutations touching active OpenCLI session
 tabs or managed groups return `managed_resource_conflict`; ordinary groups can be
 created, renamed, recolored, moved and dissolved with `tabs.ungroup`.
+
+## Visual fallback for controls without DOM or AX targets
+
+Use this only after `state`, `find`, and `state --source ax` cannot expose the control. Inspect the exact tab URL and visible page before acting. The screenshot and click must name the same `page` target ID from `browser tab list`:
+
+```sh
+opencli browser screenshot /tmp/target.png --for-click --tab <targetId> --session <name>
+opencli browser click --point <image-x,image-y> --capture <descriptor> --tab <targetId> --session <name>
+opencli browser type --focused '<text>' --tab <targetId> --session <name>
+```
+
+`--point` uses pixels in the saved PNG, not CSS coordinates. The descriptor expires after two minutes. Point click moves the pointer, then rejects the action if the tab, URL, viewport, or screenshot pixels changed. Take a new screenshot if it says `capture_stale`. A successful click or focused type reports `dispatched_unverified`; inspect the same tab for the actual result. For focused type, check the inserted value before submitting. If an action reports `outcome_unknown`, reconcile the exact page before any retry.
+
+When a password manager (iCloud Passwords) has put its own `chrome-extension://` frame in the page, Chrome refuses the debugger for that page. Capture then comes from the extension (`input: synthetic`), and point click and focused type send synthetic events. A site that requires trusted input can ignore them, so read back every result. This path works only while the target is the active tab in its window, because it never activates a tab or raises the browser. If it says the target is not the active tab, do not activate it yourself; open the page again with `--window background`, which makes a new window. Each fallback step takes about 15 seconds, because the debugger attach is tried first. A native click that makes the frame appear (for example, one that focuses an input) can report `outcome_unknown`; take a fresh capture to see what happened. The first click at a new point often returns `capture_stale`, because moving the pointer redraws hover styles; take a new screenshot and click again. (Verified live on 2026-09-25 on Edge `main` with iCloud Passwords active.)
+
+If a bundled Codex Browser or Computer Use tool fails during setup, one switch to OpenCLI on the same connected Chrome session is allowed. A user request for the in-app browser stays in-app. Switching tools never expands approval for a purchase, send, or other external action.

@@ -113,6 +113,52 @@ function isDebuggableUrl(url?: string): boolean {
   return url.startsWith('http://') || url.startsWith('https://') || url === 'about:blank' || url.startsWith('data:');
 }
 
+/**
+ * Other extensions' frames in a tab, as `chrome-extension://<id>/<path>` with
+ * query and fragment dropped. Read-only: the frames are never touched.
+ */
+async function foreignExtensionFrames(tabId: number): Promise<string[]> {
+  const urls: string[] = [];
+  try {
+    const frames = await chrome.webNavigation.getAllFrames({ tabId });
+    for (const frame of frames ?? []) urls.push(frame.url ?? '');
+  } catch (e) {
+    console.warn(`[opencli] cannot list frames of tab ${tabId}: ${e instanceof Error ? e.message : String(e)}`);
+  }
+  try {
+    const answers = await chrome.scripting.executeScript({ target: { tabId, allFrames: true }, func: embeddedFrameSources });
+    for (const answer of answers ?? []) urls.push(...(answer?.result ?? []));
+  } catch (e) {
+    console.warn(`[opencli] cannot read embedded frames of tab ${tabId}: ${e instanceof Error ? e.message : String(e)}`);
+  }
+  const found = new Set<string>();
+  for (const url of urls) {
+    const match = /^(chrome|edge)-extension:\/\/([a-p]{32})(\/[^?#]*)?/.exec(url);
+    if (match && match[2] !== chrome.runtime.id) found.add(`${match[1]}-extension://${match[2]}${match[3] ?? '/'}`);
+  }
+  return [...found];
+}
+
+/**
+ * Runs in the page's isolated world: the src of every frame-like element,
+ * closed shadow roots included (an extension's own UI usually sits in one).
+ */
+function embeddedFrameSources(): string[] {
+  const shadowOf = (el: Element): ShadowRoot | null =>
+    el instanceof HTMLElement ? (chrome.dom?.openOrClosedShadowRoot?.(el) ?? el.shadowRoot) : el.shadowRoot;
+  const sources: string[] = [];
+  const roots: Array<Document | ShadowRoot> = [document];
+  for (let root = roots.pop(); root; root = roots.pop()) {
+    for (const el of root.querySelectorAll('*')) {
+      if (el instanceof HTMLIFrameElement || el instanceof HTMLFrameElement || el instanceof HTMLEmbedElement) sources.push(el.src);
+      else if (el instanceof HTMLObjectElement) sources.push(el.data);
+      const shadow = shadowOf(el);
+      if (shadow) roots.push(shadow);
+    }
+  }
+  return sources;
+}
+
 export async function ensureAttached(tabId: number, aggressiveRetry: boolean = false): Promise<void> {
   // Verify the tab URL is debuggable before attempting attach
   try {
@@ -199,9 +245,17 @@ export async function ensureAttached(tabId: number, aggressiveRetry: boolean = f
     } catch { /* tab gone */ }
     console.warn(`[opencli] attach failed for tab ${tabId}: url=${finalUrl}, windowId=${finalWindowId}, error=${lastError}`);
 
-    const hint = lastError.includes('chrome-extension://')
-      ? '. Tip: another Chrome extension may be interfering — try disabling other extensions'
-      : '';
+    let hint = '';
+    if (lastError.includes('chrome-extension://')) {
+      // CONSTRAINT: Chrome refuses chrome.debugger in a tab while any of its
+      // frames belongs to another extension (e.g. iCloud Passwords' autofill
+      // frame on a focused code box), and no attach form avoids it. Name the
+      // frame so the caller knows what to keep from appearing.
+      const frames = await foreignExtensionFrames(tabId);
+      hint = frames.length
+        ? `. Blocking frame: ${frames.join(', ')} (Chrome lets no debugger into a tab that holds another extension's frame. Such a frame is often a password manager's list on a focused field, and it stays: close this tab, and next time set that field's value by script instead of focusing it)`
+        : '. Tip: another Chrome extension may be interfering — try disabling other extensions';
+    }
     throw new Error(`attach failed: ${lastError}${hint}`);
   }
   attached.add(tabId);

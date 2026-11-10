@@ -357,6 +357,20 @@ export class Page extends CDPBasePage {
     return sendCommand('exec', { code, frameIndex, ...this._cmdOpts() });
   }
 
+  async visual(
+    op: 'capture' | 'hover' | 'click' | 'focus' | 'type',
+    params: { x?: number; y?: number; text?: string } = {},
+  ): Promise<unknown> {
+    if (!this._page) throw new Error('Visual action requires an exact tab target ID.');
+    return sendCommand('visual', {
+      visualOp: op,
+      ...(params.x !== undefined && { visualX: params.x }),
+      ...(params.y !== undefined && { visualY: params.y }),
+      ...(params.text !== undefined && { text: params.text }),
+      ...this._cmdOpts(),
+    });
+  }
+
   async cdp(method: string, params: Record<string, unknown> = {}): Promise<unknown> {
     return sendCommand('cdp', {
       cdpMethod: method,

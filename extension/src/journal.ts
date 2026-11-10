@@ -62,6 +62,13 @@ function trim(journal: JournalMap): void {
   for (const id of ids.slice(0, ids.length - JOURNAL_MAX_ENTRIES)) delete journal[id];
 }
 
+// A WebAuthn result can carry key material (getCredentials returns each
+// credential's private key), so it is never written to session storage. Its
+// replay reports result_evicted like an oversized one.
+function holdsSecrets(cmd: Command): boolean {
+  return cmd.action === 'cdp' && typeof cmd.cdpMethod === 'string' && cmd.cdpMethod.startsWith('WebAuthn.');
+}
+
 function resultByteLength(result: Result): number {
   try {
     return JSON.stringify(result).length;
@@ -99,7 +106,7 @@ export async function executeWithJournal(
         id,
         ok: false,
         errorCode: 'result_evicted',
-        error: 'Command already executed, but its result was too large to record for replay.',
+        error: 'Command already executed, but its result was not recorded for replay (too large, or it held secrets).',
         errorHint: UNKNOWN_OUTCOME_HINT,
       };
     }
@@ -122,7 +129,7 @@ export async function executeWithJournal(
     } catch (err) {
       result = { id, ok: false, error: err instanceof Error ? err.message : String(err) };
     }
-    journal[id] = resultByteLength(result) <= JOURNAL_RESULT_MAX_BYTES
+    journal[id] = !holdsSecrets(cmd) && resultByteLength(result) <= JOURNAL_RESULT_MAX_BYTES
       ? { status: 'done', ts: Date.now(), result }
       : { status: 'done', ts: Date.now() };
     persist();
