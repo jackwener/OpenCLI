@@ -214,6 +214,7 @@ On startup, if both `my-command.ts` and `my-command.js` exist, the `.js` version
 | [opencli-plugin-rubysec](https://github.com/nullptrKey/opencli-plugin-rubysec) | TS | RubySec advisory archive and advisory article reader |
 | [opencli-plugin-taobao](https://github.com/vecyang1/opencli-plugin-taobao) | JS | Taobao buyer chat history, order history, bought shops, favorites, and keyword-based chat summaries |
 | [opencli-plugin-x-article-publisher](https://github.com/genoooool/opencli-plugin-x-article-publisher) | JS | Publish Markdown with local images as X long-form Articles via OpenCLI and xPoster |
+| [opencli-plugin-claspo](https://github.com/vecyang1/opencli-plugin-claspo) | JS | Claspo widget automation: multi-step appearance extraction, surgical text patching, and live publishing |
 
 ### Community adapter bundles
 

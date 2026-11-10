@@ -182,6 +182,7 @@ cli({
 - `opencli-plugin-rubysec`：RubySec 漏洞归档与单篇漏洞文章读取
 - [`opencli-plugin-taobao`](https://github.com/vecyang1/opencli-plugin-taobao)：淘宝买家聊天记录、历史订单、已购店铺、收藏夹与基于关键词的聊天摘要
 - [`opencli-plugin-x-article-publisher`](https://github.com/genoooool/opencli-plugin-x-article-publisher)：通过 OpenCLI 与 xPoster 将带本地图片的 Markdown 发布为 X 长文
+- [`opencli-plugin-claspo`](https://github.com/vecyang1/opencli-plugin-claspo)：Claspo 弹窗与小部件自动化：多步骤外观提取、精准文案修改与线上发布
 
 ### 社区 adapter 集合
 
