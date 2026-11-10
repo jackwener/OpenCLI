@@ -59,6 +59,7 @@ export function parseModels(carModelsData, status) {
 
 cli({
     site: 'dongchedi',
+    domain: 'dongchedi.com',
     name: 'models',
     access: 'read',
     aliases: ['trims'],

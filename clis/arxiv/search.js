@@ -3,6 +3,7 @@ import { ArgumentError, EmptyResultError } from '@jackwener/opencli/errors';
 import { arxivFetch, normalizeArxivLimit, parseEntries } from './utils.js';
 cli({
     site: 'arxiv',
+    domain: 'arxiv.org',
     name: 'search',
     access: 'read',
     description: 'Search arXiv papers',

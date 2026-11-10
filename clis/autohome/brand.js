@@ -76,6 +76,7 @@ export function parseBrandSeries(html, brandName, limit) {
 
 cli({
     site: 'autohome',
+    domain: 'autohome.com.cn',
     name: 'brand',
     access: 'read',
     aliases: ['series'],

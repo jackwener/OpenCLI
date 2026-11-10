@@ -3,6 +3,7 @@ import { CliError } from '@jackwener/opencli/errors';
 import { itunesFetch, formatDuration, formatDate } from './utils.js';
 cli({
     site: 'apple-podcasts',
+    domain: 'podcasts.apple.com',
     name: 'episodes',
     access: 'read',
     description: 'List recent episodes of an Apple Podcast (use ID from search)',

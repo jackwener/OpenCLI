@@ -52,6 +52,7 @@ export function parseSearchRows(searchData, limit) {
 
 cli({
     site: 'dongchedi',
+    domain: 'dongchedi.com',
     name: 'search',
     access: 'read',
     description: '懂车帝车系搜索（按关键词，返回车系 + 指导价/经销商价）',

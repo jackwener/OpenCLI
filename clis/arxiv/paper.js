@@ -3,6 +3,7 @@ import { EmptyResultError } from '@jackwener/opencli/errors';
 import { arxivFetch, parseEntries } from './utils.js';
 cli({
     site: 'arxiv',
+    domain: 'arxiv.org',
     name: 'paper',
     access: 'read',
     description: 'Get arXiv paper details by ID',

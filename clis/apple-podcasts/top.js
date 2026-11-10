@@ -5,6 +5,7 @@ const CHARTS_URL = 'https://rss.marketingtools.apple.com/api/v2';
 const CHARTS_TIMEOUT_MS = 15_000;
 cli({
     site: 'apple-podcasts',
+    domain: 'podcasts.apple.com',
     name: 'top',
     access: 'read',
     description: 'Top podcasts chart on Apple Podcasts',

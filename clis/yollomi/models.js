@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 import { IMAGE_MODELS, VIDEO_MODELS, TOOL_MODELS } from './utils.js';
 cli({
     site: 'yollomi',
+    domain: 'yollomi.com',
     name: 'models',
     access: 'read',
     description: 'List available Yollomi AI models (image, video, tools)',

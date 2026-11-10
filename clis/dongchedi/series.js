@@ -69,6 +69,7 @@ export function parseSeries(pp, seriesId) {
 
 cli({
     site: 'dongchedi',
+    domain: 'dongchedi.com',
     name: 'series',
     access: 'read',
     aliases: ['detail'],

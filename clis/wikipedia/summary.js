@@ -3,6 +3,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 import { formatSummaryRow, wikiFetch } from './utils.js';
 cli({
     site: 'wikipedia',
+    domain: 'wikipedia.org',
     name: 'summary',
     access: 'read',
     description: 'Get Wikipedia article summary',

@@ -88,6 +88,7 @@ export function parseSpecs(overviewData, seriesId) {
 
 cli({
     site: 'dongchedi',
+    domain: 'dongchedi.com',
     name: 'specs',
     access: 'read',
     aliases: ['config'],

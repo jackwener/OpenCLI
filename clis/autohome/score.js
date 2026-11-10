@@ -70,6 +70,7 @@ export function parseScore(pp, seriesId) {
 
 cli({
     site: 'autohome',
+    domain: 'autohome.com.cn',
     name: 'score',
     access: 'read',
     aliases: ['koubei', 'rating'],
