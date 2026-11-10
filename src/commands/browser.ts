@@ -16,6 +16,7 @@ import { parseFilter, shapeMatchesFilter } from '../browser/shape-filter.js';
 import { inferShape } from '../browser/shape.js';
 import { TargetError, type TargetErrorCode } from '../browser/target-errors.js';
 import { getAttributesResolvedJs, getTextResolvedJs, getValueResolvedJs, isAutocompleteResolvedJs, resolveTargetJs, selectResolvedJs, type ResolveOptions, type TargetMatchLevel } from '../browser/target-resolver.js';
+import { parseDurationMs } from '../duration.js';
 import { EXIT_CODES, getErrorMessage } from '../errors.js';
 import { installCommanderNamespaceStructuredHelp } from '../help.js';
 import { log } from '../logger.js';
@@ -44,17 +45,6 @@ type BrowserNetworkItem = {
   /** Sanitized request context captured by CDP. */
   request?: SafeNetworkRequest;
 };
-
-function parseDurationMs(raw: unknown, flagName: string): number | null | { error: string } {
-  if (raw === undefined || raw === null || raw === '') return null;
-  const str = String(raw).trim();
-  const match = /^(\d+(?:\.\d+)?)(ms|s|m|h)?$/.exec(str);
-  if (!match) return { error: `--${flagName} must be a duration like 500ms, 30s, 2m, got "${str}"` };
-  const value = Number.parseFloat(match[1]);
-  const unit = match[2] ?? 'ms';
-  const multiplier = unit === 'h' ? 3_600_000 : unit === 'm' ? 60_000 : unit === 's' ? 1_000 : 1;
-  return Math.round(value * multiplier);
-}
 
 function timestampFromRaw(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : Date.now();

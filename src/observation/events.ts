@@ -110,3 +110,9 @@ export interface ObservationTraceReceipt {
     exitCode?: number;
   };
 }
+
+/** Missing/zero status means no response was recorded, so include it in failure evidence. */
+export function isFailedNetworkStatus(status: unknown): boolean {
+  return status === undefined || status === 0
+    || (typeof status === 'number' && Number.isInteger(status) && status >= 400 && status <= 599);
+}

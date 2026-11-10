@@ -1,7 +1,7 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import type { ObservationEvent, ObservationExportResult, ObservationExportStatus, ObservationTraceReceipt } from './events.js';
+import { isFailedNetworkStatus, type ObservationEvent, type ObservationExportResult, type ObservationExportStatus, type ObservationTraceReceipt } from './events.js';
 import { ObservationSession } from './session.js';
 import { redactValue } from './redaction.js';
 import { pruneTraceArtifacts, traceExpiresAt, type TraceRetentionPolicyInput } from './retention.js';
@@ -155,7 +155,7 @@ function renderSummary(
   const errorEvents = events.filter((event) => event.stream === 'error').slice(-20).reverse();
   const failedNetwork = events
     .filter((event): event is Extract<ObservationEvent, { stream: 'network' }> => event.stream === 'network')
-    .filter((event) => event.status === undefined || event.status === 0 || event.status >= 400)
+    .filter((event) => isFailedNetworkStatus(event.status))
     .slice(-20)
     .reverse();
   const suspiciousConsole = events

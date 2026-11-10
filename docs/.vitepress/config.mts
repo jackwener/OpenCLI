@@ -36,6 +36,7 @@ export default defineConfig({
                 { text: 'Browser Bridge', link: '/guide/browser-bridge' },
                 { text: 'Remote Orchestration', link: '/guide/remote-orchestration' },
                 { text: 'Troubleshooting', link: '/guide/troubleshooting' },
+                { text: 'Trace History', link: '/guide/trace-history' },
                 { text: 'Extending OpenCLI', link: '/guide/extending-opencli' },
                 { text: 'Plugins', link: '/guide/plugins' },
               ],

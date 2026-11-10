@@ -110,6 +110,15 @@ Use OpenCLI directly when you want a reliable command instead of a live browser 
 - `opencli <site> <command>` runs a built-in or generated adapter.
 - `opencli doctor` helps diagnose browser connectivity.
 
+### Inspect saved execution traces
+
+Use `opencli trace list --status failure --since 24h` to find retained runs and
+`opencli trace show <trace-id> --issues` to inspect their captured events offline.
+Trace history supports profile aliases, exact IDs or unique prefixes, event
+filters, pagination, and standard output formats. Capture evidence with `--trace on`
+or `--trace retain-on-failure`. See [trace history](./docs/guide/trace-history.md)
+for profile selection, payload handling, and read diagnostics.
+
 ## Extending OpenCLI
 
 If you want to add your own commands, start with the [Extending OpenCLI guide](./docs/guide/extending-opencli.md). README keeps this short; the guide covers the directory layout, source-control model, and install commands.

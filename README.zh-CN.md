@@ -108,6 +108,14 @@ opencli bilibili hot --limit 5
 | 本地修改官方 adapter | `opencli adapter eject <site>` + `opencli adapter reset <site>` |
 | 发布或安装第三方命令 | `opencli plugin install github:user/repo` |
 
+### 离线查看执行追踪
+
+执行命令时加上 `--trace on` 或 `--trace retain-on-failure` 可保留追踪记录。
+使用 `opencli trace list --status failure --since 24h` 查找失败的执行，
+再运行 `opencli trace show <trace-id> --issues` 查看问题事件。
+支持配置文件别名、唯一 ID 前缀、事件筛选、分页和 标准输出格式。
+详细用法见[追踪历史指南](./docs/guide/trace-history.md)。
+
 ## 给 AI Agent
 
 OpenCLI 的 browser 命令是给 AI Agent 用的——不是手动执行的。把 skill 安装到你的 AI Agent（Claude Code、Cursor 等）中，Agent 就能用你的已登录 Chrome 会话替你操作网站。
