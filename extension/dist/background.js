@@ -134,6 +134,44 @@ let frameTargetCleanupRegistered = false;
 const CDP_RESPONSE_BODY_CAPTURE_LIMIT = 8 * 1024 * 1024;
 const CDP_REQUEST_BODY_CAPTURE_LIMIT = 1 * 1024 * 1024;
 const networkCaptures = /* @__PURE__ */ new Map();
+const openDialogs = /* @__PURE__ */ new Map();
+const acceptBeforeUnload = /* @__PURE__ */ new Set();
+function assertNoOpenDialog(tabId) {
+  const dialog = openDialogs.get(tabId);
+  if (!dialog) return;
+  const text = dialog.type === "beforeunload" ? "Leave site?" : dialog.message;
+  throw new Error(
+    `JavaScript dialog is open (${dialog.type}: ${JSON.stringify(text)}) on ${dialog.url || `tab ${tabId}`}; the page is blocked until it is accepted or dismissed`
+  );
+}
+async function acceptReleaseDialog(tabId, dialog) {
+  console.warn(`[opencli] Accepting beforeunload prompt on released tab ${tabId} (${dialog.url})`);
+  try {
+    await sendDebuggerCommand({ tabId }, "Page.handleJavaScriptDialog", { accept: true }, CDP_PROBE_TIMEOUT_MS);
+  } catch (err) {
+    console.warn(`[opencli] Could not accept beforeunload prompt on tab ${tabId}: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+async function abandonPage(tabId, leave, settled, timeoutMs = 5e3) {
+  acceptBeforeUnload.add(tabId);
+  try {
+    await ensureAttached(tabId).catch((err) => {
+      console.warn(`[opencli] Releasing tab ${tabId} without a debugger: ${err instanceof Error ? err.message : String(err)}`);
+    });
+    const pending = openDialogs.get(tabId);
+    if (pending?.type === "beforeunload") await acceptReleaseDialog(tabId, pending);
+    await leave();
+    const deadline = Date.now() + timeoutMs;
+    let done = await settled();
+    while (!done && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      done = await settled();
+    }
+    if (!done) console.warn(`[opencli] Tab ${tabId} did not leave its page within ${timeoutMs}ms during release`);
+  } finally {
+    acceptBeforeUnload.delete(tabId);
+  }
+}
 const CDP_COMMAND_TIMEOUT_MS = 6e4;
 const CDP_PROBE_TIMEOUT_MS = 2e3;
 async function sendDebuggerCommand(target, method, params, timeoutMs = CDP_COMMAND_TIMEOUT_MS) {
@@ -171,6 +209,7 @@ async function ensureAttached(tabId, aggressiveRetry = false) {
     throw new Error(`Tab ${tabId} no longer exists`);
   }
   if (attached.has(tabId)) {
+    if (openDialogs.has(tabId)) return;
     try {
       await sendDebuggerCommand({ tabId }, "Runtime.evaluate", {
         expression: "1",
@@ -229,6 +268,10 @@ async function ensureAttached(tabId, aggressiveRetry = false) {
     await sendDebuggerCommand({ tabId }, "Runtime.enable");
   } catch {
   }
+  try {
+    await sendDebuggerCommand({ tabId }, "Page.enable");
+  } catch {
+  }
   if (preservedNetworkCapture) {
     try {
       await sendDebuggerCommand({ tabId }, "Network.enable");
@@ -240,6 +283,7 @@ async function ensureAttached(tabId, aggressiveRetry = false) {
 async function evaluate(tabId, expression, aggressiveRetry = false, timeoutMs = CDP_COMMAND_TIMEOUT_MS) {
   try {
     await ensureAttached(tabId, aggressiveRetry);
+    assertNoOpenDialog(tabId);
     const result = await sendDebuggerCommand({ tabId }, "Runtime.evaluate", {
       expression,
       returnByValue: true,
@@ -514,6 +558,7 @@ async function sendCommandInFrameTarget(tabId, frameId, method, params = {}, agg
 }
 async function insertText(tabId, text) {
   await ensureAttached(tabId);
+  assertNoOpenDialog(tabId);
   await sendDebuggerCommand({ tabId }, "Input.insertText", { text });
 }
 function registerFrameTracking() {
@@ -556,6 +601,7 @@ async function getFrameTree(tabId) {
 }
 async function evaluateInFrame(tabId, expression, frameId, aggressiveRetry = false, timeoutMs = CDP_COMMAND_TIMEOUT_MS) {
   await ensureAttached(tabId, aggressiveRetry);
+  assertNoOpenDialog(tabId);
   await sendDebuggerCommand({ tabId }, "Runtime.enable").catch(() => {
   });
   const contexts = tabFrameContexts.get(tabId);
@@ -679,6 +725,7 @@ async function detach(tabId) {
   attached.delete(tabId);
   networkCaptures.delete(tabId);
   tabFrameContexts.delete(tabId);
+  openDialogs.delete(tabId);
   try {
     await chrome.debugger.detach({ tabId });
   } catch {
@@ -689,6 +736,7 @@ function registerListeners() {
     attached.delete(tabId);
     networkCaptures.delete(tabId);
     tabFrameContexts.delete(tabId);
+    openDialogs.delete(tabId);
     clearFrameTargetsForTab(tabId);
   });
   chrome.debugger.onDetach.addListener((source) => {
@@ -696,10 +744,23 @@ function registerListeners() {
       attached.delete(source.tabId);
       networkCaptures.delete(source.tabId);
       tabFrameContexts.delete(source.tabId);
+      openDialogs.delete(source.tabId);
       clearFrameTargetsForTab(source.tabId);
       return;
     }
     if (source.targetId) clearFrameTarget(source.targetId);
+  });
+  chrome.debugger.onEvent.addListener((source, method, params) => {
+    const tabId = source.tabId;
+    if (!tabId) return;
+    if (method === "Page.javascriptDialogOpening") {
+      const dialog = { type: String(params?.type || "alert"), message: String(params?.message || ""), url: String(params?.url || "") };
+      openDialogs.set(tabId, dialog);
+      console.warn(`[opencli] JavaScript dialog opened on tab ${tabId}: ${dialog.type} ${dialog.url}`);
+      if (dialog.type === "beforeunload" && acceptBeforeUnload.has(tabId)) void acceptReleaseDialog(tabId, dialog);
+    } else if (method === "Page.javascriptDialogClosed") {
+      openDialogs.delete(tabId);
+    }
   });
   chrome.tabs.onUpdated.addListener(async (tabId, info) => {
     if (info.url && !isDebuggableUrl$1(info.url)) {
@@ -1316,6 +1377,16 @@ function scheduleIdleAlarm(leaseKey, timeout) {
     }
   } catch {
   }
+}
+function tabSettled(tabId, url) {
+  return async () => {
+    try {
+      const tab = await chrome.tabs.get(tabId);
+      return url !== void 0 && tab.url === url;
+    } catch {
+      return true;
+    }
+  };
 }
 async function safeDetach(tabId) {
   try {
@@ -2138,6 +2209,7 @@ function classifyExtensionError(message) {
   if (/CDP command .* timed out/.test(message)) return "cdp_timeout";
   if (/attach failed|Debugger is not attached/.test(message)) return "attach_failed";
   if (/No tab with id|no longer exists|No window with id/.test(message)) return "tab_gone";
+  if (/JavaScript dialog is open/.test(message)) return "javascript_dialog_open";
   return void 0;
 }
 function errorResult(id, err) {
@@ -2468,6 +2540,7 @@ async function handleCdp(cmd, leaseKey) {
   try {
     const aggressive = getSurfaceFromKey(leaseKey) === "browser";
     await ensureAttached(tabId, aggressive);
+    if (cmd.cdpMethod !== "Page.handleJavaScriptDialog") assertNoOpenDialog(tabId);
     const params = cmd.cdpParams ?? {};
     const routeFrameId = typeof params.frameId === "string" && params.sessionId === "target" ? params.frameId : void 0;
     const routeTargetUrl = typeof params.targetUrl === "string" ? params.targetUrl : void 0;
@@ -2599,23 +2672,31 @@ async function releaseLease(leaseKey, reason = "released") {
       const hasOtherOwnedLease = [...automationSessions.entries()].some(
         ([otherLease, otherSession]) => otherLease !== leaseKey && otherSession.owned && otherSession.windowId === session.windowId && otherSession.preferredTabId !== null
       );
-      await safeDetach(tabId);
       evictTab(tabId);
-      if (hasOtherOwnedLease) {
+      const closeTab = () => abandonPage(tabId, async () => {
         await chrome.tabs.remove(tabId).catch(() => {
         });
+      }, tabSettled(tabId));
+      if (hasOtherOwnedLease) {
+        await closeTab();
+        await safeDetach(tabId);
         console.log(`[opencli] Released owned tab lease ${tabId} (session=${session.session}, surface=${session.surface}, ${reason})`);
       } else {
         try {
           const role = getOwnedWindowRole(leaseKey);
           const idleUrl = role === "interactive" ? await parkIdleInteractiveTab(tabId, session.windowId) : null;
-          const tab = await chrome.tabs.update(tabId, { url: idleUrl ?? BLANK_PAGE, active: true });
-          const group = await ensureOwnedContainerGroup(getOwnedWindowRole(leaseKey), session.windowId, [tab.id ?? tabId]);
+          const target = idleUrl ?? BLANK_PAGE;
+          let tab;
+          await abandonPage(tabId, async () => {
+            tab = await chrome.tabs.update(tabId, { url: target, active: true });
+          }, tabSettled(tabId, target));
+          await safeDetach(tabId);
+          const group = await ensureOwnedContainerGroup(role, session.windowId, [tab?.id ?? tabId]);
           if (group) session.windowId = group.windowId;
           console.log(`[opencli] Released owned tab lease ${tabId} as reusable placeholder (session=${session.session}, surface=${session.surface}, ${reason})`);
         } catch {
-          await chrome.tabs.remove(tabId).catch(() => {
-          });
+          await closeTab();
+          await safeDetach(tabId);
           console.log(`[opencli] Released owned tab lease ${tabId} (session=${session.session}, surface=${session.surface}, ${reason})`);
         }
       }

@@ -118,7 +118,11 @@ function createChromeMock() {
       query,
       create,
       update,
-      remove: vi.fn(async (_tabId: number) => {}),
+      // A removed tab is gone, so a release that waits for its tab to leave sees it settle.
+      remove: vi.fn(async (tabId: number) => {
+        const index = tabs.findIndex((entry) => entry.id === tabId);
+        if (index >= 0) tabs.splice(index, 1);
+      }),
       get: vi.fn(async (tabId: number) => {
         const tab = tabs.find((entry) => entry.id === tabId);
         if (!tab) throw new Error(`Unknown tab ${tabId}`);
@@ -442,6 +446,8 @@ describe('background tab isolation', () => {
 
     const sendCommandInFrameTarget = vi.fn(async () => ({ nodes: [] }));
     vi.doMock('./cdp', () => ({
+      abandonPage: vi.fn(async (_tabId: number, leave: () => Promise<void>) => { await leave(); }),
+      assertNoOpenDialog: vi.fn(),
       registerListeners: vi.fn(),
       registerFrameTracking: vi.fn(),
       hasActiveNetworkCapture: vi.fn(() => false),
@@ -487,6 +493,8 @@ describe('background tab isolation', () => {
       elapsedMs: 12,
     }));
     vi.doMock('./cdp', () => ({
+      abandonPage: vi.fn(async (_tabId: number, leave: () => Promise<void>) => { await leave(); }),
+      assertNoOpenDialog: vi.fn(),
       registerListeners: vi.fn(),
       registerFrameTracking: vi.fn(),
       hasActiveNetworkCapture: vi.fn(() => false),
@@ -523,6 +531,8 @@ describe('background tab isolation', () => {
 
     const evaluateInFrame = vi.fn(async () => 'frame-result');
     vi.doMock('./cdp', () => ({
+      abandonPage: vi.fn(async (_tabId: number, leave: () => Promise<void>) => { await leave(); }),
+      assertNoOpenDialog: vi.fn(),
       registerListeners: vi.fn(),
       registerFrameTracking: vi.fn(),
       hasActiveNetworkCapture: vi.fn(() => false),
@@ -582,6 +592,8 @@ describe('background tab isolation', () => {
 
     const evaluateAsync = vi.fn(async () => 'main-result');
     vi.doMock('./cdp', () => ({
+      abandonPage: vi.fn(async (_tabId: number, leave: () => Promise<void>) => { await leave(); }),
+      assertNoOpenDialog: vi.fn(),
       registerListeners: vi.fn(),
       registerFrameTracking: vi.fn(),
       hasActiveNetworkCapture: vi.fn(() => false),
@@ -1125,6 +1137,8 @@ describe('background tab isolation', () => {
 
     const detachMock = vi.fn(async () => {});
     vi.doMock('./cdp', () => ({
+      abandonPage: vi.fn(async (_tabId: number, leave: () => Promise<void>) => { await leave(); }),
+      assertNoOpenDialog: vi.fn(),
       registerListeners: vi.fn(),
       hasActiveNetworkCapture: vi.fn(() => true),
       detach: detachMock,
@@ -1354,6 +1368,8 @@ describe('background tab isolation', () => {
     let inFlight = 0;
     let maxInFlight = 0;
     vi.doMock('./cdp', () => ({
+      abandonPage: vi.fn(async (_tabId: number, leave: () => Promise<void>) => { await leave(); }),
+      assertNoOpenDialog: vi.fn(),
       registerListeners: vi.fn(),
       evaluateAsync: vi.fn(async (tabId: number, code: string) => {
         inFlight++;
@@ -1392,6 +1408,8 @@ describe('background tab isolation', () => {
     let inFlight = 0;
     let maxInFlight = 0;
     vi.doMock('./cdp', () => ({
+      abandonPage: vi.fn(async (_tabId: number, leave: () => Promise<void>) => { await leave(); }),
+      assertNoOpenDialog: vi.fn(),
       registerListeners: vi.fn(),
       evaluateAsync: vi.fn(async (tabId: number, code: string) => {
         inFlight++;
@@ -2480,6 +2498,8 @@ describe('background tab isolation', () => {
     const { chrome } = createChromeMock();
     vi.stubGlobal('chrome', chrome);
     vi.doMock('./cdp', () => ({
+      abandonPage: vi.fn(async (_tabId: number, leave: () => Promise<void>) => { await leave(); }),
+      assertNoOpenDialog: vi.fn(),
       registerListeners: vi.fn(),
       registerFrameTracking: vi.fn(),
       hasActiveNetworkCapture: vi.fn(() => false),
