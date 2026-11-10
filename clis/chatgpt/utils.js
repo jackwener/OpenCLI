@@ -74,8 +74,8 @@ function debugChatGPTModel(message) {
 }
 
 const CHATGPT_TOOL_OPTIONS = {
-    'deep-research': { label: 'Deep Research', labels: ['深度研究', 'Deep Research'] },
-    'web-search': { label: 'Web Search', labels: ['网页搜索', '搜索', 'Web Search', 'Search'] },
+    'deep-research': { label: 'Deep Research', labels: ['深入研究', '深度研究', 'Deep Research'] },
+    'web-search': { label: 'Web Search', labels: ['網頁搜尋', '网页搜索', '搜索', 'Web Search', 'Search'] },
 };
 export const CHATGPT_TOOL_CHOICES = Object.keys(CHATGPT_TOOL_OPTIONS);
 
