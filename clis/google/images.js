@@ -7,6 +7,7 @@
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { gotoResilient } from '@jackwener/opencli/browser/utils';
 import {
     requireBoundedInteger,
     requireRows,
@@ -16,40 +17,8 @@ import {
     unwrapBrowserResult,
 } from '../_shared/search-adapter.js';
 
-function isNavigationRejected(error) {
-    return /Navigation rejected/i.test(String(error?.message || error));
-}
-
 async function navigateGoogleImages(page, url) {
-    try {
-        await page.goto(url);
-        return;
-    } catch (error) {
-        if (!isNavigationRejected(error)) {
-            throw error;
-        }
-    }
-
-    if (typeof page.closeWindow === 'function') {
-        await page.closeWindow().catch(() => {});
-    }
-
-    try {
-        await page.goto(url);
-        return;
-    } catch (error) {
-        if (!isNavigationRejected(error)) {
-            throw error;
-        }
-        if (typeof page.newTab === 'function' && typeof page.setActivePage === 'function') {
-            const pageId = await page.newTab(url);
-            if (pageId) {
-                await page.setActivePage(pageId);
-                return;
-            }
-        }
-        throw error;
-    }
+    await gotoResilient(page, url);
 }
 
 export async function extractGoogleImageRows(maxRows = 20, resolveOriginal = true, docArg) {

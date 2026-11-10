@@ -227,10 +227,12 @@ export class Page extends CDPBasePage {
     return Array.isArray(result) ? result : [];
   }
 
-  async newTab(url?: string): Promise<string | undefined> {
+  async newTab(url?: string, options?: { replace?: boolean }): Promise<string | undefined> {
     const result = await sendCommandFull('tabs', {
       op: 'new',
       ...(url !== undefined && { url }),
+      // Opt-in: the extension closes the tab this lease is leaving, which only it can identify.
+      ...(options?.replace === true && { replace: true }),
       ...this._sessionOpts(),
     });
     this._lastUrl = null;

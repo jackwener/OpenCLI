@@ -118,7 +118,11 @@ function createChromeMock() {
       query,
       create,
       update,
-      remove: vi.fn(async (_tabId: number) => {}),
+      // A removed tab is gone, so a release that waits for its tab to leave sees it settle.
+      remove: vi.fn(async (tabId: number) => {
+        const index = tabs.findIndex((entry) => entry.id === tabId);
+        if (index >= 0) tabs.splice(index, 1);
+      }),
       get: vi.fn(async (tabId: number) => {
         const tab = tabs.find((entry) => entry.id === tabId);
         if (!tab) throw new Error(`Unknown tab ${tabId}`);
@@ -442,6 +446,8 @@ describe('background tab isolation', () => {
 
     const sendCommandInFrameTarget = vi.fn(async () => ({ nodes: [] }));
     vi.doMock('./cdp', () => ({
+      abandonPage: vi.fn(async (_tabId: number, leave: () => Promise<void>) => { await leave(); }),
+      assertNoOpenDialog: vi.fn(),
       registerListeners: vi.fn(),
       registerFrameTracking: vi.fn(),
       hasActiveNetworkCapture: vi.fn(() => false),
@@ -487,6 +493,8 @@ describe('background tab isolation', () => {
       elapsedMs: 12,
     }));
     vi.doMock('./cdp', () => ({
+      abandonPage: vi.fn(async (_tabId: number, leave: () => Promise<void>) => { await leave(); }),
+      assertNoOpenDialog: vi.fn(),
       registerListeners: vi.fn(),
       registerFrameTracking: vi.fn(),
       hasActiveNetworkCapture: vi.fn(() => false),
@@ -523,6 +531,8 @@ describe('background tab isolation', () => {
 
     const evaluateInFrame = vi.fn(async () => 'frame-result');
     vi.doMock('./cdp', () => ({
+      abandonPage: vi.fn(async (_tabId: number, leave: () => Promise<void>) => { await leave(); }),
+      assertNoOpenDialog: vi.fn(),
       registerListeners: vi.fn(),
       registerFrameTracking: vi.fn(),
       hasActiveNetworkCapture: vi.fn(() => false),
@@ -582,6 +592,8 @@ describe('background tab isolation', () => {
 
     const evaluateAsync = vi.fn(async () => 'main-result');
     vi.doMock('./cdp', () => ({
+      abandonPage: vi.fn(async (_tabId: number, leave: () => Promise<void>) => { await leave(); }),
+      assertNoOpenDialog: vi.fn(),
       registerListeners: vi.fn(),
       registerFrameTracking: vi.fn(),
       hasActiveNetworkCapture: vi.fn(() => false),
@@ -634,6 +646,105 @@ describe('background tab isolation', () => {
 
     expect(result.ok).toBe(true);
     expect(create).toHaveBeenCalledWith({ windowId: 1, url: 'https://new.example', active: true });
+  });
+
+  // gotoResilient's rejected-navigation fallback: the lease moves to the new tab, and
+  // releaseLease only ever releases preferredTabId, so without `replace` the outgoing tab stays
+  // open for good. One scheduled run on 2026-09-17 ended with 11 of them. The CLI cannot name
+  // that tab — its page identity is assigned from a successful navigate, and the navigations that
+  // reach this path were rejected — so the lease's own record is the only source.
+  it('closes the tab the lease is leaving when tab-new asks to replace it', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    mod.__test__.setAutomationWindowId(adapterKey('twitter'), 1);
+    mod.__test__.setSession(adapterKey('twitter'), { windowId: 1, owned: true, preferredTabId: 1 });
+
+    const result = await mod.__test__.handleTabs(
+      { id: 'replace', action: 'tabs', op: 'new', url: 'https://new.example', replace: true, session: adapterKey('twitter') },
+      adapterKey('twitter'),
+    );
+
+    expect(result.ok).toBe(true);
+    expect(chrome.tabs.remove).toHaveBeenCalledWith(1);
+    expect(mod.__test__.getSession(adapterKey('twitter'))?.preferredTabId).toBe(10);
+  });
+
+  it('leaves the previous tab open when tab-new does not ask to replace it', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    mod.__test__.setAutomationWindowId(adapterKey('twitter'), 1);
+    mod.__test__.setSession(adapterKey('twitter'), { windowId: 1, owned: true, preferredTabId: 1 });
+
+    const result = await mod.__test__.handleTabs(
+      { id: 'plain', action: 'tabs', op: 'new', url: 'https://new.example', session: adapterKey('twitter') },
+      adapterKey('twitter'),
+    );
+
+    expect(result.ok).toBe(true);
+    expect(chrome.tabs.remove).not.toHaveBeenCalled();
+    expect(mod.__test__.getSession(adapterKey('twitter'))?.preferredTabId).toBe(10);
+  });
+
+  // Two commands can share one lease (a persistent site session), and tabs.create is awaited in
+  // the middle of the transition. Unserialized, both would capture the same outgoing tab, both
+  // would move the lease, and the loser's new tab would be orphaned — the exact leak `replace`
+  // exists to close.
+  it('serializes overlapping replacements so no new tab is orphaned', async () => {
+    const { chrome } = createChromeMock();
+    const realCreate = chrome.tabs.create;
+    let release: (() => void) | undefined;
+    const firstCreateEntered = new Promise<void>((resolve) => { release = resolve; });
+    let creates = 0;
+    chrome.tabs.create = vi.fn(async (args: { windowId?: number; url?: string; active?: boolean }) => {
+      creates += 1;
+      if (creates === 1) { release?.(); await new Promise((r) => setTimeout(r, 20)); }
+      return realCreate(args);
+    });
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    mod.__test__.setAutomationWindowId(adapterKey('twitter'), 1);
+    mod.__test__.setSession(adapterKey('twitter'), { windowId: 1, owned: true, preferredTabId: 1 });
+
+    const first = mod.__test__.handleTabs(
+      { id: 'r1', action: 'tabs', op: 'new', url: 'https://one.example', replace: true, session: adapterKey('twitter') },
+      adapterKey('twitter'),
+    );
+    await firstCreateEntered;
+    const second = mod.__test__.handleTabs(
+      { id: 'r2', action: 'tabs', op: 'new', url: 'https://two.example', replace: true, session: adapterKey('twitter') },
+      adapterKey('twitter'),
+    );
+    const [a, b] = await Promise.all([first, second]);
+
+    expect(a.ok && b.ok).toBe(true);
+    // The second replacement saw the first one's tab, not the original: 10 supersedes 1, 11
+    // supersedes 10, and only 11 is left holding the lease.
+    expect(chrome.tabs.remove).toHaveBeenCalledWith(1);
+    expect(chrome.tabs.remove).toHaveBeenCalledWith(10);
+    expect(mod.__test__.getSession(adapterKey('twitter'))?.preferredTabId).toBe(11);
+  });
+
+  it('replaces nothing when the lease held no tab, and never the tab it just created', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    mod.__test__.setAutomationWindowId(adapterKey('twitter'), 1);
+    mod.__test__.setSession(adapterKey('twitter'), { windowId: 1, owned: true, preferredTabId: null });
+
+    const result = await mod.__test__.handleTabs(
+      { id: 'replace-none', action: 'tabs', op: 'new', url: 'https://new.example', replace: true, session: adapterKey('twitter') },
+      adapterKey('twitter'),
+    );
+
+    expect(result.ok).toBe(true);
+    expect(chrome.tabs.remove).not.toHaveBeenCalled();
+    expect(mod.__test__.getSession(adapterKey('twitter'))?.preferredTabId).toBe(10);
   });
 
   it('reuses the initial container tab for first tab-new lease instead of leaving a blank tab', async () => {
@@ -1125,6 +1236,8 @@ describe('background tab isolation', () => {
 
     const detachMock = vi.fn(async () => {});
     vi.doMock('./cdp', () => ({
+      abandonPage: vi.fn(async (_tabId: number, leave: () => Promise<void>) => { await leave(); }),
+      assertNoOpenDialog: vi.fn(),
       registerListeners: vi.fn(),
       hasActiveNetworkCapture: vi.fn(() => true),
       detach: detachMock,
@@ -1354,6 +1467,8 @@ describe('background tab isolation', () => {
     let inFlight = 0;
     let maxInFlight = 0;
     vi.doMock('./cdp', () => ({
+      abandonPage: vi.fn(async (_tabId: number, leave: () => Promise<void>) => { await leave(); }),
+      assertNoOpenDialog: vi.fn(),
       registerListeners: vi.fn(),
       evaluateAsync: vi.fn(async (tabId: number, code: string) => {
         inFlight++;
@@ -1392,6 +1507,8 @@ describe('background tab isolation', () => {
     let inFlight = 0;
     let maxInFlight = 0;
     vi.doMock('./cdp', () => ({
+      abandonPage: vi.fn(async (_tabId: number, leave: () => Promise<void>) => { await leave(); }),
+      assertNoOpenDialog: vi.fn(),
       registerListeners: vi.fn(),
       evaluateAsync: vi.fn(async (tabId: number, code: string) => {
         inFlight++;
@@ -2480,6 +2597,8 @@ describe('background tab isolation', () => {
     const { chrome } = createChromeMock();
     vi.stubGlobal('chrome', chrome);
     vi.doMock('./cdp', () => ({
+      abandonPage: vi.fn(async (_tabId: number, leave: () => Promise<void>) => { await leave(); }),
+      assertNoOpenDialog: vi.fn(),
       registerListeners: vi.fn(),
       registerFrameTracking: vi.fn(),
       hasActiveNetworkCapture: vi.fn(() => false),
