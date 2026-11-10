@@ -617,6 +617,7 @@ function postInstallLifecycle(pluginDir: string): void {
  */
 function postInstallMonorepoLifecycle(repoDir: string, pluginDirs: string[]): void {
   installDependencies(repoDir);
+  linkHostOpencli(repoDir);
   for (const pluginDir of pluginDirs) {
     if (pluginDir !== repoDir && hasOwnDependencies(pluginDir)) {
       installDependencies(pluginDir);
