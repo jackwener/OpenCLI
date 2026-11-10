@@ -17,7 +17,7 @@ import { parseFilter, shapeMatchesFilter } from '../browser/shape-filter.js';
 import { inferShape } from '../browser/shape.js';
 import { TargetError, type TargetErrorCode } from '../browser/target-errors.js';
 import { getAttributesResolvedJs, getTextResolvedJs, getValueResolvedJs, isAutocompleteResolvedJs, resolveTargetJs, selectResolvedJs, type ResolveOptions, type TargetMatchLevel } from '../browser/target-resolver.js';
-import { ArgumentError, EXIT_CODES, getErrorMessage } from '../errors.js';
+import { CliError, EXIT_CODES, getErrorMessage } from '../errors.js';
 import { installCommanderNamespaceStructuredHelp } from '../help.js';
 import { log } from '../logger.js';
 import type { BrowserWindowMode } from '../runtime.js';
@@ -1881,8 +1881,6 @@ export function registerBrowserCommands(program: Command): Command {
     .option('--summary', 'Aggregate captured requests by endpoint or origin without emitting bodies')
     .option('--group-by <mode>', 'With --summary: endpoint (default) or origin')
     .option('--sort <order>', 'With --summary: requests (default), failures, size, or recent')
-    .option('--offset <n>', 'With --summary: skip n groups (default: 0)')
-    .option('--limit <n>', 'With --summary: show 1-500 groups (default: 20); totals cover all matches')
     .option('--detail <key>', 'Emit full body for the entry with this key')
     .option('--all', 'Include static resources (js/css/images/telemetry)')
     .option('--raw', 'Emit full bodies for every entry (skip shape preview)')
@@ -1898,19 +1896,11 @@ export function registerBrowserCommands(program: Command): Command {
       let summaryOptions: Required<NetworkSummaryOptions> | undefined;
       if (opts.summary) {
         if (opts.static || opts.follow || opts.detail !== undefined || opts.raw) {
-          throw new ArgumentError('--summary cannot be combined with --static, --follow, --detail, or --raw.');
+          throw new CliError('usage_error', '--summary cannot be combined with --static, --follow, --detail, or --raw.', undefined, EXIT_CODES.USAGE_ERROR);
         }
-        const integer = (value: unknown, flag: string): number | undefined => {
-          if (value === undefined) return undefined;
-          if (typeof value !== 'string' || !/^\d+$/.test(value)) throw new ArgumentError(`--${flag} must be an integer.`);
-          return Number(value);
-        };
-        summaryOptions = resolveNetworkSummaryOptions({
-          groupBy: opts.groupBy, sort: opts.sort,
-          offset: integer(opts.offset, 'offset'), limit: integer(opts.limit, 'limit'),
-        });
-      } else if (opts.groupBy !== undefined || opts.sort !== undefined || opts.offset !== undefined || opts.limit !== undefined) {
-        throw new ArgumentError('--group-by, --sort, --offset, and --limit require --summary.');
+        summaryOptions = resolveNetworkSummaryOptions({ groupBy: opts.groupBy, sort: opts.sort });
+      } else if (opts.groupBy !== undefined || opts.sort !== undefined) {
+        throw new CliError('usage_error', '--group-by and --sort require --summary.', undefined, EXIT_CODES.USAGE_ERROR);
       }
       if (opts.static && (opts.follow || opts.detail || opts.raw || opts.filter)) {
         emitFailure({ code: 'usage_error', message: '--static cannot be combined with --follow, --detail, --raw or --filter.' });
@@ -2154,8 +2144,8 @@ export function registerBrowserCommands(program: Command): Command {
       }
 
       if (summaryOptions) {
-        envelope.capture_source = reusedCache ? 'cache' : rawItems.length ? 'live' : 'empty';
-        if (reusedCacheSavedAt) envelope.cache_saved_at = reusedCacheSavedAt;
+        envelope.networkSource = reusedCache ? 'cache' : rawItems.length ? 'live' : 'empty';
+        if (reusedCacheSavedAt) envelope.networkSavedAt = reusedCacheSavedAt;
         envelope.summary = summarizeNetwork(visible.map((s) => s.entry), summaryOptions);
         envelope.detail_hint = `Use an example_keys value with opencli browser network --detail <key> --session ${JSON.stringify(session)}.`;
         emitResult(envelope);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ArgumentError } from '../errors.js';
+import { CliError } from '../errors.js';
 import type { CachedNetworkEntry } from './network-cache.js';
 import { assignKeys } from './network-key.js';
 import { resolveNetworkSummaryOptions, summarizeNetwork, type NetworkSummaryOptions } from './network-summary.js';
@@ -22,7 +22,7 @@ describe('summarizeNetwork', () => {
             entry({ url: 'https://api.example.test:8443/items' }), entry({ url: 'https://api.example.test/items/42' }),
         ]);
         const report = summarizeNetwork(entries);
-        expect(report.pagination.total_groups).toBe(5);
+        expect(report.groups).toHaveLength(5);
         expect(report.totals.requests).toBe(6);
         expect(report.groups[0]).toMatchObject({
             method: 'GET', origin: 'https://api.example.test', pathname: '/items', requests: 2, failed: 1, failure_rate: 0.5,
@@ -158,18 +158,13 @@ describe('summarizeNetwork', () => {
         for (const sort of ['size', 'recent'] as const) expect(summarizeNetwork(rows, { sort }).groups[0].origin).toBe('https://z.test');
     });
 
-    it('paginates groups without changing totals and reports the exact next offset', () => {
-        const entries = Array.from({ length: 5 }, (_, i) => entry({ url: `https://a.test/${i}`, status: 500 }));
-        const page = summarizeNetwork(entries, { limit: 2, offset: 1 });
-        expect(page.totals.requests).toBe(5);
-        expect(page.totals.failed).toBe(5);
-        expect(page.groups.map((group) => group.pathname)).toEqual(['/1', '/2']);
-        expect(page.pagination).toEqual({ total_groups: 5, offset: 1, limit: 2, next_offset: 3 });
-        expect(summarizeNetwork(entries, { limit: 2, offset: 3 }).pagination.next_offset).toBeNull();
-        const empty = summarizeNetwork(entries, { offset: 10 });
-        expect(empty.groups).toEqual([]);
-        expect(empty.pagination.next_offset).toBeNull();
-        expect(empty.totals.requests).toBe(5);
+    it('returns every group with totals covering the entire capture', () => {
+        const entries = Array.from({ length: 25 }, (_, i) => entry({ url: `https://a.test/${i}`, status: 500 }));
+        const report = summarizeNetwork(entries);
+        expect(report.totals.requests).toBe(25);
+        expect(report.totals.failed).toBe(25);
+        expect(report.groups).toHaveLength(25);
+        expect(new Set(report.groups.map((group) => group.pathname)).size).toBe(25);
     });
 
     it('handles an empty capture without invented zeros for absent measurements', () => {
@@ -179,7 +174,6 @@ describe('summarizeNetwork', () => {
         expect(report.totals.failure_rate).toBeNull();
         expect(report.totals.response_size.total).toBeNull();
         expect(report.totals.observed.span_ms).toBeNull();
-        expect(report.pagination.next_offset).toBeNull();
     });
 
     it('does not mutate entries or prototype state', () => {
@@ -194,14 +188,12 @@ describe('summarizeNetwork', () => {
 });
 
 describe('resolveNetworkSummaryOptions', () => {
-    it('supplies stable defaults and accepts boundary values', () => {
-        expect(resolveNetworkSummaryOptions()).toEqual({ groupBy: 'endpoint', sort: 'requests', offset: 0, limit: 20 });
-        expect(resolveNetworkSummaryOptions({ groupBy: 'origin', sort: 'size', offset: Number.MAX_SAFE_INTEGER, limit: 500 }).limit).toBe(500);
+    it('supplies stable defaults and accepts origin grouping', () => {
+        expect(resolveNetworkSummaryOptions()).toEqual({ groupBy: 'endpoint', sort: 'requests' });
+        expect(resolveNetworkSummaryOptions({ groupBy: 'origin', sort: 'size' })).toEqual({ groupBy: 'origin', sort: 'size' });
     });
-    it.each([
-        { groupBy: 'path' }, { sort: 'status' }, { offset: -1 }, { offset: 1.5 }, { offset: Infinity },
-        { offset: Number.MAX_SAFE_INTEGER + 1 }, { limit: 0 }, { limit: 501 }, { limit: 1.5 }, { limit: NaN },
-    ])('rejects invalid options %j', (options) => {
-        expect(() => summarizeNetwork([], options as NetworkSummaryOptions)).toThrow(ArgumentError);
+    it.each([{ groupBy: 'path' }, { sort: 'status' }])('rejects invalid options %j', (options) => {
+        expect(() => summarizeNetwork([], options as NetworkSummaryOptions)).toThrow(CliError);
+        expect(() => summarizeNetwork([], options as NetworkSummaryOptions)).toThrow(expect.objectContaining({ code: 'invalid_args', exitCode: 2 }));
     });
 });

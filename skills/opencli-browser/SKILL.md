@@ -71,6 +71,25 @@ an unresolved expression. Static candidates are not executed or proven APIs.
 Check `analysisComplete`, script errors, omitted scripts and `networkSource`.
 An empty live capture can reuse a recent cache; reported provenance distinguishes it.
 
+Use `--summary` to group captured requests without emitting bodies:
+
+```sh
+opencli browser network --session research --summary --sort failures
+opencli browser network --session research --summary --group-by origin --sort size
+```
+
+The default groups by origin, method and pathname; query variants share a group.
+`--group-by origin` combines endpoints. `--sort` accepts `requests` (default),
+`failures`, `size` or `recent`. All groups are returned after the existing
+`--all`, `--since`, `--until`, `--failed` and `--filter` selection.
+Status 0 and HTTP 4xx/5xx count as failures; unknown statuses are excluded from
+failure rates. Sizes measure decoded response characters, not transferred bytes;
+missing measurements remain unknown. Use `example_keys` with `--detail` in the
+same session/profile. `networkSource` reports live/cache/empty; reused captures
+also set `cache_reused` and `networkSavedAt`. Summaries omit query values and
+credentials, but paths may still identify resources. `--summary` cannot combine
+with `--static`, `--follow`, `--detail` or `--raw`.
+
 ## Native Chrome management
 
 Native calls need no session and do not attach a page:

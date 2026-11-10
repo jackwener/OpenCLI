@@ -1,12 +1,10 @@
-import { ArgumentError } from '../errors.js';
+import { CliError, EXIT_CODES } from '../errors.js';
 import type { CachedNetworkEntry } from './network-cache.js';
 import { deriveKey } from './network-key.js';
 
 export interface NetworkSummaryOptions {
     groupBy?: 'endpoint' | 'origin';
     sort?: 'requests' | 'failures' | 'size' | 'recent';
-    offset?: number;
-    limit?: number;
 }
 
 interface Count { value: string; count: number }
@@ -46,7 +44,6 @@ export interface NetworkSummaryReport {
     sort: 'requests' | 'failures' | 'size' | 'recent';
     totals: NetworkSummaryMetrics;
     diagnostics: { invalid_urls: number; unknown_methods: number };
-    pagination: { total_groups: number; offset: number; limit: number; next_offset: number | null };
     groups: NetworkSummaryGroup[];
 }
 
@@ -145,17 +142,15 @@ function counts(map: Map<string, number>): Count[] {
 
 /** Validate before reading the live buffer: capture is a destructive drain. */
 export function resolveNetworkSummaryOptions(options: NetworkSummaryOptions = {}): Required<NetworkSummaryOptions> {
-    const { groupBy = 'endpoint', sort = 'requests', offset = 0, limit = 20 } = options;
-    if (groupBy !== 'endpoint' && groupBy !== 'origin') throw new ArgumentError('--group-by must be endpoint or origin.');
-    if (!['requests', 'failures', 'size', 'recent'].includes(sort)) throw new ArgumentError('--sort must be requests, failures, size, or recent.');
-    if (!Number.isSafeInteger(offset) || offset < 0) throw new ArgumentError('--offset must be a non-negative safe integer.');
-    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 500) throw new ArgumentError('--limit must be an integer between 1 and 500.');
-    return { groupBy, sort, offset, limit };
+    const { groupBy = 'endpoint', sort = 'requests' } = options;
+    if (groupBy !== 'endpoint' && groupBy !== 'origin') throw new CliError('invalid_args', '--group-by must be endpoint or origin.', undefined, EXIT_CODES.USAGE_ERROR);
+    if (!['requests', 'failures', 'size', 'recent'].includes(sort)) throw new CliError('invalid_args', '--sort must be requests, failures, size, or recent.', undefined, EXIT_CODES.USAGE_ERROR);
+    return { groupBy, sort };
 }
 
 /** Metadata aggregation only: neither request nor response bodies are inspected. */
 export function summarizeNetwork(entries: readonly CachedNetworkEntry[], options: NetworkSummaryOptions = {}): NetworkSummaryReport {
-    const { groupBy, sort, offset, limit } = resolveNetworkSummaryOptions(options);
+    const { groupBy, sort } = resolveNetworkSummaryOptions(options);
     const total = accumulator();
     const groups = new Map<string, Group>();
     const diagnostics = { invalid_urls: 0, unknown_methods: 0 };
@@ -210,10 +205,8 @@ export function summarizeNetwork(entries: readonly CachedNetworkEntry[], options
         if (av !== bv) return av === null ? 1 : bv === null ? -1 : bv - av;
         return a.identity.localeCompare(b.identity);
     });
-    const page = rows.slice(offset, offset + limit).map(({ row }) => row);
     return {
         schema_version: 1, group_by: groupBy, sort, totals: metrics(total), diagnostics,
-        pagination: { total_groups: rows.length, offset, limit, next_offset: offset + page.length < rows.length ? offset + page.length : null },
-        groups: page,
+        groups: rows.map(({ row }) => row),
     };
 }

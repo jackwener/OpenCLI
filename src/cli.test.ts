@@ -1949,21 +1949,20 @@ describe('browser network command', () => {
       };
     }
 
-    it('aggregates captures with pagination while retaining all matching totals and cache details', async () => {
+    it('aggregates every endpoint while retaining matching totals and cache details', async () => {
       browserState.page!.readNetworkCapture = vi.fn().mockResolvedValue([
         response('https://api.test/items?page=1'), response('https://api.test/items?page=2', 500),
         response('https://api.test/other', 200, 300),
       ]);
       const program = createProgram('', '');
-      await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'network', '--summary', '--sort', 'failures', '--limit', '1']);
+      await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'network', '--summary', '--sort', 'failures']);
       const out = lastJsonLog();
       expect(out.count).toBe(3);
-      expect(out.capture_source).toBe('live');
+      expect(out.networkSource).toBe('live');
       expect(out).not.toHaveProperty('entries');
       expect(out.summary.totals).toMatchObject({ requests: 3, failed: 1, response_size: { total: 500 } });
-      expect(out.summary.groups).toHaveLength(1);
+      expect(out.summary.groups).toHaveLength(2);
       expect(out.summary.groups[0]).toMatchObject({ pathname: '/items', requests: 2, example_keys: ['GET api.test/items', 'GET api.test/items#2'] });
-      expect(out.summary.pagination).toEqual({ total_groups: 2, offset: 0, limit: 1, next_offset: 1 });
       expect(JSON.stringify(out)).not.toMatch(/PRIVATE_|\?page=/);
       expect(out.detail_hint).toContain('example_keys');
       const detail = createProgram('', '');
@@ -1982,8 +1981,8 @@ describe('browser network command', () => {
       const out = lastJsonLog();
       expect(out.cache_reused).toBe(true);
       expect(out.summary.totals.requests).toBe(2);
-      expect(out.capture_source).toBe('cache');
-      expect(out.cache_saved_at).toBe(JSON.parse(original).savedAt);
+      expect(out.networkSource).toBe('cache');
+      expect(out.networkSavedAt).toBe(JSON.parse(original).savedAt);
       expect(out.summary.groups[0].example_keys).toEqual(['GET api.test/items', 'GET api.test/items#2']);
       expect(fs.readFileSync(cache, 'utf8')).toBe(original);
     });
@@ -2029,11 +2028,9 @@ describe('browser network command', () => {
       expect(process.exitCode).toBeUndefined();
     });
 
-    it('returns a successful empty summary for no matches or an offset beyond the last group', async () => {
+    it('returns a successful empty summary when no requests match', async () => {
       await createProgram('', '').parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'network', '--summary', '--filter', 'nonexistent']);
-      expect(lastJsonLog().summary).toMatchObject({ totals: { requests: 0 }, groups: [], pagination: { total_groups: 0, next_offset: null } });
-      await createProgram('', '').parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'network', '--summary', '--offset', '100']);
-      expect(lastJsonLog().summary).toMatchObject({ totals: { requests: 1 }, groups: [], pagination: { offset: 100, total_groups: 1, next_offset: null } });
+      expect(lastJsonLog().summary).toMatchObject({ totals: { requests: 0 }, groups: [] });
     });
 
     it('preserves profile-scoped capture and detail keys', async () => {
@@ -2047,15 +2044,17 @@ describe('browser network command', () => {
     });
 
     it.each([
-      ['--summary', '--raw'], ['--summary', '--detail', 'UserTweets'], ['--summary', '--static'], ['--summary', '--follow'],
-      ['--group-by', 'origin'], ['--sort', 'size'], ['--limit', '10'], ['--offset', '1'],
-      ['--summary', '--group-by', 'path'], ['--summary', '--sort', 'time'],
-      ['--summary', '--limit', '0'], ['--summary', '--limit', '501'], ['--summary', '--limit', '2oops'],
-      ['--summary', '--offset', '-1'], ['--summary', '--offset', '1e3'], ['--summary', '--limit', '1.5'],
-      ['--summary', '--offset', '9007199254740992'],
-    ])('rejects invalid options before draining the capture: %j', async (...flags) => {
+      { flags: ['--summary', '--raw'], code: 'usage_error' },
+      { flags: ['--summary', '--detail', 'UserTweets'], code: 'usage_error' },
+      { flags: ['--summary', '--static'], code: 'usage_error' },
+      { flags: ['--summary', '--follow'], code: 'usage_error' },
+      { flags: ['--group-by', 'origin'], code: 'usage_error' },
+      { flags: ['--sort', 'size'], code: 'usage_error' },
+      { flags: ['--summary', '--group-by', 'path'], code: 'invalid_args' },
+      { flags: ['--summary', '--sort', 'time'], code: 'invalid_args' },
+    ])('rejects invalid options before draining the capture: $flags', async ({ flags, code }) => {
       await createProgram('', '').parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'network', ...flags]);
-      expect(lastJsonLog()).toMatchObject({ ok: false, error: { code: 'ARGUMENT', exitCode: 2 } });
+      expect(lastJsonLog()).toMatchObject({ ok: false, error: { code, exitCode: 2 } });
       expect(process.exitCode).toBe(2);
       expect(browserState.page!.readNetworkCapture).not.toHaveBeenCalled();
       expect(fs.existsSync(getNetworkCachePath(String(process.env.OPENCLI_CACHE_DIR)))).toBe(false);
