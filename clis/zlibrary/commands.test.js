@@ -10,6 +10,7 @@ import {
   getMirrors,
   isZlibraryHost,
   normalizeZlibraryBookUrl,
+  resolveOrigin,
 } from './utils.js';
 
 function runExtract(html, limit = 10, url = 'https://z-lib.id/s/?q=test') {
@@ -216,15 +217,28 @@ describe('zlibrary mirror fallback', () => {
     expect(extractCalls).toHaveLength(1);
   });
 
-  it('tries both search URL shapes before giving up on a mirror', async () => {
+  it('does not retry the alternate URL shape when the first one loads empty', async () => {
     const page = fakePage({ deadHosts: [], rowsByHost: {} });
-    page.evaluate = vi.fn(async (script) => {
-      if (script.includes('nodes:')) return JSON.stringify({ url: page.currentUrl, nodes: 2 });
-      return JSON.stringify(page.currentUrl.includes('/s?q=') ? [] : [{ rank: 1, title: 'Row', url: 'https://z-lib.id/book/y' }]);
-    });
+    page.evaluate = vi.fn(async (script) => (script.includes('nodes:')
+      ? JSON.stringify({ url: page.currentUrl, nodes: 2 })
+      : JSON.stringify([])));
+
+    await expect(
+      runSearch(page, { query: 'x', limit: 5, mirrors: ['z-lib.id'] }),
+    ).rejects.toThrow(EmptyResultError);
+
+    expect(page.goto.mock.calls.map(call => call[0])).toEqual(['https://z-lib.id/s?q=x']);
+  });
+
+  it('falls back to the alternate URL shape when the first one fails to load', async () => {
+    const page = fakePage({ deadHosts: [], rowsByHost: {} });
     page.goto = vi.fn(async (url) => {
       page.currentUrl = url;
+      if (url.includes('/s?q=')) throw new Error('net::ERR_TOO_MANY_REDIRECTS');
     });
+    page.evaluate = vi.fn(async (script) => (script.includes('nodes:')
+      ? JSON.stringify({ url: page.currentUrl, nodes: 2 })
+      : JSON.stringify([{ rank: 1, title: 'Row', url: 'https://z-lib.id/book/y' }])));
 
     const rows = await runSearch(page, { query: 'x', limit: 5, mirrors: ['z-lib.id'] });
 
@@ -233,6 +247,41 @@ describe('zlibrary mirror fallback', () => {
       'https://z-lib.id/s?q=x',
       'https://z-lib.id/s/x',
     ]);
+  });
+
+  it('drops links info would refuse and re-ranks the rest', async () => {
+    const page = fakePage({
+      deadHosts: [],
+      rowsByHost: {
+        'z-lib.id': [
+          { rank: 1, title: 'Ad', url: 'https://ads.example/x' },
+          { rank: 2, title: 'Real', url: 'https://z-lib.id/book/x' },
+        ],
+      },
+    });
+
+    const rows = await runSearch(page, { query: 'x', limit: 5, mirrors: ['z-lib.id'] });
+
+    expect(rows).toEqual([{ rank: 1, title: 'Real', url: 'https://z-lib.id/book/x', mirror: 'z-lib.id' }]);
+  });
+
+  it('keeps mirror credentials out of URLs and the error hint', async () => {
+    expect(resolveOrigin('https://user:pw@z-lib.id')).toBe('https://z-lib.id');
+
+    const page = fakePage({ deadHosts: [], rowsByHost: {} });
+    page.evaluate = vi.fn(async (script) => (script.includes('nodes:')
+      ? JSON.stringify({ url: page.currentUrl, nodes: 2 })
+      : JSON.stringify([])));
+
+    const failure = await runSearch(page, {
+      query: 'x',
+      limit: 5,
+      mirrors: ['https://user:pw@z-lib.id'],
+    }).catch(error => error);
+
+    expect(failure).toBeInstanceOf(EmptyResultError);
+    expect(String(failure.hint)).not.toContain('pw@');
+    expect(String(failure.hint)).toContain('https://z-lib.id/s?q=x');
   });
 
   it('reports every attempt when no mirror yields results', async () => {
@@ -248,6 +297,10 @@ describe('zlibrary mirror fallback', () => {
     expect(() => readMirror('')).toThrow(ArgumentError);
     expect(() => readMirror('   ')).toThrow(ArgumentError);
     expect(readMirror(' z-lib.id ')).toBe('z-lib.id');
+    // A book URL pasted as a mirror built a nonsense search URL.
+    expect(() => readMirror('z-lib.id/book/123')).toThrow(ArgumentError);
+    expect(() => readMirror('https://z-lib.id/s?q=x')).toThrow(ArgumentError);
+    expect(readMirror('https://z-lib.id/')).toBe('https://z-lib.id/');
 
     const page = fakePage({ deadHosts: [], rowsByHost: {} });
     await expect(runSearch(page, { query: 'x', limit: 5, mirrors: [] })).rejects.toThrow(ArgumentError);

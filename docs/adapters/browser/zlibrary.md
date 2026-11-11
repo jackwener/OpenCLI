@@ -31,6 +31,16 @@ Unreachable mirrors are skipped as soon as the browser reports a connection
 error (refused host, redirect loop, DNS failure), so a dead network reports
 every attempt in a couple of seconds instead of hanging.
 
+`--mirror` and the environment variable take a host or an origin, not a book
+URL: a value with a path is rejected instead of building a broken search URL.
+Credentials in a mirror are stripped from request URLs and error hints.
+
+`search` only returns links on Z-Library hosts, so a result URL can be passed
+straight to `info`; a card that links elsewhere (an ad, an injected row) is
+dropped and counted in the error hint. The alternate `/s/<query>` shape is
+retried only when the canonical request fails to load, so a search that finds
+nothing costs one request per mirror instead of two.
+
 `info` accepts a book URL on any host shaped like a Z-Library mirror
 (`z-lib.<tld>`, `z-library.<tld>`, `1lib.<tld>`, `booksc.<tld>`, `b-ok.<tld>`,
 optionally behind one regional subdomain) or on a configured mirror. The shape

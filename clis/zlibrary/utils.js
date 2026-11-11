@@ -32,7 +32,16 @@ const BRAND_RE = /^(?:[a-z0-9-]+\.)?(?:z-?library|z-?lib|1lib|booksc|b-ok)\.[a-z
 export function resolveOrigin(mirror) {
   const value = String(mirror || '').trim().replace(/\/+$/, '');
   if (!value) return '';
-  return /^https?:\/\//i.test(value) ? value : `https://${value}`;
+  const withScheme = /^https?:\/\//i.test(value) ? value : `https://${value}`;
+  try {
+    const url = new URL(withScheme);
+    // Credentials in a mirror must never reach search URLs or error hints.
+    url.username = '';
+    url.password = '';
+    return url.toString().replace(/\/+$/, '');
+  } catch {
+    return withScheme;
+  }
 }
 
 export function getMirrors() {
@@ -71,6 +80,19 @@ export function hostOf(mirror) {
 export function readMirror(raw) {
   const value = String(raw === undefined || raw === null ? '' : raw).trim();
   if (!value) throw new ArgumentError('zlibrary mirror cannot be empty');
+  let parsed;
+  try {
+    parsed = new URL(resolveOrigin(value));
+  } catch {
+    parsed = null;
+  }
+  // A book URL pasted into --mirror builds a nonsense search URL; reject it here.
+  if (!parsed || !parsed.hostname || parsed.pathname !== '/' || parsed.search) {
+    throw new ArgumentError(
+      `zlibrary mirror must be a host or origin, got: ${value}`,
+      'Example: z-lib.id or https://z-lib.id',
+    );
+  }
   return value;
 }
 

@@ -1,12 +1,19 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, EmptyResultError } from '@jackwener/opencli/errors';
-import { buildSearchExtractScript, buildSearchUrls, getMirrors, hostOf, readLimit, readMirror } from './utils.js';
+import { buildSearchExtractScript, buildSearchUrls, getMirrors, hostOf, isZlibraryHost, readLimit, readMirror } from './utils.js';
+
+function isBookUrl(url) {
+  try {
+    return isZlibraryHost(new URL(url).hostname);
+  } catch {
+    return false;
+  }
+}
 
 /**
- * Walk the mirror list, trying both search URL shapes, and return the first
- * non-empty result set. Dead mirrors are skipped as soon as the page reports
- * `chrome-error`, so an all-dead network fails in seconds instead of after the
- * full settle time of every attempt.
+ * Walk the mirror list and return the first non-empty result set. Dead mirrors
+ * are skipped as soon as the page reports `chrome-error`, so an all-dead network
+ * fails in seconds instead of after the full settle time of every attempt.
  *
  * Exported so it can be unit-tested with a fake page.
  */
@@ -15,7 +22,7 @@ export async function runSearch(page, { query, limit, mirrors }) {
   if (!Array.isArray(mirrors) || mirrors.length === 0) {
     throw new ArgumentError('zlibrary mirror list is empty');
   }
-  const candidates = mirrors;
+  const candidates = mirrors.map(readMirror);
   const attempts = [];
 
   for (const mirror of candidates) {
@@ -48,11 +55,16 @@ export async function runSearch(page, { query, limit, mirrors }) {
       } catch {
         results = [];
       }
-      if (results.length) {
+      // Rows feed `info` next, which only accepts Z-Library hosts.
+      const rows = results.filter(row => isBookUrl(row.url));
+      if (rows.length) {
         const host = hostOf(mirror);
-        return results.map(row => ({ ...row, mirror: host }));
+        return rows.map((row, index) => ({ ...row, rank: index + 1, mirror: host }));
       }
-      attempts.push(`${url} -> 0 rows`);
+      attempts.push(`${url} -> ${results.length ? `${results.length} off-host links` : '0 rows'}`);
+      // The page loaded and lists nothing the adapter can use: the alternate URL
+      // shape serves the same list, so only a failed load earns another request.
+      break;
     }
   }
 
