@@ -1,13 +1,13 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { EmptyResultError } from '@jackwener/opencli/errors';
-import { ZLIBRARY_DOMAIN, extractBookTitle, extractFormats, normalizeZlibraryBookUrl } from './utils.js';
+import { extractBookTitle, extractFormats, normalizeZlibraryBookUrl } from './utils.js';
 
 cli({
   site: 'zlibrary',
   name: 'info',
-    access: 'read',
+  access: 'read',
   description: 'Get book details and available download formats from a Z-Library book page',
-  domain: ZLIBRARY_DOMAIN,
+  domain: 'z-lib.id',
   strategy: Strategy.COOKIE,
   browser: true,
   navigateBefore: false,
@@ -16,7 +16,7 @@ cli({
       name: 'url',
       positional: true,
       required: true,
-      help: 'Z-Library book page URL (e.g. https://z-library.im/book/...)',
+      help: 'Z-Library book page URL (e.g. https://z-lib.id/book/...)',
     },
   ],
   columns: ['title', 'pdf', 'epub', 'url'],

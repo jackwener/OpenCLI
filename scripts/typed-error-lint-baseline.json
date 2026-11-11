@@ -784,14 +784,6 @@
     "occurrence": 0
   },
   {
-    "rule": "silent-clamp",
-    "command": "zlibrary/search",
-    "file": "clis/zlibrary/search.js",
-    "line": 30,
-    "text": "const limit = Math.max(1, Math.min(Number(args.limit) || 10, 25));",
-    "occurrence": 0
-  },
-  {
     "rule": "silent-sentinel",
     "command": "bilibili/download",
     "file": "clis/bilibili/download.js",
