@@ -84,6 +84,21 @@ describe('pinterest pin-update', () => {
     expect(sent.options.description).toBe('');
   });
 
+  it('clears the title and sets alt text when the flags are passed', async () => {
+    const page = createPageMock([updated({ title: '' })]);
+    await cmd.func(page, { pin: '1234567890123456', title: '', 'alt-text': 'a red sofa' });
+    const sent = JSON.parse(decodeURIComponent(page.evaluate.mock.calls[0][0].match(/data=([^"&]+)/)[1]));
+    expect(sent.options).toEqual({ id: '1234567890123456', title: '', alt_text: 'a red sofa' });
+  });
+
+  it('moves the pin to the board root when --section is ""', async () => {
+    const page = createPageMock([boardMeta('999'), updated()]);
+    await cmd.func(page, { pin: '1234567890123456', board: 'janedoe/target-board', section: '' });
+    const sent = JSON.parse(decodeURIComponent(page.evaluate.mock.calls[1][0].match(/data=([^"&]+)/)[1]));
+    // No section lookup and no board_section_id: a bare board_id update lands on the root.
+    expect(sent.options).toEqual({ id: '1234567890123456', board_id: '999' });
+  });
+
   it('leaves description untouched when the flag is omitted', async () => {
     const page = createPageMock([updated()]);
     await cmd.func(page, { pin: '1234567890123456', title: 'New Title' });

@@ -72,7 +72,29 @@ describe('pinterest board-update', () => {
       boardId: '999',
       name: 'New Name',
       privacy: 'secret',
+      archived: false,
       url: 'https://www.pinterest.com/janedoe/new-name/',
     }]);
+  });
+
+  it('archives through the v3 archive endpoint without a BoardResource update', async () => {
+    const page = createPageMock([boardMeta('999'), { resource_response: { data: null } }]);
+    const result = await cmd.func(page, { board: 'janedoe/my-board', archive: true });
+    expect(result[0]).toMatchObject({ boardId: '999', name: 'Old Name', archived: true });
+    expect(page.evaluate).toHaveBeenCalledTimes(2);
+    const call = page.evaluate.mock.calls[1][0];
+    expect(call).toContain('/resource/ApiResource/create/');
+    const sent = JSON.parse(decodeURIComponent(call.match(/data=([^"&]+)/)[1]));
+    expect(sent.options).toEqual({ url: '/v3/boards/999/archive/', data: {} });
+  });
+
+  it('unarchives with a delete on the same endpoint and rejects both flags together', async () => {
+    const page = createPageMock([boardMeta('999'), { resource_response: { data: null } }]);
+    const result = await cmd.func(page, { board: 'janedoe/my-board', unarchive: true });
+    expect(result[0].archived).toBe(false);
+    expect(page.evaluate.mock.calls[1][0]).toContain('/resource/ApiResource/delete/');
+
+    await expect(cmd.func(createPageMock([]), { board: 'janedoe/my-board', archive: true, unarchive: true }))
+      .rejects.toThrow(/cannot be combined/);
   });
 });
