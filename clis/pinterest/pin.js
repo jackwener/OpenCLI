@@ -1,7 +1,7 @@
 // Pinterest pin — details of a single pin (PinResource, one row).
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { EmptyResultError } from '@jackwener/opencli/errors';
-import { PINTEREST_BASE, parsePinId, pickPinImage, pinterestResourceFetch } from './utils.js';
+import { PINTEREST_BASE, collectPinMedia, parsePinId, pickPinImage, pinMediaType, pinterestResourceFetch, toIsoDate } from './utils.js';
 
 cli({
   site: 'pinterest',
@@ -13,7 +13,11 @@ cli({
   args: [
     { name: 'pin', type: 'string', positional: true, required: true, help: 'Pin id or pin URL, e.g. 1234567890123456' },
   ],
-  columns: ['pinId', 'title', 'description', 'pinner', 'board', 'saveCount', 'commentCount', 'link', 'imageUrl', 'url'],
+  columns: [
+    'pinId', 'title', 'description', 'pinner', 'board', 'boardId', 'boardUrl', 'section', 'sectionId',
+    'saveCount', 'commentCount', 'link', 'domain', 'createdAt', 'mediaType', 'altText', 'isRepin',
+    'imageUrl', 'videoUrl', 'url',
+  ],
   func: async (page, kwargs) => {
     const id = parsePinId(kwargs.pin);
     const sourceUrl = `/pin/${id}/`;
@@ -30,17 +34,33 @@ cli({
       throw new EmptyResultError('pinterest pin', `pin "${id}" not found`);
     }
 
+    const board = pin.board || {};
+    const section = pin.section || {};
+    // First video among the pin's media: an mp4 when Pinterest serves one, else the HLS playlist.
+    const video = collectPinMedia(pin).find((item) => item.kind === 'video');
+
     return [
       {
         pinId: String(pin.id),
         title: (pin.title || pin.grid_title || '').trim(),
         description: (typeof pin.description === 'string' ? pin.description : '').trim(),
         pinner: (pin.pinner && pin.pinner.username) || '',
-        board: (pin.board && pin.board.name) || '',
+        board: board.name || '',
+        // boardId / boardUrl are both accepted wherever a command takes --board.
+        boardId: board.id ? String(board.id) : '',
+        boardUrl: board.url ? `${PINTEREST_BASE}${board.url}` : '',
+        section: (section.title || '').trim(),
+        sectionId: section.id ? String(section.id) : '',
         saveCount: typeof pin.repin_count === 'number' ? pin.repin_count : 0,
         commentCount: typeof pin.comment_count === 'number' ? pin.comment_count : 0,
         link: pin.link || '',
+        domain: pin.domain || '',
+        createdAt: toIsoDate(pin.created_at),
+        mediaType: pinMediaType(pin),
+        altText: (typeof pin.alt_text === 'string' ? pin.alt_text : '').trim(),
+        isRepin: pin.is_repin === true,
         imageUrl: pickPinImage(pin.images),
+        videoUrl: (video && video.url) || '',
         url: `${PINTEREST_BASE}/pin/${pin.id}/`,
       },
     ];

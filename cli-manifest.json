@@ -26992,7 +26992,7 @@
   {
     "site": "pinterest",
     "name": "board-pins",
-    "description": "List pins inside a Pinterest board",
+    "description": "List pins inside a Pinterest board or board section",
     "access": "read",
     "domain": "www.pinterest.com",
     "strategy": "cookie",
@@ -27010,7 +27010,28 @@
         "type": "int",
         "default": 25,
         "required": false,
-        "help": "Number of pins (max 100)"
+        "help": "Number of pins (max 1000)"
+      },
+      {
+        "name": "bookmark",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Resume from the nextBookmark of a previous call"
+      },
+      {
+        "name": "section",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Only list pins in this board section (id or slug)"
+      },
+      {
+        "name": "include-sections",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Also list pins filed in sections (default: board root only)"
       }
     ],
     "columns": [
@@ -27019,8 +27040,14 @@
       "description",
       "pinner",
       "board",
+      "link",
+      "domain",
+      "createdAt",
+      "mediaType",
+      "altText",
       "imageUrl",
-      "url"
+      "url",
+      "nextBookmark"
     ],
     "type": "js",
     "modulePath": "pinterest/board-pins.js",
@@ -27117,13 +27144,6 @@
         "required": true,
         "positional": true,
         "help": "<username>/<slug>, a board URL, or a numeric board id, e.g. janedoe/my-board"
-      },
-      {
-        "name": "limit",
-        "type": "int",
-        "default": 50,
-        "required": false,
-        "help": "Number of sections (max 250)"
       }
     ],
     "columns": [
@@ -27141,7 +27161,7 @@
   {
     "site": "pinterest",
     "name": "board-update",
-    "description": "Update the name, description, or privacy of your board",
+    "description": "Update the name, description, or privacy of your board, or archive it",
     "access": "write",
     "domain": "www.pinterest.com",
     "strategy": "cookie",
@@ -27176,12 +27196,27 @@
           "public",
           "secret"
         ]
+      },
+      {
+        "name": "archive",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Archive the board (hides it from your profile; pins are kept)"
+      },
+      {
+        "name": "unarchive",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Restore an archived board"
       }
     ],
     "columns": [
       "boardId",
       "name",
       "privacy",
+      "archived",
       "url"
     ],
     "type": "js",
@@ -27192,7 +27227,7 @@
   {
     "site": "pinterest",
     "name": "download",
-    "description": "Download a pin's original image to disk",
+    "description": "Download the media of a pin, or of every pin on a board / board section",
     "access": "read",
     "domain": "www.pinterest.com",
     "strategy": "cookie",
@@ -27201,9 +27236,9 @@
       {
         "name": "pin",
         "type": "string",
-        "required": true,
+        "required": false,
         "positional": true,
-        "help": "Pin id or pin URL, e.g. 1234567890123456"
+        "help": "Pin id or pin URL, e.g. 1234567890123456 (omit when using --board)"
       },
       {
         "name": "output",
@@ -27211,13 +27246,51 @@
         "default": "./pinterest-downloads",
         "required": false,
         "help": "Output directory"
+      },
+      {
+        "name": "board",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Download every pin on this board instead: <username>/<slug>, board URL, or board id"
+      },
+      {
+        "name": "section",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "With --board: only this board section (id or slug)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 25,
+        "required": false,
+        "help": "With --board: number of pins (max 1000)"
+      },
+      {
+        "name": "bookmark",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "With --board: resume from the nextBookmark of a previous call"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 600,
+        "required": false,
+        "help": "Max seconds for the whole download (default 600)"
       }
     ],
     "columns": [
       "pinId",
+      "index",
+      "type",
       "status",
       "size",
-      "path"
+      "path",
+      "nextBookmark"
     ],
     "type": "js",
     "modulePath": "pinterest/download.js",
@@ -27247,10 +27320,20 @@
       "description",
       "pinner",
       "board",
+      "boardId",
+      "boardUrl",
+      "section",
+      "sectionId",
       "saveCount",
       "commentCount",
       "link",
+      "domain",
+      "createdAt",
+      "mediaType",
+      "altText",
+      "isRepin",
       "imageUrl",
+      "videoUrl",
       "url"
     ],
     "type": "js",
@@ -27261,7 +27344,7 @@
   {
     "site": "pinterest",
     "name": "pin-create",
-    "description": "Create a pin from a remote image URL onto a board",
+    "description": "Create a pin from an image URL or a local image file onto a board",
     "access": "write",
     "domain": "www.pinterest.com",
     "strategy": "cookie",
@@ -27272,7 +27355,7 @@
         "type": "string",
         "required": true,
         "positional": true,
-        "help": "Direct image URL Pinterest can fetch (not a page URL), e.g. https://example.com/image.jpg"
+        "help": "Direct image URL Pinterest can fetch (not a page URL), or a local image file path, e.g. https://example.com/image.jpg"
       },
       {
         "name": "board",
@@ -27307,6 +27390,13 @@
         "default": "",
         "required": false,
         "help": "Destination link for the pin"
+      },
+      {
+        "name": "alt-text",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Alt text describing the image"
       }
     ],
     "columns": [
@@ -27357,8 +27447,43 @@
   },
   {
     "site": "pinterest",
+    "name": "pin-delete-batch",
+    "description": "Delete multiple of your own pins from a comma-separated pin list",
+    "access": "write",
+    "domain": "www.pinterest.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "pins",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Comma-separated pin ids or pin URLs, e.g. 1234567890123456,2345678901234567"
+      },
+      {
+        "name": "confirm",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Actually delete — without it nothing is touched"
+      }
+    ],
+    "columns": [
+      "pinId",
+      "deleted",
+      "status",
+      "message"
+    ],
+    "type": "js",
+    "modulePath": "pinterest/pin-delete-batch.js",
+    "sourceFile": "pinterest/pin-delete-batch.js",
+    "navigateBefore": "https://www.pinterest.com"
+  },
+  {
+    "site": "pinterest",
     "name": "pin-update",
-    "description": "Update a pin's title, description, link, or board",
+    "description": "Update a pin's title, description, alt text, or board",
     "access": "write",
     "domain": "www.pinterest.com",
     "strategy": "cookie",
@@ -27374,9 +27499,8 @@
       {
         "name": "title",
         "type": "string",
-        "default": "",
         "required": false,
-        "help": "New pin title"
+        "help": "New pin title (pass \"\" to clear)"
       },
       {
         "name": "description",
@@ -27385,24 +27509,23 @@
         "help": "New pin description (pass \"\" to clear)"
       },
       {
-        "name": "link",
+        "name": "alt-text",
         "type": "string",
         "required": false,
-        "help": "New destination link (pass \"\" to clear)"
+        "help": "New alt text (pass \"\" to clear)"
       },
       {
         "name": "board",
         "type": "string",
         "default": "",
         "required": false,
-        "help": "Move the pin to this board: <username>/<slug>, board URL, or board id"
+        "help": "Move the pin to this board: <username>/<slug>, board URL, or board id (lands on the board root unless --section is given)"
       },
       {
         "name": "section",
         "type": "string",
-        "default": "",
         "required": false,
-        "help": "Move the pin to this board section id or slug (requires --board)"
+        "help": "With --board: board section id or slug to move the pin into (\"\" = board root)"
       }
     ],
     "columns": [
@@ -27414,6 +27537,67 @@
     "type": "js",
     "modulePath": "pinterest/pin-update.js",
     "sourceFile": "pinterest/pin-update.js",
+    "navigateBefore": "https://www.pinterest.com"
+  },
+  {
+    "site": "pinterest",
+    "name": "pin-update-batch",
+    "description": "Update or move multiple pins from a comma-separated pin list",
+    "access": "write",
+    "domain": "www.pinterest.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "pins",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Comma-separated pin ids or pin URLs, e.g. 1234567890123456,2345678901234567"
+      },
+      {
+        "name": "title",
+        "type": "string",
+        "required": false,
+        "help": "New pin title (pass \"\" to clear)"
+      },
+      {
+        "name": "description",
+        "type": "string",
+        "required": false,
+        "help": "New pin description (pass \"\" to clear)"
+      },
+      {
+        "name": "alt-text",
+        "type": "string",
+        "required": false,
+        "help": "New alt text (pass \"\" to clear)"
+      },
+      {
+        "name": "board",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Move the pins to this board: <username>/<slug>, board URL, or board id (lands on the board root unless --section is given)"
+      },
+      {
+        "name": "section",
+        "type": "string",
+        "required": false,
+        "help": "With --board: board section id or slug to move the pins into (\"\" = board root)"
+      }
+    ],
+    "columns": [
+      "pinId",
+      "title",
+      "board",
+      "url",
+      "status",
+      "message"
+    ],
+    "type": "js",
+    "modulePath": "pinterest/pin-update-batch.js",
+    "sourceFile": "pinterest/pin-update-batch.js",
     "navigateBefore": "https://www.pinterest.com"
   },
   {
@@ -27459,6 +27643,49 @@
   },
   {
     "site": "pinterest",
+    "name": "save-batch",
+    "description": "Save multiple pins to your profile or a board from a comma-separated pin list",
+    "access": "write",
+    "domain": "www.pinterest.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "pins",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Comma-separated pin ids or pin URLs to repin, e.g. 1234567890123456,2345678901234567"
+      },
+      {
+        "name": "board",
+        "type": "string",
+        "required": false,
+        "help": "Target board: <username>/<slug>, board URL, or board id (omit to save to your profile)"
+      },
+      {
+        "name": "section",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Optional board section id or slug (requires --board)"
+      }
+    ],
+    "columns": [
+      "sourcePinId",
+      "pinId",
+      "board",
+      "url",
+      "status",
+      "message"
+    ],
+    "type": "js",
+    "modulePath": "pinterest/save-batch.js",
+    "sourceFile": "pinterest/save-batch.js",
+    "navigateBefore": "https://www.pinterest.com"
+  },
+  {
+    "site": "pinterest",
     "name": "search-boards",
     "description": "Search for boards on Pinterest",
     "access": "read",
@@ -27478,7 +27705,7 @@
         "type": "int",
         "default": 25,
         "required": false,
-        "help": "Number of boards (max 100)"
+        "help": "Number of boards (max 500)"
       }
     ],
     "columns": [
@@ -27515,7 +27742,19 @@
         "type": "int",
         "default": 25,
         "required": false,
-        "help": "Number of pins (max 100)"
+        "help": "Number of pins (max 300)"
+      },
+      {
+        "name": "scope",
+        "type": "string",
+        "default": "pins",
+        "required": false,
+        "help": "pins (everything), my_pins (your own pins, needs login), or videos",
+        "choices": [
+          "pins",
+          "my_pins",
+          "videos"
+        ]
       }
     ],
     "columns": [
@@ -27524,6 +27763,11 @@
       "description",
       "pinner",
       "board",
+      "link",
+      "domain",
+      "createdAt",
+      "mediaType",
+      "altText",
       "imageUrl",
       "url"
     ],
@@ -27553,7 +27797,7 @@
         "type": "int",
         "default": 25,
         "required": false,
-        "help": "Number of users (max 100)"
+        "help": "Number of users (max 500)"
       }
     ],
     "columns": [
@@ -27623,7 +27867,14 @@
         "type": "int",
         "default": 25,
         "required": false,
-        "help": "Number of boards (max 250)"
+        "help": "Number of boards (max 500)"
+      },
+      {
+        "name": "bookmark",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Resume from the nextBookmark of a previous call"
       },
       {
         "name": "sort",
@@ -27636,15 +27887,33 @@
           "alphabetical",
           "custom"
         ]
+      },
+      {
+        "name": "privacy",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "Only boards with this privacy (secret needs you to be the owner)",
+        "choices": [
+          "all",
+          "public",
+          "secret"
+        ]
       }
     ],
     "columns": [
       "boardId",
       "name",
+      "description",
       "pinCount",
       "sectionCount",
       "privacy",
-      "url"
+      "followerCount",
+      "collaboratorCount",
+      "createdAt",
+      "coverImageUrl",
+      "url",
+      "nextBookmark"
     ],
     "type": "js",
     "modulePath": "pinterest/user-boards.js",
@@ -27672,7 +27941,14 @@
         "type": "int",
         "default": 25,
         "required": false,
-        "help": "Number of pins (max 100)"
+        "help": "Number of pins (max 1000)"
+      },
+      {
+        "name": "bookmark",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Resume from the nextBookmark of a previous call"
       }
     ],
     "columns": [
@@ -27681,8 +27957,14 @@
       "description",
       "pinner",
       "board",
+      "link",
+      "domain",
+      "createdAt",
+      "mediaType",
+      "altText",
       "imageUrl",
-      "url"
+      "url",
+      "nextBookmark"
     ],
     "type": "js",
     "modulePath": "pinterest/user-pins.js",

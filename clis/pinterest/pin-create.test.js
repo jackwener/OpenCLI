@@ -1,4 +1,7 @@
-import { beforeAll, describe, expect, it } from 'vitest';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { createPageMock } from '../test-utils.js';
@@ -31,14 +34,50 @@ const boardById = {
   resource_response: { data: { id: '999', name: 'My Board', url: '/janedoe/my-board/' } },
 };
 
+let tmpDir;
+let imageFile;
+let textFile;
+
+afterAll(() => {
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
 beforeAll(() => {
+  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-pinterest-'));
+  imageFile = path.join(tmpDir, 'photo.JPG');
+  textFile = path.join(tmpDir, 'notes.txt');
+  fs.writeFileSync(imageFile, 'fake-image-bytes');
+  fs.writeFileSync(textFile, 'not an image');
   cmd = getRegistry().get('pinterest/pin-create');
   expect(cmd?.func).toBeTypeOf('function');
 });
 
 describe('pinterest pin-create', () => {
-  it('rejects a local file path (URL required)', async () => {
-    await expect(cmd.func(createPageMock([]), { ...OK, image: './photo.jpg' })).rejects.toThrow(ArgumentError);
+  it('rejects a missing file, a non-image file, and a non-http URL before any request', async () => {
+    const page = createPageMock([]);
+    await expect(cmd.func(page, { ...OK, image: path.join(tmpDir, 'missing.jpg') })).rejects.toThrow(/image file not found/);
+    await expect(cmd.func(page, { ...OK, image: textFile })).rejects.toThrow(/unsupported image type/);
+    await expect(cmd.func(page, { ...OK, image: 'file:///tmp/a.jpg' })).rejects.toThrow(ArgumentError);
+    expect(page.evaluate).not.toHaveBeenCalled();
+  });
+
+  it('uploads a local image inline and sends the alt text', async () => {
+    const page = createPageMock([boardMeta('999'), created('42')]);
+    await cmd.func(page, { ...OK, image: imageFile, 'alt-text': 'a red sofa' });
+    const sent = JSON.parse(decodeURIComponent(page.evaluate.mock.calls[1][0].match(/data=([^"&]+)/)[1]));
+    expect(sent.options).toEqual({
+      board_id: '999',
+      image_base64: Buffer.from('fake-image-bytes').toString('base64'),
+      method: 'uploaded',
+      alt_text: 'a red sofa',
+    });
+  });
+
+  it('keeps scraping a remote image URL', async () => {
+    const page = createPageMock([boardMeta('999'), created('42')]);
+    await cmd.func(page, OK);
+    const sent = JSON.parse(decodeURIComponent(page.evaluate.mock.calls[1][0].match(/data=([^"&]+)/)[1]));
+    expect(sent.options).toEqual({ board_id: '999', image_url: 'https://example.com/a.jpg', method: 'scraped' });
   });
 
   it('throws ArgumentError on a board reference that is neither <username>/<slug> nor an id', async () => {

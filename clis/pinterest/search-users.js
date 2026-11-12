@@ -1,10 +1,11 @@
 // Pinterest search-users — search for users (BaseSearchResource scope=users).
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, EmptyResultError } from '@jackwener/opencli/errors';
-import { DEFAULT_PAGE_SIZE, PINTEREST_BASE, collectResults, requireLimit } from './utils.js';
+import { PINTEREST_BASE, collectResults, requireLimit } from './utils.js';
 
 const DEFAULT_LIMIT = 25;
-const MAX_LIMIT = 100;
+// Search pages are slow; 500 keeps a call well inside the 60s command timeout.
+const MAX_LIMIT = 500;
 
 cli({
   site: 'pinterest',
@@ -32,7 +33,6 @@ cli({
       sourceUrl,
       limit,
       keyField: 'username',
-      pageSize: DEFAULT_PAGE_SIZE,
       mapItem: (user) => {
         if (!user || user.type !== 'user' || !user.username) return null;
         return {
