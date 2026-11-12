@@ -30,4 +30,14 @@ describe('pinterest user-boards', () => {
     expect(result.map((r) => r.boardId)).toEqual(['1', '2', '3']);
   });
 
+  it('passes --privacy through and rejects an unknown value', async () => {
+    const page = createPageMock([feed([board({ privacy: 'secret' })])]);
+    const [row] = await cmd.func(page, { username: 'janedoe', privacy: 'secret' });
+    expect(row).toMatchObject({ privacy: 'secret' });
+    const sent = JSON.parse(decodeURIComponent(page.evaluate.mock.calls[0][0].match(/data=([^"&]+)/)[1]));
+    expect(sent.options.privacy_filter).toBe('secret');
+
+    await expect(cmd.func(createPageMock([]), { username: 'janedoe', privacy: 'hidden' })).rejects.toThrow(/Unknown privacy/);
+  });
+
 });
