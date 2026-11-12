@@ -115,7 +115,7 @@ Previously the adapter returned `description: '', apply_url: ''` for both the mi
 
 `jobs-preferences` opens the LinkedIn Jobs page and returns `open_to_work`, `job_titles`, `locations`, `job_alerts`, `preferences_url`, `alerts_url`, and `raw_preferences`. It reads visible settings only and does not change preferences or alerts.
 
-`job-detail` accepts a `https://www.linkedin.com/jobs/view/<id>` URL and returns `title`, `company`, `location`, `workplace_type`, `job_type`, `applicants`, `listed`, `apply_url`, `company_url`, `url`, and `description`. It normalizes the URL to LinkedIn's logged-in job detail surface and combines inline metadata with the rendered description.
+`job-detail` accepts a `https://www.linkedin.com/jobs/view/<id>` URL and returns `title`, `company`, `location`, `workplace_type`, `job_type`, `applicants`, `listed`, `apply_url`, `company_url`, `url`, and `description`. It reads the posting from LinkedIn's Voyager `jobPostings` API with the signed-in session (so `listed` is the posting date as `YYYY-MM-DD`), takes `applicants` from the rendered page, and falls back to the rendered page when the API does not return the job.
 
 ### `people-search`
 
