@@ -256,7 +256,7 @@ export function buildPlayerMatchesUrl(args) {
   return { url, playerId, slug, filters: { period, eventType, event: event ?? 'all', ranking, map, version, offset } };
 }
 
-export function buildTeamMatchesUrl(args) {
+function buildTeamMatchesRequest(args, pathForTeam) {
   const { teamId, slug } = parseTeamRef(args.team);
   const eventType = normalizeChoice(args.eventType, 'all', EVENT_TYPES, 'eventType');
   const ranking = normalizeChoice(args.ranking, 'all', RANKING_FILTERS, 'ranking');
@@ -266,7 +266,7 @@ export function buildTeamMatchesUrl(args) {
   const period = String(args.period ?? 'all');
   const event = parseEventRef(args.event);
 
-  const url = new URL(`/team/${teamId}/${slug}`, BASE);
+  const url = new URL(pathForTeam(teamId, slug), BASE);
   const range = resolvePeriod(period);
   if (range) {
     url.searchParams.set('startDate', range.startDate);
@@ -282,6 +282,14 @@ export function buildTeamMatchesUrl(args) {
   if (offset > 0) url.searchParams.set('offset', String(offset));
 
   return { url, teamId, slug, filters: { period, eventType, event: event ?? 'all', ranking, map, version, offset } };
+}
+
+export function buildTeamMatchesUrl(args) {
+  return buildTeamMatchesRequest(args, (teamId, slug) => `/team/${teamId}/${slug}`);
+}
+
+export function buildTeamStatsMatchesUrl(args) {
+  return buildTeamMatchesRequest(args, (teamId, slug) => `/stats/teams/matches/${teamId}/${slug}`);
 }
 
 function rowResult(teamScore, opponentScore) {
@@ -376,6 +384,10 @@ export async function readPlayerMatches(page, args, limit) {
 }
 
 export async function readTeamMatches(page, args, limit) {
+  // The team profile page only renders a short "recent matches" list and ignores the
+  // startDate/endDate parameters, so an explicit period has to be served by the stats page.
+  if (resolvePeriod(args.period)) return readTeamMatchesFromStats(page, args, limit);
+
   const { url, teamId, slug, filters } = buildTeamMatchesUrl(args);
 
   await gotoAndWait(page, url, '.team-row, .match-table', 'hltv team profile matches page');
@@ -389,19 +401,20 @@ export async function readTeamMatches(page, args, limit) {
 
     for (const tr of document.querySelectorAll('tr.team-row')) {
       if (out.length >= payload.limit) break;
-      const text = clean(tr.innerText);
-      if (text.includes('-:-')) continue;
+      // Read structured cells instead of the row text: tr.team-row innerText concatenates
+      // cells without separators (e.g. "12/11/2026Spirit2:1G2Match"), so a text regex such
+      // as /\s(\d+)\s*:\s*(\d+)\s/ can never match and every row was skipped.
+      const date = clean(tr.querySelector('td.date-cell span')?.textContent);
+      const teamText = clean(tr.querySelector('.team-name.team-1')?.textContent) || teamName;
+      const opponent = clean(tr.querySelector('.team-name.team-2')?.textContent);
+      const scores = [...tr.querySelectorAll('.score-cell .score')].map((el) => clean(el.textContent));
+      // Upcoming matches carry no .score element at all; skip them rather than emit a 0:0.
+      if (scores.length < 2) continue;
+      const teamScore = Number(scores[0]);
+      const opponentScore = Number(scores[1]);
+      if (!Number.isFinite(teamScore) || !Number.isFinite(opponentScore)) continue;
       const link = tr.querySelector('a[href*="/matches/"]');
       const matchUrl = link ? new URL(link.getAttribute('href'), payload.base).toString() : null;
-      const score = text.match(/\s(\d+)\s*:\s*(\d+)\s/);
-      if (!score) continue;
-      const before = text.slice(0, score.index).trim();
-      const after = text.slice(score.index + score[0].length).replace(/\bMatch\b.*$/, '').trim();
-      const date = (before.match(/\d{2}\/\d{2}\/\d{4}/)?.[0]) ?? (before.match(/\d{2}:\d{2}/)?.[0]) ?? '';
-      const teamText = before.replace(date, '').trim() || teamName;
-      const opponent = after || clean(link?.textContent);
-      const teamScore = Number(score[1]);
-      const opponentScore = Number(score[2]);
       out.push({
         rank: payload.offset + out.length + 1,
         date,
@@ -422,6 +435,10 @@ export async function readTeamMatches(page, args, limit) {
     return out;
   }, { base: BASE, teamId, slug, filters, limit, offset: filters.offset });
 
+  return toTeamMatchRows(rows);
+}
+
+function toTeamMatchRows(rows) {
   return assertRequiredFields(rows.map((row) => ({
     rank: row.rank,
     date: parseHltvDate(row.date),
@@ -440,6 +457,96 @@ export async function readTeamMatches(page, args, limit) {
       filters: row.filters,
     },
   })), 'hltv team-matches', ['rank', 'date', 'team', 'opponent', 'teamId', 'matchStatsId']);
+}
+
+/**
+ * The stats matches page lists one row per map, while this command's contract is one row
+ * per series. Collapse map results per (date, event, opponent) and use map wins/losses as
+ * the series score.
+ */
+export function aggregateStatsMapsToSeries(mapRows) {
+  const groups = new Map();
+  for (const row of mapRows) {
+    const key = `${row.date}|${row.event}|${row.opponent}`;
+    let group = groups.get(key);
+    if (!group) {
+      group = {
+        date: row.date,
+        event: row.event,
+        opponent: row.opponent,
+        wins: 0,
+        losses: 0,
+        maps: 0,
+        matchId: row.matchId ?? null,
+        matchUrl: row.matchUrl ?? null,
+      };
+      groups.set(key, group);
+    }
+    if (row.outcome === 'W') group.wins += 1;
+    else if (row.outcome === 'L') group.losses += 1;
+    group.maps += 1;
+  }
+
+  return [...groups.values()]
+    .filter((group) => group.wins + group.losses > 0)
+    .map((group) => ({ ...group, teamScore: group.wins, opponentScore: group.losses }));
+}
+
+async function readTeamMatchesFromStats(page, args, limit) {
+  const { url, teamId, slug, filters } = buildTeamStatsMatchesUrl(args);
+
+  await gotoAndWait(page, url, 'table tbody tr', 'hltv team stats matches page');
+
+  const mapRows = await page.evaluate((payload) => {
+    const clean = (value) => String(value ?? '').replace(/\s+/g, ' ').trim();
+    const out = [];
+
+    for (const tr of document.querySelectorAll('table tbody tr')) {
+      const date = clean(tr.querySelector('td.time')?.textContent);
+      if (!/^\d{2}\/\d{2}\/\d{2,4}$/.test(date)) continue;
+      const opponent = clean(tr.querySelector('td.teamCol')?.textContent).replace(/\s*Head-to-head\s*$/i, '');
+      const outcome = clean(tr.querySelector('td.match-won, td.match-lost')?.textContent).toUpperCase();
+      if (!opponent || (outcome !== 'W' && outcome !== 'L')) continue;
+      const event = clean(tr.querySelector('td.gtSmartphone-only:not(.text-center)')?.textContent)
+        || clean(tr.querySelector('td.smartphone-only')?.textContent);
+      const map = clean(tr.querySelector('td.statsMapPlayed')?.textContent);
+      const href = tr.querySelector('a[href*="/stats/matches/mapstatsid/"]')?.getAttribute('href');
+      const matchUrl = href ? new URL(href, payload.base).toString() : null;
+      out.push({
+        date,
+        event,
+        opponent,
+        map,
+        outcome,
+        matchUrl,
+        matchId: matchUrl ? (new URL(matchUrl).pathname.match(/mapstatsid\/(\d+)/)?.[1] ?? null) : null,
+      });
+    }
+
+    return out;
+  }, { base: BASE });
+
+  const filtersText = Object.entries(filters).map(([key, value]) => `${key}=${value}`).join(',');
+  const rows = aggregateStatsMapsToSeries(mapRows)
+    .slice(0, limit)
+    .map((series, index) => ({
+      rank: filters.offset + index + 1,
+      date: series.date,
+      team: slug,
+      teamName: slug,
+      teamScore: series.teamScore,
+      opponent: series.opponent,
+      opponentScore: series.opponentScore,
+      map: 'series',
+      event: series.event,
+      roundDiff: null,
+      matchId: series.matchId,
+      matchUrl: series.matchUrl,
+      teamId,
+      filters: filtersText,
+    }));
+
+  return toTeamMatchRows(rows);
 }
 
 export function parseHltvDate(value) {
