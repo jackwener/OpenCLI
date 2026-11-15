@@ -20,7 +20,7 @@ Options can follow command arguments:
 opencli browser open https://example.com --session research
 opencli browser state --session research
 opencli browser click --role button --name Search --session research
-opencli browser close --session research
+OPENCLI_CLOSE_OWNED_TAB=1 opencli browser close --session research
 ```
 
 Default output is one JSON value: `{ "ok": true, "data": ... }`.
@@ -53,7 +53,31 @@ the affected state before retrying a write.
 `bind --session research` attaches the current user tab. Bound sessions permit
 navigation but block tab creation, selection and closure. `unbind` releases the
 binding without closing the user tab. Owned sessions keep leased tabs until
-`close` or idle expiry. `--window foreground|background` controls owned windows.
+`close` or idle expiry; see Clean up when done. `--window foreground|background`
+controls owned windows.
+
+## Clean up when done
+
+Owned session tabs live in an orange "OpenCLI Browser" tab group in the user's
+Chrome. A plain `close` or idle expiry parks the last tab there as a reusable
+placeholder, so the group stays behind. When a task or one-off call finishes,
+including after failure or abandonment, close every session it opened with the
+cleanup opt-in (prefix the command or set it in the agent's environment):
+
+```sh
+OPENCLI_CLOSE_OWNED_TAB=1 opencli browser close --session research
+opencli browser chrome call tabGroups.query '[{"title":"OpenCLI Browser"}]'
+```
+
+This ungroups and removes only the session's current tab. Chrome drops the group
+once it is empty, and the window once nothing else is left. Use one session per
+page instead of `tab new`: other tabs of an owned session are not in `tab list`,
+so `tab close` cannot reach them and they stay behind after `close`. If the query
+still finds the group (extra tabs, or a placeholder parked by a plain `close`),
+run `open` on a session, which reuses an unleased tab in the group, then close
+it with the opt-in; repeat until the group is gone. If cleanup fails, retry
+`close` only; do not repeat the site action. Release bound sessions with `unbind`,
+which leaves the user's tab open. Keep a session open only when the user asks.
 
 ## Network and scripts
 
@@ -85,6 +109,9 @@ opencli browser chrome call tabGroups.update '[789,{"title":"Research","color":"
 
 Use numeric IDs returned by Chrome, replacing the example IDs. `describe` lists
 supported methods, signatures, live permissions and official documentation.
-Native-created tabs/windows persist. Mutations touching active OpenCLI session
-tabs or managed groups return `managed_resource_conflict`; ordinary groups can be
-created, renamed, recolored, moved and dissolved with `tabs.ungroup`.
+Native-created tabs/windows persist. When the task ends, remove temporary tabs you
+created this way: `tabs.ungroup` them, then `tabs.remove` (ungrouping first keeps
+Chrome from saving the closed group). Keep tabs and groups the user asked you to
+arrange. Mutations touching active OpenCLI session tabs or managed groups return
+`managed_resource_conflict`; ordinary groups can be created, renamed, recolored,
+moved and dissolved with `tabs.ungroup`.

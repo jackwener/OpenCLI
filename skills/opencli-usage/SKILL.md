@@ -36,9 +36,14 @@ is distinct from an execution failure.
 ```sh
 opencli browser open https://example.com --session research
 opencli browser state --session research
-opencli browser close --session research
+OPENCLI_CLOSE_OWNED_TAB=1 opencli browser close --session research
 opencli browser chrome describe
 ```
+
+Close every session you opened when the task ends. `OPENCLI_CLOSE_OWNED_TAB=1`
+removes the session's tab instead of parking a placeholder, so the orange OpenCLI
+tab group disappears once empty. Use one session per page; see `opencli-browser`
+for leftover tabs.
 
 Page commands use `--session`; native Chrome methods need no session. `--profile`
 selects a connected Chrome profile. `profile list` discovers profiles and
