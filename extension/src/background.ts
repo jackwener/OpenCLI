@@ -1026,15 +1026,26 @@ async function ensureOwnedContainerWindowUnlocked(
 
   const startUrl = (initialUrl && isSafeNavigationUrl(initialUrl)) ? initialUrl : BLANK_PAGE;
 
-  // Note: Do NOT set `state` parameter here. Chrome 146+ rejects 'normal' as an invalid
-  // state value for windows.create(). The window defaults to 'normal' state anyway.
-  const win = await chrome.windows.create({
-    url: startUrl,
-    focused: mode === 'foreground',
-    width: 1280,
-    height: 900,
-    type: 'normal',
-  });
+  // macOS may activate Chrome even when a new normal window uses focused:false,
+  // and when the user's active Chrome window is fullscreen the new window joins
+  // fullscreen and takes focus. Create background windows minimized instead.
+  // Do not pass `focused` here: focused:false makes Chrome show the window via
+  // ShowInactive(), which drops the minimized initial state on macOS.
+  // Minimized windows cannot include bounds, so size only foreground windows.
+  const createData: chrome.windows.CreateData = mode === 'background'
+    ? {
+        url: startUrl,
+        state: 'minimized',
+        type: 'normal',
+      }
+    : {
+        url: startUrl,
+        focused: true,
+        width: 1280,
+        height: 900,
+        type: 'normal',
+      };
+  const win = await chrome.windows.create(createData);
   container.windowId = win.id!;
   // Persist windowId before any further awaits so a worker crash between
   // `windows.create` returning and the subsequent `tabs.group` call still
