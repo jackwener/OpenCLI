@@ -61,8 +61,14 @@ function buildFollowingScript(limit) {
     return found;
   }
 
+  function findViewerSecUidFromAppContext() {
+    const scope = window.__$UNIVERSAL_DATA$__?.__DEFAULT_SCOPE__;
+    const appUser = scope?.['webapp.app-context']?.user;
+    return String(appUser?.secUid || appUser?.sec_uid || '').trim();
+  }
+
   const universal = findUniversalData();
-  let viewerSecUid = findViewerSecUid(universal);
+  let viewerSecUid = findViewerSecUid(universal) || findViewerSecUidFromAppContext();
   const msToken = getCookie('msToken');
 
   if (!viewerSecUid) {
@@ -150,6 +156,7 @@ export const followingCommand = cli({
     domain: 'www.tiktok.com',
     strategy: Strategy.COOKIE,
     browser: true,
+    siteSession: 'persistent',
     args: [
         { name: 'limit', type: 'int', default: DEFAULT_LIMIT, help: `Number of accounts (max ${MAX_LIMIT})` },
     ],
