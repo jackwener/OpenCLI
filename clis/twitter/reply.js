@@ -5,14 +5,17 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 import { parseTweetUrl, unwrapBrowserResult } from './shared.js';
 import {
     COMPOSER_FILE_INPUT_SELECTOR,
-    attachComposerImage,
+    attachComposerImages,
     downloadRemoteImage,
     resolveImagePath,
+    resolveImagePaths,
 } from './utils.js';
 
 const COMPOSER_SELECTOR = '[data-testid="tweetTextarea_0"]';
 const SUBMIT_POLL_MS = 500;
 const SUBMIT_TIMEOUT_MS = 15_000;
+const REPLY_ERROR_TOAST_RE = /failed|error|try again|not sent|not posted|could not|发送失败|发布失败|无法发送|无法发布|请重试|出错/i;
+const REPLY_SUCCESS_TOAST_RE = /your post was sent|your tweet was sent|post sent|tweet sent|posted successfully|sent|posted|已发送|已发布|已发出|发布成功|发送成功/i;
 
 function buildReplyComposerUrl(rawUrl) {
     // Replaces the legacy local extractTweetId which used `/\/status\/(\d+)/`
@@ -164,7 +167,9 @@ async function detectReplySent(page) {
         };
         const toasts = Array.from(document.querySelectorAll('[role="alert"], [data-testid="toast"]'))
             .filter((el) => visible(el) && !el.hasAttribute('data-opencli-before-reply-toast'));
-        const successToast = toasts.find((el) => /sent|posted|your post was sent|your tweet was sent/i.test(el.textContent || ''));
+        const alert = toasts.find((el) => ${REPLY_ERROR_TOAST_RE}.test(el.textContent || ''));
+        if (alert) return { ok: false, message: (alert.textContent || 'Reply failed to post.').trim() };
+        const successToast = toasts.find((el) => ${REPLY_SUCCESS_TOAST_RE}.test(el.textContent || ''));
         if (!successToast) return { ok: false };
         return {
             ok: true,
@@ -200,7 +205,9 @@ async function waitForReplySent(page, text) {
                 await new Promise(r => setTimeout(r, ${JSON.stringify(SUBMIT_POLL_MS)}));
                 const toasts = Array.from(document.querySelectorAll('[role="alert"], [data-testid="toast"]'))
                     .filter((el) => visible(el) && !el.hasAttribute('data-opencli-before-reply-toast'));
-                const successToast = toasts.find((el) => /sent|posted|your post was sent|your tweet was sent/i.test(el.textContent || ''));
+                const alert = toasts.find((el) => ${REPLY_ERROR_TOAST_RE}.test(el.textContent || ''));
+                if (alert) return { ok: false, message: (alert.textContent || 'Reply failed to post.').trim() };
+                const successToast = toasts.find((el) => ${REPLY_SUCCESS_TOAST_RE}.test(el.textContent || ''));
                 if (successToast) {
                     return {
                         ok: true,
@@ -208,8 +215,6 @@ async function waitForReplySent(page, text) {
                         url: statusUrl(successToast)
                     };
                 }
-                const alert = toasts.find((el) => /failed|error|try again|not sent|could not/i.test(el.textContent || ''));
-                if (alert) return { ok: false, message: (alert.textContent || 'Reply failed to post.').trim() };
 
                 // Composer disappearance or text clearing alone can happen after
                 // modal rewrites or failed submits. Require a fresh success toast.
@@ -247,7 +252,7 @@ cli({
     site: 'twitter',
     name: 'reply',
     access: 'write',
-    description: 'Reply to a specific tweet, optionally with a local or remote image',
+    description: 'Reply to a specific tweet, optionally with local or remote images',
     domain: 'x.com',
     strategy: Strategy.UI, // Uses the UI directly to input and click post
     browser: true,
@@ -255,23 +260,27 @@ cli({
         { name: 'url', type: 'string', required: true, positional: true, help: 'The URL of the tweet to reply to' },
         { name: 'text', type: 'string', required: true, positional: true, help: 'The text content of your reply' },
         { name: 'image', help: 'Optional local image path to attach to the reply' },
+        { name: 'images', help: 'Optional comma-separated local image paths, max 4 (jpg/png/gif/webp)' },
         { name: 'image-url', help: 'Optional remote image URL to download and attach to the reply' },
     ],
     columns: ['status', 'message', 'text', 'url'],
     func: async (page, kwargs) => {
         if (!page)
             throw new CommandExecutionError('Browser session required for twitter reply');
-        if (kwargs.image && kwargs['image-url']) {
-            throw new CommandExecutionError('Use either --image or --image-url, not both.');
+        const imageOptionCount = [kwargs.image, kwargs.images, kwargs['image-url']].filter(Boolean).length;
+        if (imageOptionCount > 1) {
+            throw new CommandExecutionError('Use only one of --image, --images, or --image-url.');
         }
-        let localImagePath;
+        let localImagePaths = [];
         let cleanupDir;
         try {
             if (kwargs.image) {
-                localImagePath = resolveImagePath(kwargs.image);
+                localImagePaths = [resolveImagePath(kwargs.image)];
+            } else if (kwargs.images) {
+                localImagePaths = resolveImagePaths(kwargs.images);
             } else if (kwargs['image-url']) {
                 const downloaded = await downloadRemoteImage(kwargs['image-url']);
-                localImagePath = downloaded.absPath;
+                localImagePaths = [downloaded.absPath];
                 cleanupDir = downloaded.cleanupDir;
             }
             // Dedicated composer is normally more reliable than the inline
@@ -282,9 +291,9 @@ cli({
             if (!composer?.ok) {
                 throw new CommandExecutionError(composer?.message ?? 'Could not open the reply composer.', 'Open the tweet in the browser and check whether the reply box is available.');
             }
-            if (localImagePath) {
+            if (localImagePaths.length > 0) {
                 await page.wait({ selector: COMPOSER_FILE_INPUT_SELECTOR, timeout: 20 });
-                await attachComposerImage(page, localImagePath);
+                await attachComposerImages(page, localImagePaths);
             }
             const result = await submitReply(page, kwargs.text);
             if (result.unconfirmed) {
@@ -299,6 +308,7 @@ cli({
                     text: kwargs.text,
                     ...(result.url ? { url: result.url } : {}),
                     ...(kwargs.image ? { image: kwargs.image } : {}),
+                    ...(kwargs.images ? { images: kwargs.images } : {}),
                     ...(kwargs['image-url'] ? { 'image-url': kwargs['image-url'] } : {}),
                 }];
         } finally {
