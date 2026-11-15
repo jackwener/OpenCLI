@@ -376,6 +376,121 @@ describe('twitter image helpers (utils.js)', () => {
         fs.rmSync(tempDir, { recursive: true, force: true });
     });
 
+    it('uploads multiple local images through the dedicated reply composer when --images is provided', async () => {
+        const cmd = getRegistry().get('twitter/reply');
+        expect(cmd?.func).toBeTypeOf('function');
+        const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-twitter-reply-multi-'));
+        const imagePaths = ['1.png', '2.jpg', '3.webp', '4.gif'].map((name) => {
+            const p = path.join(tempDir, name);
+            fs.writeFileSync(p, Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+            return p;
+        });
+        const setFileInput = vi.fn().mockResolvedValue(undefined);
+        const page = createPageMock([
+            { ok: true, previewCount: 4 },
+            { ok: true },
+            { ok: true },
+            { ok: true, message: 'Reply posted successfully.' },
+        ], {
+            setFileInput,
+        });
+        const imagesArg = imagePaths.join(',');
+        const result = await cmd.func(page, {
+            url: 'https://x.com/_kop6/status/2040254679301718161?s=20',
+            text: 'reply with 4 images',
+            images: imagesArg,
+        });
+        expect(page.wait).toHaveBeenNthCalledWith(2, { selector: 'input[type="file"][data-testid="fileInput"]', timeout: 20 });
+        expect(setFileInput).toHaveBeenCalledWith(imagePaths, 'input[type="file"][data-testid="fileInput"]');
+        expect(result).toEqual([
+            {
+                status: 'success',
+                message: 'Reply posted successfully.',
+                text: 'reply with 4 images',
+                images: imagesArg,
+            },
+        ]);
+        fs.rmSync(tempDir, { recursive: true, force: true });
+    });
+
+    it('rejects --images with more than 4 images or mixed with --image', async () => {
+        const cmd = getRegistry().get('twitter/reply');
+        const page = createPageMock([]);
+        await expect(cmd.func(page, {
+            url: 'https://x.com/_kop6/status/2040254679301718161',
+            text: 'too many',
+            images: '/tmp/1.png,/tmp/2.png,/tmp/3.png,/tmp/4.png,/tmp/5.png',
+        })).rejects.toThrow(ArgumentError);
+
+        await expect(cmd.func(page, {
+            url: 'https://x.com/_kop6/status/2040254679301718161',
+            text: 'mixed',
+            image: '/tmp/1.png',
+            images: '/tmp/2.png,/tmp/3.png',
+        })).rejects.toThrow(CommandExecutionError);
+    });
+
+    it('falls back to base64 DataTransfer for multiple images when setFileInput is unsupported', async () => {
+        const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-twitter-helper-multi-'));
+        const img1 = path.join(tempDir, 'a.png');
+        const img2 = path.join(tempDir, 'b.jpg');
+        fs.writeFileSync(img1, Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+        fs.writeFileSync(img2, Buffer.from([0xff, 0xd8, 0xff, 0xe0]));
+        const page = createPageMock([
+            { ok: true },
+            { ok: true, previewCount: 2 },
+        ], {
+            setFileInput: vi.fn().mockRejectedValue(new Error('Unknown action: setFileInput')),
+        });
+
+        await utilsTest.attachComposerImages(page, [img1, img2]);
+        expect(page.evaluate).toHaveBeenCalledTimes(2);
+        expect(page.evaluate.mock.calls[0][0]).toContain('"a.png"');
+        expect(page.evaluate.mock.calls[0][0]).toContain('"b.jpg"');
+        expect(page.evaluate.mock.calls[1][0]).toContain('const expected = 2');
+        fs.rmSync(tempDir, { recursive: true, force: true });
+    });
+
+    it('recognizes localized Chinese success toasts and rejects failure-before-success phrasing', async () => {
+        const cmd = getRegistry().get('twitter/reply');
+        const runWithToast = async (toastText) => {
+            const dom = new JSDOM(`<!doctype html><body><div role="alert">${toastText}</div></body>`, {
+                url: 'https://x.com/compose/post',
+                runScripts: 'outside-only',
+            });
+            dom.window.setTimeout = (callback) => {
+                callback();
+                return 0;
+            };
+            // Ensure JSDOM element reports non-zero client rects so visible(el) returns true
+            const alertEl = dom.window.document.querySelector('[role="alert"]');
+            alertEl.getClientRects = () => [{ width: 100, height: 20 }];
+            const page = {
+                goto: vi.fn().mockResolvedValue(undefined),
+                wait: vi.fn().mockResolvedValue(undefined),
+                evaluate: vi.fn(async (script) => {
+                    if (script.includes('tweetTextarea_0') || script.includes('tweetButton')) {
+                        return { ok: true };
+                    }
+                    return dom.window.eval(script);
+                }),
+            };
+            return cmd.func(page, {
+                url: 'https://x.com/_kop6/status/2040254679301718161',
+                text: 'localized toast test',
+            });
+        };
+
+        await expect(runWithToast('已发送你的帖子')).resolves.toEqual([
+            {
+                status: 'success',
+                message: 'Reply posted successfully.',
+                text: 'localized toast test',
+            },
+        ]);
+        await expect(runWithToast('Your post was not sent.')).rejects.toThrow('Your post was not sent.');
+    });
+
     it('does not treat an empty attachments container as uploaded media', async () => {
         const runMediaReadyProbe = async (html) => {
             const dom = new JSDOM(`<!doctype html><body>${html}</body>`, {

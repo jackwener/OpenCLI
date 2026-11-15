@@ -19,6 +19,8 @@ export const SUPPORTED_IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gi
 
 /** 20 MB hard cap. Twitter allows ~5MB images / 15MB GIFs; 20MB is a safety net. */
 export const MAX_IMAGE_SIZE_BYTES = 20 * 1024 * 1024;
+/** Maximum images X allows per post or reply. */
+export const MAX_COMPOSER_IMAGES = 4;
 const MEDIA_UPLOAD_POLL_MS = 500;
 const MEDIA_UPLOAD_TIMEOUT_MS = 30_000;
 
@@ -51,6 +53,25 @@ export function resolveImagePath(imagePath) {
         throw new ArgumentError(`Image too large: ${(stat.size / 1024 / 1024).toFixed(1)} MB (max ${MAX_IMAGE_SIZE_BYTES / 1024 / 1024} MB)`);
     }
     return absPath;
+}
+
+/**
+ * Validate 1..maxImages local image paths from a comma-separated string or array.
+ *
+ * @param {string | string[]} rawImages - Comma-separated paths or path array.
+ * @param {number} [maxImages] - Maximum allowed image count (default 4).
+ * @returns {string[]} Validated absolute paths.
+ */
+export function resolveImagePaths(rawImages, maxImages = MAX_COMPOSER_IMAGES) {
+    const parts = Array.isArray(rawImages) ? rawImages : String(rawImages).split(',');
+    const paths = parts.map(s => String(s).trim()).filter(Boolean);
+    if (paths.length === 0) {
+        throw new ArgumentError('At least one image path is required.');
+    }
+    if (paths.length > maxImages) {
+        throw new ArgumentError(`Too many images: ${paths.length} (max ${maxImages})`);
+    }
+    return paths.map(resolveImagePath);
 }
 
 /**
@@ -112,26 +133,37 @@ export async function downloadRemoteImage(imageUrl) {
     return { absPath, cleanupDir };
 }
 
+function getImageMimeType(absImagePath) {
+    const ext = path.extname(absImagePath).toLowerCase();
+    if (ext === '.png') return 'image/png';
+    if (ext === '.gif') return 'image/gif';
+    if (ext === '.webp') return 'image/webp';
+    return 'image/jpeg';
+}
+
 /**
- * Attach a single image to the current /compose/post composer. Tries the
+ * Attach one or more images to the current /compose/post composer. Tries the
  * native CDP file-input bridge first; falls back to a base64 DataTransfer
  * shim if the bridge is missing or rejects with "Unknown action" /
  * "not supported". Throws on hard failures.
  *
- * After upload it polls the DOM briefly to confirm the preview thumbnail
+ * After upload it polls the DOM briefly to confirm all preview thumbnails
  * actually rendered — without this, a 200 from setFileInput could mask a
  * silent-no-attachment post.
  *
  * @param {object} page - OpenCLI page handle.
- * @param {string} absImagePath - Already-validated absolute path.
+ * @param {string[]} absImagePaths - Already-validated absolute paths.
  * @param {string} [fileInputSelector] - Override (post.js historically used
  *   the same selector; default matches the X composer route).
  */
-export async function attachComposerImage(page, absImagePath, fileInputSelector = COMPOSER_FILE_INPUT_SELECTOR) {
+export async function attachComposerImages(page, absImagePaths, fileInputSelector = COMPOSER_FILE_INPUT_SELECTOR) {
+    if (!Array.isArray(absImagePaths) || absImagePaths.length === 0) {
+        throw new ArgumentError('At least one image path is required.');
+    }
     let uploaded = false;
     if (page.setFileInput) {
         try {
-            await page.setFileInput([absImagePath], fileInputSelector);
+            await page.setFileInput(absImagePaths, fileInputSelector);
             uploaded = true;
         } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
@@ -142,17 +174,18 @@ export async function attachComposerImage(page, absImagePath, fileInputSelector 
         }
     }
     if (!uploaded) {
-        const ext = path.extname(absImagePath).toLowerCase();
-        const mimeType = ext === '.png'
-            ? 'image/png'
-            : ext === '.gif'
-                ? 'image/gif'
-                : ext === '.webp'
-                    ? 'image/webp'
-                    : 'image/jpeg';
-        const base64 = fs.readFileSync(absImagePath).toString('base64');
-        if (base64.length > 500_000) {
-            console.warn(`[warn] Image base64 payload is ${(base64.length / 1024 / 1024).toFixed(1)}MB. ` +
+        let totalBase64Length = 0;
+        const files = absImagePaths.map((absImagePath) => {
+            const base64 = fs.readFileSync(absImagePath).toString('base64');
+            totalBase64Length += base64.length;
+            return {
+                name: path.basename(absImagePath),
+                mimeType: getImageMimeType(absImagePath),
+                base64,
+            };
+        });
+        if (totalBase64Length > 500_000) {
+            console.warn(`[warn] Image base64 payload is ${(totalBase64Length / 1024 / 1024).toFixed(1)}MB. ` +
                 'This may fail with the browser bridge. Update the extension to v1.6+ for CDP-based upload, ' +
                 'or compress the image before attaching.');
         }
@@ -161,25 +194,26 @@ export async function attachComposerImage(page, absImagePath, fileInputSelector 
         const input = document.querySelector(${JSON.stringify(fileInputSelector)});
         if (!input) return { ok: false, error: 'No file input found on page' };
 
-        const binary = atob(${JSON.stringify(base64)});
-        const bytes = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-
         const dt = new DataTransfer();
-        const blob = new Blob([bytes], { type: ${JSON.stringify(mimeType)} });
-        dt.items.add(new File([blob], ${JSON.stringify(path.basename(absImagePath))}, { type: ${JSON.stringify(mimeType)} }));
+        for (const file of ${JSON.stringify(files)}) {
+          const binary = atob(file.base64);
+          const bytes = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+          const blob = new Blob([bytes], { type: file.mimeType });
+          dt.items.add(new File([blob], file.name, { type: file.mimeType }));
+        }
 
         let assigned = false;
         try {
           Object.defineProperty(input, 'files', { value: dt.files, writable: false, configurable: true });
-          assigned = input.files && input.files.length > 0;
+          assigned = input.files && input.files.length >= ${JSON.stringify(absImagePaths.length)};
         } catch(e) {
           // files property not redefinable — use nativeInputValueSetter trick
           try {
             const nativeInputFileSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'files');
             if (nativeInputFileSetter && nativeInputFileSetter.set) {
               nativeInputFileSetter.set.call(input, dt.files);
-              assigned = input.files && input.files.length > 0;
+              assigned = input.files && input.files.length >= ${JSON.stringify(absImagePaths.length)};
             }
           } catch(e2) { /* ignore */ }
         }
@@ -193,10 +227,21 @@ export async function attachComposerImage(page, absImagePath, fileInputSelector 
             throw new Error(`Image upload failed: ${upload?.error ?? 'unknown error'}`);
         }
     }
-    const uploadState = await waitForComposerMediaReady(page, 1);
+    const uploadState = await waitForComposerMediaReady(page, absImagePaths.length);
     if (!uploadState?.ok) {
         throw new Error(uploadState?.message ?? 'Image upload failed: preview did not appear.');
     }
+}
+
+/**
+ * Attach a single image to the current /compose/post composer.
+ *
+ * @param {object} page - OpenCLI page handle.
+ * @param {string} absImagePath - Already-validated absolute path.
+ * @param {string} [fileInputSelector] - Override selector.
+ */
+export async function attachComposerImage(page, absImagePath, fileInputSelector = COMPOSER_FILE_INPUT_SELECTOR) {
+    return attachComposerImages(page, [absImagePath], fileInputSelector);
 }
 
 export function isRecoverableFileInputError(error) {
@@ -312,9 +357,11 @@ export function applyTopByEngagement(rows, topN) {
 
 export const __test__ = {
     resolveImagePath,
+    resolveImagePaths,
     resolveImageExtension,
     downloadRemoteImage,
     attachComposerImage,
+    attachComposerImages,
     isRecoverableFileInputError,
     waitForComposerMediaReady,
     computeEngagementScore,
