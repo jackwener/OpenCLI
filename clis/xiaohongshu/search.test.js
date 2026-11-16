@@ -183,6 +183,14 @@ function createFilterBehaviorPage(options = {}) {
                             renderResults(options.emptyOn === `${groupLabel}/${choice}`);
                         }, 300);
                     });
+                    if (options.hiddenClone) {
+                        const clone = option.cloneNode(true);
+                        clone.setAttribute('aria-hidden', 'true');
+                        clone.style.opacity = '0.00001';
+                        clone.addEventListener('click', () => clicks.push('hidden-clone'));
+                        container.append(clone);
+                        markVisible(clone);
+                    }
                     container.append(option);
                     markVisible(option);
                     markVisible(optionLabel);
@@ -1052,6 +1060,16 @@ describe('xiaohongshu search filter behavior', () => {
         finally {
             vi.useRealTimers();
         }
+    });
+
+    it('ignores aria-hidden duplicate controls instead of clicking them or treating them as visible ambiguity', async () => {
+        vi.useFakeTimers();
+        try {
+            const page = createFilterBehaviorPage({ hiddenClone: true });
+            await runFilterCommand(page, { location: 'same-city' });
+            expect(page.filterState['位置距离']).toBe('同城');
+            expect(page.filterClicks).not.toContain('hidden-clone');
+        } finally { vi.useRealTimers(); }
     });
 
     it('fails closed for ambiguous visible options and unavailable account-scoped options', async () => {

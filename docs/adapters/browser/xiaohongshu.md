@@ -12,7 +12,14 @@
 | `opencli xiaohongshu comments` | Read comments from a note (`--with-replies` for nested 楼中楼 replies) |
 | `opencli xiaohongshu feed` | Home feed recommendations (reads the hydrated Pinia store; URLs carry `xsec_token` for drill-down) |
 | `opencli xiaohongshu notifications` | User notifications (mentions, likes, connections) |
+| `opencli xiaohongshu inbox` | Ordinary-user private conversation list |
+| `opencli xiaohongshu messages <conversation_id>` | Read recent N messages or all available private history |
+| `opencli xiaohongshu send <target> <text>` | Preflight a private text; approved execution needs an independent signature and server receipt |
+| `opencli xiaohongshu conversation-open <target>` | Preflight; approved execution opens the native composer without sending or claiming a new server thread |
+| `opencli xiaohongshu write-status <request-id>` | Read a local execution receipt, not server reconciliation |
 | `opencli xiaohongshu user` | Get public notes from a user profile |
+| `opencli xiaohongshu user-profile` | Ordinary-user public profile, stable user ID and loaded public notes |
+| `opencli xiaohongshu nearby` | Location-filtered keyword search; requires a successfully selected nearby/same-city chip |
 | `opencli xiaohongshu saved` | List saved/collected notes (`/user/profile/<id>?tab=fav&subTab=note`) |
 | `opencli xiaohongshu liked` | List liked notes (`/user/profile/<id>?tab=liked&subTab=note`) |
 | `opencli xiaohongshu download` | Download images and videos from a note |
@@ -93,6 +100,26 @@ opencli xiaohongshu delete-note 6a08ba0b000000000702a893 --execute
 > `comment-delete` removes one of your own comments and takes the `comment_id` that `comment` printed (the `comments` read command does not expose ids). It goes through the same bundled API module, calling the wrapper for `/api/sns/web/v1/comment/delete` — on the web the "…" affordance only appears while the pointer is over the comment and the menu then opens on *click*, not on hover — reading it as a hover-expanded menu is the natural mistake and wastes a lot of time, and long-pressing your own comment in the mobile app opens the note share sheet rather than a delete option. Its error handling is deliberately the **opposite** of `comment`'s: posting is not idempotent, so an accepted-but-unconfirmed post is reported as success to stop callers double-posting, whereas deleting is idempotent, so an unconfirmed delete **fails loudly** — re-running it is harmless, while a false success would leave the comment up. `--execute` is required for both.
 > `follow` and `unfollow` are write commands on the public profile page. They verify the browser stayed on the requested `/user/profile/<id>` target before clicking, and verify the visible follow-state button after the action.
 > `publish --card-text` uses creator-center 文字配图. It requires generated card images to appear in the current composer before filling title/body or submitting. If you request `--card-style`, that exact live page style must be selected; unavailable styles fail instead of silently falling back.
+
+## Ordinary-user discovery
+
+See [social discovery](/adapters/browser/social-discovery) for `nearby`, `user-profile`, stable note-author fields, source contracts and precise location limitations. These are read-only tools, not an automated greeting or reply workflow.
+
+## Approved writes
+
+See [social writes](/adapters/browser/social-writes) for the new approval-gated `send`, `conversation-open` and local `write-status`. New mutators default to preflight and require `--execute --request-id <UUID> --approval <file>` plus an external operator signer. Existing `follow/unfollow` are unchanged and execute immediately; they are **not** covered by the new signature/lock protocol. No real sends, new-author creation or follow changes have been performed during verification.
+
+## Private Messages
+
+```bash
+opencli xiaohongshu inbox --limit 20 -f json
+opencli xiaohongshu inbox --unread --limit 20 -f json
+opencli xiaohongshu messages <conversation_id-from-inbox> --after-message <processed-message-id> -f json
+opencli xiaohongshu messages <conversation_id-from-inbox> --limit 10 -f json
+opencli xiaohongshu messages <conversation_id-from-inbox> --all -f json
+```
+
+Choose by the exact `conversation_id` / `user_id` returned by inbox or an exact Xiaohongshu profile URL. These are ordinary-user, read-only commands requiring login on **www.xiaohongshu.com**; they are separate from interaction `notifications`, 点点 `ask`, and creator-center commands. No replies or greetings are sent. See [private messaging](/adapters/browser/private-messaging) for arguments, fields, history completeness, read-state caveats, and implementation evidence.
 
 ## Prerequisites
 
