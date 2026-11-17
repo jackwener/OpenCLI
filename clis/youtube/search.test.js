@@ -426,6 +426,50 @@ describe('youtube search', () => {
         expect(page.__fetchMock).toHaveBeenCalledTimes(10);
     });
 
+    it('returns accumulated rows at the page cap when --partial is set, including the last fetched page', async () => {
+        const responses = Array.from({ length: 10 }, (_, index) =>
+            response(payload(index === 9
+                ? [video('last'), continuation('cursor-10')]
+                : [continuation(`cursor-${index + 1}`)])));
+        const page = makePage({
+            initialData: payload([video('first'), continuation('cursor-0')]),
+            responses,
+        });
+        const rows = await getRegistry().get('youtube/search').func(page, { query: 'test', limit: 5, partial: true });
+        expect(rows.map(row => row.video_id)).toEqual(['first', 'last']);
+        expect(rows.map(row => row.rank)).toEqual([1, 2]);
+        expect(page.__fetchMock).toHaveBeenCalledTimes(10);
+    });
+
+    it('still rejects the page cap with --partial when no rows were found', async () => {
+        const responses = Array.from({ length: 10 }, (_, index) =>
+            response(payload([continuation(`cursor-${index + 1}`)])));
+        const page = makePage({
+            initialData: payload([continuation('cursor-0')]),
+            responses,
+        });
+        await expect(getRegistry().get('youtube/search').func(page, { query: 'test', limit: 2, partial: true }))
+            .rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
+    it('returns accumulated rows on a repeated cursor when --partial is set', async () => {
+        const page = makePage({
+            initialData: payload([video('first'), continuation('same')]),
+            responses: [response(payload([video('second'), continuation('same')]))],
+        });
+        const rows = await getRegistry().get('youtube/search').func(page, { query: 'test', limit: 5, partial: true });
+        expect(rows.map(row => row.video_id)).toEqual(['first', 'second']);
+    });
+
+    it('keeps continuation failures as errors even with --partial', async () => {
+        const page = makePage({
+            initialData: payload([video('first'), continuation('next')]),
+            responses: [response({}, { status: 500 })],
+        });
+        await expect(getRegistry().get('youtube/search').func(page, { query: 'test', limit: 5, partial: true }))
+            .rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
     it('rejects malformed rows instead of silently dropping them', async () => {
         const page = makePage({ initialData: payload([video('first', { title: '' })]) });
         await expect(getRegistry().get('youtube/search').func(page, { query: 'test', limit: 1 }))

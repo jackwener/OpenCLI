@@ -68,6 +68,7 @@ cli({
         { name: 'type', default: '', help: 'Filter type: shorts, video, channel, playlist' },
         { name: 'upload', default: '', help: 'Upload date: hour, today, week, month, year' },
         { name: 'sort', default: '', help: 'Sort by: relevance, date, views, rating' },
+        { name: 'partial', type: 'boolean', default: false, help: 'If pagination runs out before --limit is reached, return the results found so far instead of failing' },
     ],
     columns: ['rank', 'title', 'channel', 'channel_avatar', 'video_id', 'views', 'duration', 'published', 'url'],
     func: async (page, kwargs) => {
@@ -77,6 +78,7 @@ cli({
         const resultType = normalizeChoice(kwargs.type, TYPE_FILTERS, 'type');
         const upload = normalizeChoice(kwargs.upload, UPLOAD_FILTERS, 'upload');
         const sort = normalizeChoice(kwargs.sort, SORT_FILTERS, 'sort');
+        const partial = kwargs.partial === true;
 
         // YouTube accepts one sp parameter. Preserve the existing priority:
         // type > upload > sort.
@@ -92,6 +94,7 @@ cli({
         ${SAPISID_HASH_FN}
 
         const limit = ${limit};
+        const partial = ${partial ? 'true' : 'false'};
         const resultType = ${JSON.stringify(resultType)};
         const maxPages = ${MAX_PAGES};
         const requestTimeoutMs = ${REQUEST_TIMEOUT_SECONDS * 1000};
@@ -332,16 +335,22 @@ cli({
         const seenCursors = new Set();
         let pageData = extractPage(initialData);
 
+        // Collects one page into rows; returns true once the limit is reached.
+        function takePage(data) {
+          for (const [searchId, row] of data.entries) {
+            if (seenIds.has(searchId)) continue;
+            seenIds.add(searchId);
+            rows.push({ rank: rows.length + 1, ...row });
+            if (rows.length >= limit) return true;
+          }
+          return false;
+        }
+
         for (let pageNumber = 0; pageNumber < maxPages; pageNumber += 1) {
           if (pageData.malformed > 0) {
             return { error: 'malformed', message: 'YouTube search returned malformed result rows' };
           }
-          for (const [searchId, row] of pageData.entries) {
-            if (seenIds.has(searchId)) continue;
-            seenIds.add(searchId);
-            rows.push({ rank: rows.length + 1, ...row });
-            if (rows.length >= limit) return rows;
-          }
+          if (takePage(pageData)) return rows;
 
           const cursor = pageData.nextCursor;
           if (!cursor) {
@@ -349,6 +358,7 @@ cli({
             return { error: 'empty', message: pageData.message || 'No YouTube search results found' };
           }
           if (seenCursors.has(cursor)) {
+            if (partial && rows.length > 0) return rows;
             return { error: 'repeated-cursor', message: 'YouTube search repeated a continuation cursor' };
           }
           seenCursors.add(cursor);
@@ -357,6 +367,14 @@ cli({
           pageData = extractPage(fetched.payload);
         }
 
+        if (partial) {
+          // The last continuation was fetched but not read yet: use it before giving up.
+          if (pageData.malformed > 0) {
+            return { error: 'malformed', message: 'YouTube search returned malformed result rows' };
+          }
+          takePage(pageData);
+          if (rows.length > 0) return rows;
+        }
         return { error: 'page-cap', message: 'YouTube search pagination stopped before satisfying the requested limit' };
       })()
     `);
