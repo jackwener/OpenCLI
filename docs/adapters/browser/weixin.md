@@ -55,6 +55,8 @@ Downloads to `<output>/<article-title>/`:
 - `<article-title>.md` — Markdown with frontmatter (title, author, publish time, source URL)
 - `images/` — Downloaded images (if `--download-images` is enabled, default: true)
 
+Untitled posts use `YYYY-MM-DD_HH-mm_<url-hash>` as the title when a full publication time is available, or `Untitled_<url-hash>` otherwise. The stable URL suffix separates posts published in the same minute and keeps repeat downloads at the same path.
+
 ## Prerequisites
 
 - Chrome running and **logged into** mp.weixin.qq.com (for articles behind login wall)
