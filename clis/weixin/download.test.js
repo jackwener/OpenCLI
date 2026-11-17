@@ -1,4 +1,8 @@
-import { describe, expect, it, vi } from 'vitest';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { JSDOM } from 'jsdom';
 import { ArgumentError } from '@jackwener/opencli/errors';
 import { getRegistry } from '@jackwener/opencli/registry';
 import { awaitWechatArticle, normalizeWechatUrl } from './download.js';
@@ -207,5 +211,88 @@ describe('weixin download command (#2045)', () => {
         await expect(getRegistry().get('weixin/download').func(page, { ...baseArgs, 'verification-timeout': 121 }))
             .rejects.toBeInstanceOf(ArgumentError);
         expect(page.goto).not.toHaveBeenCalled();
+    });
+});
+
+describe('weixin untitled article download', () => {
+    let output;
+
+    afterEach(() => {
+        if (output) fs.rmSync(output, { recursive: true, force: true });
+        output = undefined;
+    });
+
+    async function downloadFixture({ slug = 'untitled-post', title = '', createTime = '2026-11-09 18:08:10', body = '<p>Untitled body</p>' } = {}) {
+        output ??= fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-weixin-'));
+        const dom = new JSDOM(`<html><body>
+            <script>var create_time = "${createTime}";</script>
+            <h1 id="activity-name">${title}</h1>
+            <span id="js_name">Test account</span>
+            <span id="publish_time">11月9日</span>
+            ${body ? `<div id="js_content">${body}</div>` : ''}
+        </body></html>`, { runScripts: 'outside-only' });
+        const page = createWeixinPage(null);
+        page.evaluate.mockImplementation(code => dom.window.eval(code));
+        try {
+            const [row] = await getRegistry().get('weixin/download').func(page, {
+                url: `https://mp.weixin.qq.com/s/${slug}`,
+                output,
+                'download-images': false,
+            });
+            return row;
+        } finally {
+            dom.window.close();
+        }
+    }
+
+    it('exports an untitled post with a precise time and source identity', async () => {
+        const row = await downloadFixture();
+        expect(row.status).toBe('success');
+        expect(row.title).toMatch(/^2026-11-09_18-08_[a-f0-9]{12}$/);
+        const markdown = fs.readFileSync(row.saved, 'utf8');
+        expect(markdown).toContain(`# ${row.title}\n`);
+        expect(markdown).toContain('Test account');
+        expect(markdown).toContain('2026-11-09 18:08:10');
+        expect(markdown).toContain('https://mp.weixin.qq.com/s/untitled-post');
+        expect(markdown).toContain('Untitled body');
+        expect(path.basename(row.saved)).toBe(`${row.title}.md`);
+    });
+
+    it('keeps different posts published in the same minute in separate files', async () => {
+        const first = await downloadFixture({ slug: 'first', body: '<p>First body</p>' });
+        const second = await downloadFixture({ slug: 'second', body: '<p>Second body</p>' });
+        expect(first.status).toBe('success');
+        expect(second.status).toBe('success');
+        expect(first.saved).not.toBe(second.saved);
+        expect(fs.readFileSync(first.saved, 'utf8')).toContain('First body');
+        expect(fs.readFileSync(second.saved, 'utf8')).toContain('Second body');
+    });
+
+    it('uses a stable URL fallback when precise publication time is missing', async () => {
+        const first = await downloadFixture({ createTime: '' });
+        const second = await downloadFixture({ createTime: '' });
+        expect(first.status).toBe('success');
+        expect(first.title).toMatch(/^Untitled_[a-f0-9]{12}$/);
+        expect(first.saved).toBe(second.saved);
+    });
+
+    it('treats a whitespace-only title as untitled', async () => {
+        const row = await downloadFixture({ title: '   ' });
+        expect(row.status).toBe('success');
+        expect(row.title).toMatch(/^2026-11-09_18-08_[a-f0-9]{12}$/);
+    });
+
+    it('preserves an explicit article title', async () => {
+        const row = await downloadFixture({ title: 'Original title' });
+        expect(row.status).toBe('success');
+        expect(row.title).toBe('Original title');
+        expect(path.basename(row.saved)).toBe('Original_title.md');
+    });
+
+    it('still rejects a page with no article body', async () => {
+        const row = await downloadFixture({ body: '' });
+        expect(row.status).toBe('failed — no content');
+        expect(row.saved).toBe('-');
+        expect(fs.readdirSync(output)).toEqual([]);
     });
 });

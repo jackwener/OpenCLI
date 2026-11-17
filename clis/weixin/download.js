@@ -6,6 +6,7 @@
  * Usage:
  *   opencli weixin download --url "https://mp.weixin.qq.com/s/xxx" --output ./weixin
  */
+import { createHash } from 'node:crypto';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { downloadArticle } from '@jackwener/opencli/download/article-download';
 import { ArgumentError } from '@jackwener/opencli/errors';
@@ -127,16 +128,18 @@ export function extractWechatCreateTimeValue(htmlStr) {
     return directValueMatch[1] || directValueMatch[2] || directValueMatch[3] || '';
 }
 /**
- * Extract the publish time from DOM text first, then fall back to numeric create_time values.
+ * Keep precise DOM text; otherwise prefer a full create_time over a date-only label.
  */
 export function extractWechatPublishTime(publishTimeText, htmlStr) {
     const normalizedPublishTime = (publishTimeText || '').trim();
-    if (normalizedPublishTime)
+    if (/\d{1,2}:\d{2}/.test(normalizedPublishTime))
         return normalizedPublishTime;
     const rawCreateTime = extractWechatCreateTimeValue(htmlStr);
-    if (!/^\d{10}$|^\d{13}$/.test(rawCreateTime))
-        return '';
-    return formatWechatTimestamp(rawCreateTime);
+    if (/^\d{10}$|^\d{13}$/.test(rawCreateTime))
+        return formatWechatTimestamp(rawCreateTime) || normalizedPublishTime;
+    if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(?::\d{2})?$/.test(rawCreateTime))
+        return rawCreateTime;
+    return normalizedPublishTime;
 }
 /**
  * Detect WeChat anti-bot / verification gate pages before we try to parse the article.
@@ -190,12 +193,14 @@ export function buildExtractWechatPublishTimeJs() {
             return directValueMatch[1] || directValueMatch[2] || directValueMatch[3] || '';
         }
         const normalizedPublishTime = (publishTimeText || '').trim();
-        if (normalizedPublishTime)
+        if (/\d{1,2}:\d{2}/.test(normalizedPublishTime))
             return normalizedPublishTime;
         const rawCreateTime = extractWechatCreateTimeValue(htmlStr);
-        if (!/^\d{10}$|^\d{13}$/.test(rawCreateTime))
-            return '';
-        return formatWechatTimestamp(rawCreateTime);
+        if (/^\d{10}$|^\d{13}$/.test(rawCreateTime))
+            return formatWechatTimestamp(rawCreateTime) || normalizedPublishTime;
+        if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(?::\d{2})?$/.test(rawCreateTime))
+            return rawCreateTime;
+        return normalizedPublishTime;
     }.toString()})`;
 }
 /**
@@ -309,7 +314,7 @@ cli({
           '.rich_media_meta_nickname',
         );
 
-        // Publish time: prefer the rendered DOM text, then fall back to numeric create_time values.
+        // Use create_time to recover precision when the rendered date omits the time.
         const publishTimeEl = document.querySelector('#publish_time');
         const extractWechatPublishTime = ${buildExtractWechatPublishTimeJs()};
         result.publishTime = extractWechatPublishTime(
@@ -387,8 +392,17 @@ cli({
                     saved: '-',
                 }];
         }
+        let title = data?.title || '';
+        if (!title.trim()) {
+            const time = data?.publishTime?.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}):(\d{2})/);
+            const prefix = time ? `${time[1]}_${time[2]}-${time[3]}` : 'Untitled';
+            // The URL suffix separates posts published in the same minute and
+            // gives repeat downloads the same path even without a publish time.
+            const sourceId = createHash('sha256').update(url).digest('hex').slice(0, 12);
+            title = `${prefix}_${sourceId}`;
+        }
         return downloadArticle({
-            title: data?.title || '',
+            title,
             author: data?.author,
             publishTime: data?.publishTime,
             sourceUrl: url,
