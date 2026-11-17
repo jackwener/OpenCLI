@@ -6,6 +6,22 @@ async function loadModule() {
 }
 
 describe('weixin publish time extraction', () => {
+  it.each([
+    ['seconds', '11月9日', 'var create_time = "1711291080";', '2024-03-24 22:38:00'],
+    ['milliseconds', '昨天', "create_time: JsDecode('1711291080000'),", '2024-03-24 22:38:00'],
+    ['datetime', '11月9日', 'var create_time = "2026-11-09 18:08";', '2026-11-09 18:08'],
+    ['decoded datetime', '', "create_time: JsDecode('2026-11-09 18:08:10'),", '2026-11-09 18:08:10'],
+    ['malformed datetime', '11月9日', 'var create_time = "2026-11-09garbage";', '11月9日'],
+    ['date only', '11月9日', 'var create_time = "2026-11-09";', '11月9日'],
+    ['invalid timestamp', '昨天', 'var create_time = "0000000000";', '昨天'],
+    ['missing metadata', '', '', ''],
+  ])('preserves precise publish time in both helpers: %s', async (_name, domText, html, expected) => {
+    const mod = await loadModule();
+    const extractInPage = eval(mod.buildExtractWechatPublishTimeJs()) as typeof mod.extractWechatPublishTime;
+    expect(mod.extractWechatPublishTime(domText, html)).toBe(expected);
+    expect(extractInPage(domText, html)).toBe(expected);
+  });
+
   it('prefers publish_time text over create_time-like date strings', async () => {
     const mod = await loadModule();
 
