@@ -3200,6 +3200,13 @@
         "default": 20,
         "required": false,
         "help": "Number of results"
+      },
+      {
+        "name": "within-days",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Video search only: keep videos published in the last N days (0 = no limit); results stay in relevance order"
       }
     ],
     "columns": [

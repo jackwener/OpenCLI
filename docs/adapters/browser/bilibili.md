@@ -36,6 +36,9 @@ opencli bilibili hot --limit 5
 # Search videos
 opencli bilibili search 黑神话 --limit 10
 
+# Only videos published in the last 7 days (still ranked by relevance)
+opencli bilibili search 黑神话 --limit 10 --within-days 7
+
 # Read one creator's videos
 opencli bilibili user-videos 2 --limit 10
 
@@ -106,6 +109,7 @@ opencli bilibili hot -v
 - `opencli bilibili feed <uid-or-name>` reads a specific user's dynamics
 - `user-videos` fills `likes` from one extra medialist request per page (`arc/search`'s `vlist[]` carries no like count at all, so the column used to read `0` for every row). `likes_known` says whether that row's number is real — medialist only lists uploads in pubdate order and skips some (paid courses, charging-exclusive), so rows it does not cover report `likes: 0, likes_known: false` rather than a fake zero. With `--order click`/`stow` most rows fall outside that order and stay unknown
 - `feed`, `search`, `user-videos` and `video` also emit machine-readable columns next to the display ones: `duration_sec` (seconds), `plays`/`likes`/`danmaku` (numbers, `万`/`亿` text parsed), `pub_ts`/`created_ts`/`pubdate_ts` (unix seconds), plus `bvid`, `cover`, `mid` and `face`. The display columns (`time`, `date`, `publish_time`, `duration`, `score`, `author`) keep their old meaning and format
+- `search --within-days N` keeps only videos published in the last N days, using the same server-side filter as the 发布时间 picker on search.bilibili.com (`pubtime_begin_s` / `pubtime_end_s`); results stay in relevance order. Without it, the top hits for a narrow query are often months or years old. Ignored for `--type user`
 - `opencli bilibili favorite` defaults to the first favorite folder when `--fid` is omitted
 - `feed-detail` expects the dynamic ID from a `https://t.bilibili.com/<id>` URL
 - `comments` emits `rpid`; pass a top-level row's `rpid` to `comments --parent` to read its reply thread
