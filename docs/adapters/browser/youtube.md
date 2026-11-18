@@ -11,6 +11,7 @@
 | `opencli youtube transcript` | Get video transcript/subtitles |
 | `opencli youtube comments` | Get video comments |
 | `opencli youtube channel` | Get channel info and videos |
+| `opencli youtube channel-videos` | A channel's uploads as a video table (`video_id`, `title`, `duration`, `views`, `views_count`, `published`, `url`, `channel_id`) |
 | `opencli youtube playlist` | Get playlist video list |
 | `opencli youtube feed` | Homepage recommended videos |
 | `opencli youtube history` | Watch history |
@@ -68,5 +69,8 @@ opencli youtube comment "https://www.youtube.com/watch?v=xxx" "Great video!" --e
 
 - `feed` and `search` emit `channel_avatar` (largest thumbnail the list page carries) and `video_id`; both are empty for result types that have no channel avatar or video, such as playlist lockups
 - `video` falls back to the channel's own browse response for `channelAvatar` / `subscribers` when the watch page ships no `videoOwnerRenderer` — one extra InnerTube call, only on the pages that need it
+- `channel` adds `channel_id` (snake_case twin of `channelId`), `subscribers_count` and `video_count` as numbers parsed from the header text (`"1.2M subscribers"` / `"2120万位订阅者"` → `21200000`); `null` when the header has no such text
+- `channel-videos <id|@handle|url>` follows InnerTube continuation tokens up to `--limit` (max 200)
+- `search --type channel` rows add `channel_id`, `handle`, `subscribers` (display text), `subscribers_count`, `video_count` and `description`, so callers no longer have to reverse the handle out of `url` before calling `channel`
 
 `channel` accepts a channel ID (`UC…`) or a handle with or without `@` (for example, `opencli youtube channel halfbraindev`). Handles are resolved before channel data is requested; unresolved handles return an error.
