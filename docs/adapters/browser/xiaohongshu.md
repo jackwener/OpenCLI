@@ -6,7 +6,7 @@
 
 | Command | Description |
 |---------|-------------|
-| `opencli xiaohongshu search` | Search notes by keyword (returns title, author, likes, URL) |
+| `opencli xiaohongshu search` | Search notes by keyword (returns title, author, likes, URL); `--type user` searches accounts instead |
 | `opencli xiaohongshu ask` | Ask 点点 and return its answer with citation sources (`sources[]` in JSON) |
 | `opencli xiaohongshu note` | Read full note content (title, author, description, likes, collects, comments, tags) |
 | `opencli xiaohongshu comments` | Read comments from a note (`--with-replies` for nested 楼中楼 replies) |
@@ -95,6 +95,7 @@ opencli xiaohongshu delete-note 6a08ba0b000000000702a893 --execute
 > `follow` and `unfollow` are write commands on the public profile page. They verify the browser stayed on the requested `/user/profile/<id>` target before clicking, and verify the visible follow-state button after the action.
 > `publish --card-text` uses creator-center 文字配图. It requires generated card images to appear in the current composer before filling title/body or submitting. If you request `--card-style`, that exact live page style must be selected; unavailable styles fail instead of silently falling back.
 > `user-info` reads the server-rendered profile store (`__INITIAL_STATE__.user.userPageData`, the same store `user` reads notes from), so it needs no signed API call: `fans` / `follows` / `likes_collects` are numbers, `following` is a boolean derived from `follow_status` (`none|follows|fans|both`), and `notes_count` is `null` because the web profile does not expose it.
+> `search --type user` drives the search page's own `search` store (`getUserLists` / `loadMoreUsers`, the "用户" tab) instead of replaying the signed user-search request, and returns `user_id`, `nickname`, `red_id`, `avatar`, `desc`, `fans`, `notes_count`, `followed`, `url`; counts are numbers, unknown values are `null` (the user-search API carries no bio, so `desc` is usually `null`). Pass a `user_id` on to `user-info` for the full profile card.
 
 ## Prerequisites
 

@@ -7,6 +7,7 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CliError, CommandExecutionError, EmptyResultError, TimeoutError } from '@jackwener/opencli/errors';
 import { unwrapEvaluateResult } from './shared.js';
+import { searchXhsUsers, XHS_USER_SEARCH_COLUMNS } from './user-search.js';
 const CONTENT_WAIT_SECONDS = 20;
 const EXPLORE_URL = 'https://www.xiaohongshu.com/explore';
 const SEARCH_RESULT_URL = 'https://www.xiaohongshu.com/search_result';
@@ -1064,12 +1065,13 @@ export const command = cli({
     site: 'xiaohongshu',
     name: 'search',
     access: 'read',
-    description: '搜索小红书笔记',
+    description: '搜索小红书笔记（--type user 时搜索用户）',
     domain: 'www.xiaohongshu.com',
     strategy: Strategy.COOKIE,
     navigateBefore: false,
     args: [
         { name: 'query', required: true, positional: true, help: 'Search keyword' },
+        { name: 'type', type: 'string', default: 'notes', choices: ['notes', 'user'], help: 'notes (default) searches notes; user searches accounts and returns user_id/nickname/red_id/avatar/desc/fans/notes_count/url rows' },
         { name: 'limit', type: 'int', default: 20, help: 'Number of results' },
         { name: 'sort', type: 'string', default: 'comprehensive', choices: ['comprehensive', 'latest', 'most-liked', 'most-commented', 'most-collected'], help: 'Sort order' },
         { name: 'note-type', type: 'string', default: 'all', choices: ['all', 'video', 'image'], help: 'Note type' },
@@ -1077,10 +1079,21 @@ export const command = cli({
         { name: 'scope', type: 'string', default: 'all', choices: ['all', 'seen', 'unseen', 'following'], help: 'Search scope' },
         { name: 'location', type: 'string', default: 'all', choices: ['all', 'same-city', 'nearby'], help: 'Location distance' },
     ],
-    columns: ['rank', 'title', 'author', 'likes', 'published_at', 'url'],
+    // Union of the note-row and user-row shapes: one command emits two row
+    // types (--type notes | user), and table output would otherwise drop
+    // every user-only key. Shared keys (rank/title/url) appear once.
+    columns: ['rank', 'title', 'author', 'likes', 'published_at', 'url',
+        ...XHS_USER_SEARCH_COLUMNS.filter((c) => !['rank', 'title', 'url'].includes(c))],
     func: async (page, kwargs) => {
         try {
             const limit = parseLimit(kwargs.limit);
+            const searchType = kwargs.type ?? 'notes';
+            if (searchType === 'user') {
+                return await searchXhsUsers(page, String(kwargs.query ?? ''), limit);
+            }
+            if (searchType !== 'notes') {
+                throw new ArgumentError(`--type must be one of: notes, user, got ${JSON.stringify(searchType)}`);
+            }
             const requestedFilters = resolveSearchFilters(kwargs);
             await openSearchResults(page, kwargs.query);
             let harvest = await collectSearchHarvest(page, limit, requestedFilters);

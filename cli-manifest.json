@@ -42350,7 +42350,7 @@
   {
     "site": "xiaohongshu",
     "name": "search",
-    "description": "搜索小红书笔记",
+    "description": "搜索小红书笔记（--type user 时搜索用户）",
     "access": "read",
     "domain": "www.xiaohongshu.com",
     "strategy": "cookie",
@@ -42362,6 +42362,17 @@
         "required": true,
         "positional": true,
         "help": "Search keyword"
+      },
+      {
+        "name": "type",
+        "type": "string",
+        "default": "notes",
+        "required": false,
+        "help": "notes (default) searches notes; user searches accounts and returns user_id/nickname/red_id/avatar/desc/fans/notes_count/url rows",
+        "choices": [
+          "notes",
+          "user"
+        ]
       },
       {
         "name": "limit",
@@ -42441,7 +42452,15 @@
       "author",
       "likes",
       "published_at",
-      "url"
+      "url",
+      "user_id",
+      "nickname",
+      "red_id",
+      "avatar",
+      "desc",
+      "fans",
+      "notes_count",
+      "followed"
     ],
     "type": "js",
     "modulePath": "xiaohongshu/search.js",
