@@ -320,6 +320,8 @@ const CONTAINER_TAB_GROUP_TITLE: Record<OwnedWindowRole, string> = {
 };
 const OWNED_TAB_GROUP_COLOR: chrome.tabGroups.ColorEnum = 'orange';
 let leaseMutationQueue: Promise<void> = Promise.resolve();
+// Opera can expose group IDs that tabGroups.update cannot use.
+let tabGroupsUnavailable = false;
 const ownedContainers: Record<OwnedWindowRole, {
   windowId: number | null;
   groupId: number | null;
@@ -359,6 +361,7 @@ type StoredLease = Omit<TargetLease, 'idleTimer' | 'idleDeadlineAt'> & {
 type StoredRegistry = {
   version: 2;
   contextId: BrowserContextId;
+  tabGroupsUnavailable?: boolean;
   ownedContainers: {
     interactive: { windowId: number | null; groupIds: number[] };
     automation: { windowId: number | null };
@@ -495,6 +498,7 @@ function emptyRegistry(): StoredRegistry {
   return {
     version: 2,
     contextId: currentContextId,
+    ...(tabGroupsUnavailable ? { tabGroupsUnavailable: true } : {}),
     ownedContainers: {
       interactive: {
         windowId: ownedContainers.interactive.windowId,
@@ -519,6 +523,7 @@ async function readRegistry(): Promise<StoredRegistry> {
     return {
       version: 2,
       contextId: currentContextId,
+      ...(stored.tabGroupsUnavailable === true ? { tabGroupsUnavailable: true } : {}),
       ownedContainers: {
         interactive: {
           windowId: typeof storedContainers.interactive?.windowId === 'number' ? storedContainers.interactive.windowId : null,
@@ -566,6 +571,7 @@ async function persistRuntimeState(): Promise<void> {
   await writeRegistry({
     version: 2,
     contextId: currentContextId,
+    ...(tabGroupsUnavailable ? { tabGroupsUnavailable: true } : {}),
     ownedContainers: {
       interactive: {
         windowId: ownedContainers.interactive.windowId,
@@ -688,6 +694,14 @@ function selectOwnedContainerGroupCandidate(candidates: OwnedContainerGroupCandi
 
 function isMissingTabGroupError(err: unknown): boolean {
   return err instanceof Error && /No group with id|group no longer exists/i.test(err.message);
+}
+
+async function disableTabGroups(): Promise<null> {
+  tabGroupsUnavailable = true;
+  ownedContainers.interactive.groupId = null;
+  interactiveGroupLedger.clear();
+  await persistRuntimeState();
+  return null;
 }
 
 async function collectOwnedGroupCandidates(role: OwnedWindowRole): Promise<OwnedContainerGroupCandidate[]> {
@@ -864,7 +878,7 @@ async function createOwnedGroup(
   role: OwnedWindowRole,
   windowId: number,
   ids: number[],
-): Promise<OwnedContainerGroup> {
+): Promise<OwnedContainerGroup | null> {
   if (ids.length === 0) throw new Error(`Cannot create ${role} tab group without tabs`);
   await ensureTabsInWindow(ids, windowId);
   const groupId = await chrome.tabs.group({ tabIds: ids, createProperties: { windowId } });
@@ -877,11 +891,19 @@ async function createOwnedGroup(
   // on failure or the recorded id dangles.
   if (role === 'interactive') interactiveGroupLedger.add(groupId);
   await persistRuntimeState();
-  const group = await chrome.tabGroups.update(groupId, {
-    color: OWNED_TAB_GROUP_COLOR,
-    title: CONTAINER_TAB_GROUP_TITLE[role],
-    collapsed: false,
-  });
+  let group: chrome.tabGroups.TabGroup;
+  try {
+    group = await chrome.tabGroups.update(groupId, {
+      color: OWNED_TAB_GROUP_COLOR,
+      title: CONTAINER_TAB_GROUP_TITLE[role],
+      collapsed: false,
+    });
+  } catch (err) {
+    // Opera can reject the id tabs.group just returned. Missing older groups
+    // elsewhere are ordinary races and must leave browser capabilities intact.
+    if (isMissingTabGroupError(err)) return disableTabGroups();
+    throw err;
+  }
   updateOwnedSessionWindowForTabs(role, ids, group.windowId);
   return { id: group.id, windowId: group.windowId, title: group.title };
 }
@@ -914,7 +936,12 @@ async function ensureOwnedContainerGroupUnlocked(
   role: OwnedWindowRole,
   fallbackWindowId: number | null,
   ids: number[],
+  retryMissingGroup = true,
 ): Promise<OwnedContainerGroup | null> {
+  // Check inside the serialized operation so queued callers also skip the APIs
+  // after the first failure. Keep the window ownership anchor in ungrouped mode.
+  if (tabGroupsUnavailable) return null;
+
   try {
     const candidates = await collectOwnedGroupCandidates(role);
     const selected = selectOwnedContainerGroupCandidate(candidates);
@@ -938,13 +965,18 @@ async function ensureOwnedContainerGroupUnlocked(
         interactiveGroupLedger.add(canonical.id);
         await persistRuntimeState();
       }
-    } else {
+    } else if (!tabGroupsUnavailable) {
       ownedContainers[role].groupId = null;
       if (fallbackWindowId === null) ownedContainers[role].windowId = null;
     }
     return canonical;
   } catch (err) {
     console.warn(`[opencli] Failed to ensure ${role} tab group: ${err instanceof Error ? err.message : String(err)}`);
+    if (isMissingTabGroupError(err)) {
+      if (retryMissingGroup) return ensureOwnedContainerGroupUnlocked(role, fallbackWindowId, ids, false);
+      ownedContainers[role].groupId = null;
+      return null;
+    }
     throw err;
   }
 }
@@ -999,7 +1031,7 @@ async function ensureOwnedContainerWindowUnlocked(
           initialTabId,
         };
       }
-      if (role === 'interactive') {
+      if (role === 'interactive' && !tabGroupsUnavailable) {
         container.windowId = null;
         container.groupId = null;
       } else {
@@ -2257,6 +2289,7 @@ async function releaseLease(leaseKey: string, reason: string = 'released'): Prom
 
 async function reconcileTargetLeaseRegistry(): Promise<void> {
   const registry = await readRegistry();
+  tabGroupsUnavailable ||= registry.tabGroupsUnavailable === true;
   // Restore the orphan-group ledger (readRegistry already coerced it to a
   // clean number[]).
   interactiveGroupLedger.clear();

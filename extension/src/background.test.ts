@@ -1846,6 +1846,93 @@ describe('background tab isolation', () => {
     expect(chrome.tabGroups.update).not.toHaveBeenCalled();
   });
 
+  describe('browser tab group compatibility', () => {
+    let mock: ReturnType<typeof createChromeMock>;
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+      mock = createChromeMock();
+      let nextWindowId = 20;
+      let nextTabId = 200;
+      mock.chrome.windows.create = vi.fn(async ({ url, focused, width, height, type }: any) => {
+        const windowId = nextWindowId++;
+        mock.tabs.push({
+          id: nextTabId++, windowId, url, title: url, active: true, status: 'complete', groupId: -1,
+        });
+        return { id: windowId, url, focused, width, height, type };
+      });
+      vi.stubGlobal('chrome', mock.chrome);
+    });
+
+    async function command(mod: typeof import('./background'), cmd: Parameters<typeof mod.__test__.handleCommand>[0]) {
+      const result = mod.__test__.handleCommand(cmd);
+      await vi.advanceTimersByTimeAsync(500);
+      return result;
+    }
+
+    it('falls back to ungrouped tabs after Opera rejects a new group', async () => {
+      const { chrome, tabs } = mock;
+      const userTabs = tabs.map(tab => ({ ...tab }));
+      chrome.tabGroups.update.mockRejectedValue(new Error('No group with id: 100'));
+      const mod = await import('./background');
+
+      const first = await command(mod, {
+        id: 'opera-open', action: 'navigate', op: 'new', surface: 'browser', session: 'opera', url: 'https://first.example',
+      });
+      expect(first).toMatchObject({ ok: true, data: { url: 'https://first.example' } });
+      expect(mod.__test__.getInteractiveContainer()).toEqual({ windowId: 20, groupId: null, groupIds: [] });
+      expect(await mod.__test__.ensureOwnedContainerGroup('interactive', 20, [200])).toBeNull();
+      const groupCalls = chrome.tabs.group.mock.calls.length;
+      const updateCalls = chrome.tabGroups.update.mock.calls.length;
+      const getCalls = chrome.tabGroups.get.mock.calls.length;
+      const queryCalls = chrome.tabGroups.query.mock.calls.length;
+      expect(groupCalls).toBe(1);
+      expect(updateCalls).toBe(1);
+
+      expect(await command(mod, {
+        id: 'opera-nav', action: 'navigate', surface: 'browser', session: 'opera', url: 'https://next.example',
+      })).toMatchObject({ ok: true, data: { url: 'https://next.example' } });
+      expect(await command(mod, {
+        id: 'opera-session', action: 'tabs', op: 'new', surface: 'browser', session: 'second', url: 'https://second.example',
+      })).toMatchObject({ ok: true, data: { url: 'https://second.example' } });
+
+      expect(chrome.tabs.group).toHaveBeenCalledTimes(groupCalls);
+      expect(chrome.tabGroups.update).toHaveBeenCalledTimes(updateCalls);
+      expect(chrome.tabGroups.get).toHaveBeenCalledTimes(getCalls);
+      expect(chrome.tabGroups.query).toHaveBeenCalledTimes(queryCalls);
+      expect(chrome.windows.create).toHaveBeenCalledTimes(1);
+      expect(mod.__test__.getSession(browserKey('second'))?.windowId).toBe(20);
+      expect(tabs.slice(0, userTabs.length)).toEqual(userTabs);
+      expect(chrome.tabs.ungroup).not.toHaveBeenCalled();
+      expect(chrome.tabs.remove).not.toHaveBeenCalled();
+      expect(chrome.windows.remove).not.toHaveBeenCalled();
+    });
+
+    it('rediscovers candidates when Chrome removes a group between query and update', async () => {
+      const { chrome, tabs, groups } = mock;
+      const mod = await import('./background');
+      expect(await command(mod, {
+        id: 'initial-group', action: 'navigate', surface: 'browser', session: 'first', url: 'https://first.example',
+      })).toMatchObject({ ok: true });
+      groups[0].title = 'Renamed';
+      chrome.tabGroups.update.mockImplementationOnce(async (id) => {
+        groups.splice(0);
+        for (const tab of tabs) if (tab.groupId === id) tab.groupId = -1;
+        throw new Error(`No group with id: ${id}`);
+      });
+
+      expect(await command(mod, {
+        id: 'race', action: 'tabs', op: 'new', surface: 'browser', session: 'first', url: 'https://next.example',
+      })).toMatchObject({ ok: true, data: { url: 'https://next.example' } });
+      expect(mod.__test__.getInteractiveContainer().groupId).toBe(101);
+      expect(groups).toEqual([expect.objectContaining({ id: 101, title: 'OpenCLI Browser' })]);
+      const stored = await chrome.storage.session.get('opencli_target_lease_registry_v2');
+      expect(stored.opencli_target_lease_registry_v2).not.toHaveProperty('tabGroupsUnavailable');
+      expect(chrome.windows.create).toHaveBeenCalledTimes(1);
+    });
+
+  });
+
   it('keeps browser groups while adapter sessions stay ungrouped in separate owned windows', async () => {
     const { chrome, tabs, groups } = createChromeMock();
     let nextWindowId = 20;
