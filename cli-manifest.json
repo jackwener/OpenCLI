@@ -3218,7 +3218,13 @@
       "url",
       "cover",
       "face",
-      "desc"
+      "desc",
+      "name",
+      "sign",
+      "fans",
+      "videos",
+      "level",
+      "avatar"
     ],
     "type": "js",
     "modulePath": "bilibili/search.js",
