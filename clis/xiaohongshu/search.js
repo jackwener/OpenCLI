@@ -53,6 +53,11 @@ const WAIT_FOR_CONTENT_JS = `
 `;
 const DEFAULT_HARVEST_STEP = 900;
 const FILTER_SETTLE_SECONDS = 8;
+// The platform only flips the 附近 / 同城 chip to active once its own
+// geolocation call resolves, and a browser position fix is noticeably slower
+// than a plain chip toggle (cold fixes have been observed at ~12s), so the
+// location chip gets a longer activation window before failing closed.
+const LOCATION_ACTIVATE_TIMEOUT_MS = 8000;
 
 const SEARCH_FILTERS = [
     {
@@ -578,7 +583,10 @@ function buildApplySearchFiltersJs(requestedFilters) {
           const clickedAt = Date.now();
           found.option.click();
           let becameActive = false;
-          while (Date.now() - clickedAt < 2500) {
+          const activateWindowMs = request.capability === 'location'
+            ? ${LOCATION_ACTIVATE_TIMEOUT_MS}
+            : 2500;
+          while (Date.now() - clickedAt < activateWindowMs) {
             if (authBlocked()) return { status: 'auth', detail: 'login_wall' };
             if (locationBlocked()) return { status: 'location', detail: 'geolocation_denied' };
             const currentPanels = panels();
