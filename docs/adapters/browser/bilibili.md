@@ -24,6 +24,7 @@
 | `opencli bilibili follow` | Follow a user by UID, profile URL, or resolvable name; verifies the relation after modify |
 | `opencli bilibili unfollow` | Unfollow a user by UID, profile URL, or resolvable name; verifies the relation after modify |
 | `opencli bilibili user-videos` | |
+| `opencli bilibili user-info` | One user's card: name, sign, fans, following, level, avatar, official title (`/x/space/wbi/acc/info` + `/x/relation/stat`) |
 | `opencli bilibili download` | |
 | `opencli bilibili creator-stats <bvid-or-video-url>` | Read a curated manuscript-level metric snapshot from the latest creator-center comparison rows |
 
