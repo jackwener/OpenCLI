@@ -59,7 +59,7 @@ opencli douyin messages '<conversation_id>' --after-message <processed-message-i
 
 Persist processed message IDs by account and conversation **outside the adapter**. Advance to the last successfully processed message, not merely the latest fetched ID. On a missing checkpoint, reconcile history and state before resuming. Other clients can clear unread counts, so `--unread` is an optimization, not a durable processing watermark; also scan existing conversations against stored watermarks. New messages arriving after a fixed history snapshot are handled in the next poll. These commands do not implement persistence, approvals, sends, locks or an automatic reply daemon.
 
-See [ordinary-user discovery](/adapters/browser/social-discovery) for public author IDs/profiles and the precise Web nearby limitations.
+See [ordinary-user discovery](/adapters/browser/social-discovery) for public author IDs/profiles and the Web location-filter limitations.
 
 ## Scope and safety
 
