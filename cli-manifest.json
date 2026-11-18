@@ -36916,6 +36916,13 @@
         "default": 50,
         "required": false,
         "help": "Maximum number of follower rows to return (default 50). Must be a positive integer."
+      },
+      {
+        "name": "verified",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Read the Verified Followers tab instead: only followers with X Premium or legacy verification."
       }
     ],
     "columns": [
