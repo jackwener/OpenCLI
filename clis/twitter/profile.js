@@ -1,6 +1,6 @@
 import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { describeTwitterApiError, normalizeTwitterScreenName, resolveLoggedInTwitterUser, resolveTwitterOperationMetadata, unwrapBrowserResult } from './shared.js';
+import { describeTwitterApiError, extractAuthorAvatar, normalizeTwitterScreenName, resolveLoggedInTwitterUser, resolveTwitterOperationMetadata, unwrapBrowserResult } from './shared.js';
 import { TWITTER_BEARER_TOKEN } from './utils.js';
 const USER_BY_SCREEN_NAME_QUERY_ID = 'IGgvgiOx4QZndDHuD3x9TQ';
 const USER_BY_SCREEN_NAME_FEATURES = {
@@ -66,6 +66,8 @@ export function mapTwitterProfileResult(result, screenName) {
         likes: countField(result.action_counts?.favorites_count, legacy.favourites_count),
         verified: Boolean(result.is_blue_verified || result.verification?.verified || legacy.verified),
         created_at: stringField(core.created_at) || stringField(legacy.created_at),
+        avatar: extractAuthorAvatar(result) || null,
+        user_id: stringField(result.rest_id) || null,
     }];
 }
 
@@ -80,7 +82,7 @@ cli({
     args: [
         { name: 'username', type: 'string', positional: true, help: 'Twitter screen name (with or without @). Defaults to the logged-in user when omitted.' },
     ],
-    columns: ['screen_name', 'name', 'bio', 'location', 'url', 'followers', 'following', 'tweets', 'likes', 'verified', 'created_at'],
+    columns: ['screen_name', 'name', 'bio', 'location', 'url', 'followers', 'following', 'tweets', 'likes', 'verified', 'created_at', 'avatar', 'user_id'],
     func: async (page, kwargs) => {
         const rawUsername = String(kwargs.username ?? '').trim();
         let username = normalizeTwitterScreenName(rawUsername);

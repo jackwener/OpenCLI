@@ -37621,7 +37621,9 @@
       "tweets",
       "likes",
       "verified",
-      "created_at"
+      "created_at",
+      "avatar",
+      "user_id"
     ],
     "type": "js",
     "modulePath": "twitter/profile.js",
