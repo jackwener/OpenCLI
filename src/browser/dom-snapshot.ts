@@ -409,7 +409,10 @@ export function generateSnapshotJs(opts: DomSnapshotOptions = {}): string {
         // Detect labels that wrap form controls up to two levels deep (label > span > input)
         if (hasFormControlDescendant(el, 2)) return true;
       }
-      if (el.disabled && (tag === 'button' || tag === 'input')) return false;
+      // Disabled native form controls are not actionable — exclude button /
+      // input / select / textarea alike (previously only button/input, so
+      // disabled selects & textareas leaked refs, notably in table cells).
+      if (el.disabled && (tag === 'button' || tag === 'input' || tag === 'select' || tag === 'textarea')) return false;
       return true;
     }
     // Span wrappers for UI components - check if they contain form controls
@@ -623,7 +626,22 @@ export function generateSnapshotJs(opts: DomSnapshotOptions = {}): string {
               } catch { text = '[' + text + '](' + href + ')'; }
             }
           }
-          cells.push(text || '');
+          // Interactive form controls inside a cell were previously dropped —
+          // no ref, so click <N> / --role / --text could not locate them (#2056).
+          // Collect the outermost enabled controls now, but DEFER assignRef: it
+          // mutates shared ref state, and the gates below can still bail out into
+          // the generic walk, which would then re-assign and orphan these refs.
+          const controls = [];
+          const claimed = [];
+          for (const control of cell.querySelectorAll('button, input, select, textarea')) {
+            // isInteractive only rejects disabled button/input; guard here so a
+            // disabled <select> / <textarea> in a cell is not given a clickable ref.
+            if (!isInteractive(control) || control.disabled) continue;
+            if (claimed.some(c => c.contains(control))) continue;
+            claimed.push(control);
+            controls.push(control);
+          }
+          cells.push({ text, controls });
         }
         if (cells.length > 0) {
           grid.push(cells);
@@ -631,25 +649,40 @@ export function generateSnapshotJs(opts: DomSnapshotOptions = {}): string {
         }
       }
       if (grid.length < 2 || maxCols === 0) return false; // need at least header + 1 row
+      // The table is now committed to markdown rendering, so it is safe to claim
+      // refs. Walk the grid in document order (top-to-bottom, left-to-right) so
+      // the [N] indices stay monotonic with the surrounding tree, then fold the
+      // markers into each cell before column widths are measured.
+      let claimed = 0;
+      for (const row of grid) {
+        for (const cell of row) {
+          if (!cell.controls.length) continue;
+          const refMarks = cell.controls.map(control => '[' + assignRef(control) + ']');
+          cell.text = refMarks.join('') + (cell.text ? ' ' + cell.text : '');
+          claimed += cell.controls.length;
+        }
+      }
       // Pad rows to maxCols
-      for (const row of grid) { while (row.length < maxCols) row.push(''); }
+      for (const row of grid) { while (row.length < maxCols) row.push({ text: '', controls: [] }); }
       // Compute column widths
       const widths = [];
       for (let c = 0; c < maxCols; c++) {
         let w = 3;
-        for (const row of grid) { if (row[c].length > w) w = Math.min(row[c].length, 40); }
+        for (const row of grid) { if (row[c].text.length > w) w = Math.min(row[c].text.length, 40); }
         widths.push(w);
       }
       const indent = '  '.repeat(depth);
       const tableLines = [];
       // Header
-      tableLines.push(indent + '| ' + grid[0].map((c, i) => c.padEnd(widths[i])).join(' | ') + ' |');
+      tableLines.push(indent + '| ' + grid[0].map((c, i) => c.text.padEnd(widths[i])).join(' | ') + ' |');
       tableLines.push(indent + '| ' + widths.map(w => '-'.repeat(w)).join(' | ') + ' |');
       // Body
       for (let r = 1; r < grid.length; r++) {
-        tableLines.push(indent + '| ' + grid[r].map((c, i) => c.padEnd(widths[i])).join(' | ') + ' |');
+        tableLines.push(indent + '| ' + grid[r].map((c, i) => c.text.padEnd(widths[i])).join(' | ') + ' |');
       }
-      return tableLines;
+      // Report interactivity so INTERACTIVE_ONLY ancestors don't prune these
+      // lines and orphan the refs we just claimed (#2056).
+      return { lines: tableLines, interactive: claimed > 0 };
     } catch { return false; }
   }
 
@@ -663,6 +696,26 @@ export function generateSnapshotJs(opts: DomSnapshotOptions = {}): string {
   const compoundInfos = {};
   let iframeCount = 0;
   let crossOriginIndex = 0;
+
+  // Assign the next interactive ref to an element: annotate data-opencli-ref,
+  // record its fingerprint (stale-ref detection) and any compound contract,
+  // and return the index. Shared by the main walk and serializeTable so that
+  // interactive controls inside <table> cells get real, clickable refs.
+  function assignRef(el) {
+    interactiveIndex++;
+    if (ANNOTATE_REFS) el.setAttribute('data-opencli-ref', '' + interactiveIndex);
+    refIdentity['' + interactiveIndex] = {
+      tag: el.tagName.toLowerCase(),
+      role: el.getAttribute('role') || '',
+      text: (el.textContent || '').trim().slice(0, 30),
+      ariaLabel: el.getAttribute('aria-label') || '',
+      id: el.id || '',
+      testId: el.getAttribute('data-testid') || el.getAttribute('data-test') || '',
+    };
+    const compound = compoundInfoOf(el);
+    if (compound) compoundInfos['' + interactiveIndex] = compound;
+    return interactiveIndex;
+  }
 
   function walk(el, depth, parentPropagatingRect) {
     if (depth > MAX_DEPTH) return false;
@@ -689,12 +742,15 @@ export function generateSnapshotJs(opts: DomSnapshotOptions = {}): string {
 
     // Table: try markdown serialization before generic walk
     if (tag === 'table' && MARKDOWN_TABLES) {
-      const tableLines = serializeTable(el, depth);
-      if (tableLines) {
+      const table = serializeTable(el, depth);
+      if (table) {
         const indent = '  '.repeat(depth);
         lines.push(indent + '|table|');
-        for (const tl of tableLines) lines.push(tl);
-        return false; // tables usually non-interactive
+        for (const tl of table.lines) lines.push(tl);
+        // Return the table's interactivity WITHOUT re-descending into it: when
+        // cells claimed refs, ancestors must treat the subtree as interactive so
+        // INTERACTIVE_ONLY does not prune these lines and orphan those refs.
+        return table.interactive;
       }
       // Fall through to generic walk if markdown failed
     }
@@ -811,22 +867,8 @@ export function generateSnapshotJs(opts: DomSnapshotOptions = {}): string {
 
     // Interactive index + data-ref + fingerprint
     if (interactive) {
-      interactiveIndex++;
-      if (ANNOTATE_REFS) el.setAttribute('data-opencli-ref', '' + interactiveIndex);
-      line += isScrollable ? '|scroll[' + interactiveIndex + ']|' : '[' + interactiveIndex + ']';
-      // Store fingerprint for stale-ref detection
-      refIdentity['' + interactiveIndex] = {
-        tag: tag,
-        role: el.getAttribute('role') || '',
-        text: (el.textContent || '').trim().slice(0, 30),
-        ariaLabel: el.getAttribute('aria-label') || '',
-        id: el.id || '',
-        testId: el.getAttribute('data-testid') || el.getAttribute('data-test') || '',
-      };
-      // Compound contract for date/select/file — captured per-ref so the
-      // sidecar maps one-to-one with the [N] tokens in the tree.
-      const compound = compoundInfoOf(el);
-      if (compound) compoundInfos['' + interactiveIndex] = compound;
+      const idx = assignRef(el);
+      line += isScrollable ? '|scroll[' + idx + ']|' : '[' + idx + ']';
     }
 
     // Tag + attributes
