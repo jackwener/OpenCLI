@@ -3218,7 +3218,13 @@
       "url",
       "cover",
       "face",
-      "desc"
+      "desc",
+      "name",
+      "sign",
+      "fans",
+      "videos",
+      "level",
+      "avatar"
     ],
     "type": "js",
     "modulePath": "bilibili/search.js",
@@ -3319,6 +3325,40 @@
     "type": "js",
     "modulePath": "bilibili/unfollow.js",
     "sourceFile": "bilibili/unfollow.js",
+    "navigateBefore": "https://www.bilibili.com"
+  },
+  {
+    "site": "bilibili",
+    "name": "user-info",
+    "description": "Bilibili 用户信息（昵称 / 签名 / 粉丝 / 关注 / 等级 / 头像）",
+    "access": "read",
+    "domain": "www.bilibili.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "mid",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "用户 mid、space.bilibili.com/<mid> 链接，或用户名（按搜索首个结果解析）"
+      }
+    ],
+    "columns": [
+      "mid",
+      "name",
+      "sign",
+      "fans",
+      "following",
+      "level",
+      "avatar",
+      "official",
+      "vip",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "bilibili/user-info.js",
+    "sourceFile": "bilibili/user-info.js",
     "navigateBefore": "https://www.bilibili.com"
   },
   {

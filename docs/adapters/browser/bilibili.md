@@ -24,6 +24,7 @@
 | `opencli bilibili follow` | Follow a user by UID, profile URL, or resolvable name; verifies the relation after modify |
 | `opencli bilibili unfollow` | Unfollow a user by UID, profile URL, or resolvable name; verifies the relation after modify |
 | `opencli bilibili user-videos` | |
+| `opencli bilibili user-info` | One user's card: name, sign, fans, following, level, avatar, official title (`/x/space/wbi/acc/info` + `/x/relation/stat`) |
 | `opencli bilibili download` | |
 | `opencli bilibili creator-stats <bvid-or-video-url>` | Read a curated manuscript-level metric snapshot from the latest creator-center comparison rows |
 
@@ -118,3 +119,4 @@ opencli bilibili hot -v
 - `creator-stats` uses the logged-in creator-center session and searches the comparison endpoint's latest 100 manuscript rows. A missing BVID is reported as empty because it may be older, not owned by this account, or not analyzed yet; absence does not prove an ownership or login failure.
 - The command emits a fixed manuscript-level metric family as `{ bvid, metric, value, unit }`. Counts use `count`, duration uses `seconds`, and documented basis-point rates are normalized to `percent` in the 0–100 range. A `null` value means that individual metric has not been generated yet.
 - The comparison endpoint is undocumented and treated as an internal, unstable contract: missing or malformed required fields fail closed instead of silently changing the output schema. The command does not claim per-part retention analytics.
+- `search --type user` rows carry `mid`, `name`, `sign`, `fans`, `videos`, `level`, `avatar`, `url` (numbers as numbers) next to the historical `title` / `author` / `score` / `face` columns
