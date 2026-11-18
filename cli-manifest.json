@@ -43952,6 +43952,46 @@
   },
   {
     "site": "youtube",
+    "name": "channel-videos",
+    "description": "List a YouTube channel's uploads (video_id / title / duration / views / published / url)",
+    "access": "read",
+    "domain": "www.youtube.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Channel ID (UCxxxx), @handle, or channel URL"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 10,
+        "required": false,
+        "help": "Max videos (1-200)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "video_id",
+      "title",
+      "duration",
+      "views",
+      "views_count",
+      "published",
+      "url",
+      "channel_id"
+    ],
+    "type": "js",
+    "modulePath": "youtube/channel-videos.js",
+    "sourceFile": "youtube/channel-videos.js",
+    "navigateBefore": "https://www.youtube.com"
+  },
+  {
+    "site": "youtube",
     "name": "comment",
     "description": "Post a top-level comment on a YouTube video (requires --execute)",
     "access": "write",
