@@ -1131,6 +1131,7 @@ const CONTAINER_TAB_GROUP_TITLE = {
 };
 const OWNED_TAB_GROUP_COLOR = "orange";
 let leaseMutationQueue = Promise.resolve();
+let tabGroupsUnavailable = false;
 const ownedContainers = {
   interactive: { windowId: null, groupId: null, promise: null, groupPromise: null },
   automation: { windowId: null, groupId: null, promise: null, groupPromise: null }
@@ -1233,6 +1234,7 @@ function emptyRegistry() {
   return {
     version: 2,
     contextId: currentContextId,
+    ...tabGroupsUnavailable ? { tabGroupsUnavailable: true } : {},
     ownedContainers: {
       interactive: {
         windowId: ownedContainers.interactive.windowId,
@@ -1254,6 +1256,7 @@ async function readRegistry() {
     return {
       version: 2,
       contextId: currentContextId,
+      ...stored.tabGroupsUnavailable === true ? { tabGroupsUnavailable: true } : {},
       ownedContainers: {
         interactive: {
           windowId: typeof storedContainers.interactive?.windowId === "number" ? storedContainers.interactive.windowId : null,
@@ -1296,6 +1299,7 @@ async function persistRuntimeState() {
   await writeRegistry({
     version: 2,
     contextId: currentContextId,
+    ...tabGroupsUnavailable ? { tabGroupsUnavailable: true } : {},
     ownedContainers: {
       interactive: {
         windowId: ownedContainers.interactive.windowId,
@@ -1389,6 +1393,13 @@ function selectOwnedContainerGroupCandidate(candidates) {
 }
 function isMissingTabGroupError(err) {
   return err instanceof Error && /No group with id|group no longer exists/i.test(err.message);
+}
+async function disableTabGroups() {
+  tabGroupsUnavailable = true;
+  ownedContainers.interactive.groupId = null;
+  interactiveGroupLedger.clear();
+  await persistRuntimeState();
+  return null;
 }
 async function collectOwnedGroupCandidates(role) {
   if (role === "automation") return [];
@@ -1527,11 +1538,17 @@ async function createOwnedGroup(role, windowId, ids) {
   ownedContainers[role].windowId = windowId;
   if (role === "interactive") interactiveGroupLedger.add(groupId);
   await persistRuntimeState();
-  const group = await chrome.tabGroups.update(groupId, {
-    color: OWNED_TAB_GROUP_COLOR,
-    title: CONTAINER_TAB_GROUP_TITLE[role],
-    collapsed: false
-  });
+  let group;
+  try {
+    group = await chrome.tabGroups.update(groupId, {
+      color: OWNED_TAB_GROUP_COLOR,
+      title: CONTAINER_TAB_GROUP_TITLE[role],
+      collapsed: false
+    });
+  } catch (err) {
+    if (isMissingTabGroupError(err)) return disableTabGroups();
+    throw err;
+  }
   updateOwnedSessionWindowForTabs(role, ids, group.windowId);
   return { id: group.id, windowId: group.windowId, title: group.title };
 }
@@ -1547,7 +1564,8 @@ async function ensureOwnedContainerGroup(role, fallbackWindowId, tabIds) {
   container.groupPromise = trackedGroupPromise;
   return trackedGroupPromise;
 }
-async function ensureOwnedContainerGroupUnlocked(role, fallbackWindowId, ids) {
+async function ensureOwnedContainerGroupUnlocked(role, fallbackWindowId, ids, retryMissingGroup = true) {
+  if (tabGroupsUnavailable) return null;
   try {
     const candidates = await collectOwnedGroupCandidates(role);
     const selected = selectOwnedContainerGroupCandidate(candidates);
@@ -1566,13 +1584,18 @@ async function ensureOwnedContainerGroupUnlocked(role, fallbackWindowId, ids) {
         interactiveGroupLedger.add(canonical.id);
         await persistRuntimeState();
       }
-    } else {
+    } else if (!tabGroupsUnavailable) {
       ownedContainers[role].groupId = null;
       if (fallbackWindowId === null) ownedContainers[role].windowId = null;
     }
     return canonical;
   } catch (err) {
     console.warn(`[opencli] Failed to ensure ${role} tab group: ${err instanceof Error ? err.message : String(err)}`);
+    if (isMissingTabGroupError(err)) {
+      if (retryMissingGroup) return ensureOwnedContainerGroupUnlocked(role, fallbackWindowId, ids, false);
+      ownedContainers[role].groupId = null;
+      return null;
+    }
     throw err;
   }
 }
@@ -1606,7 +1629,7 @@ async function ensureOwnedContainerWindowUnlocked(role, initialUrl, mode = "back
           initialTabId: initialTabId2
         };
       }
-      if (role === "interactive") {
+      if (role === "interactive" && !tabGroupsUnavailable) {
         container.windowId = null;
         container.groupId = null;
       } else {
@@ -2632,6 +2655,7 @@ async function releaseLease(leaseKey, reason = "released") {
 }
 async function reconcileTargetLeaseRegistry() {
   const registry = await readRegistry();
+  tabGroupsUnavailable ||= registry.tabGroupsUnavailable === true;
   interactiveGroupLedger.clear();
   for (const id of registry.ownedContainers.interactive.groupIds) interactiveGroupLedger.add(id);
   for (const role of Object.keys(ownedContainers)) {
