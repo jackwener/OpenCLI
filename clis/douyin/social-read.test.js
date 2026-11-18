@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { JSDOM } from 'jsdom';
 import { command as profile, parsePublicSecUid, PROFILE_SNAPSHOT_JS, projectUserProfile } from './user-profile.js';
-import { command as nearby } from './nearby.js';
 import { PROFILE_COLUMNS } from '../_shared/social-profile.js';
 const secUid = 'MS4wLjABAAAASyntheticPeer001';
 const url = `https://www.douyin.com/user/${secUid}`;
@@ -34,12 +33,5 @@ describe('douyin ordinary public profile', () => {
         const page = { goto: vi.fn(), wait: vi.fn(), evaluate: vi.fn().mockResolvedValue(snapshot()) };
         expect((await profile.func(page, { target: secUid }))[0].posts).toEqual([]);
         expect(page.evaluate).toHaveBeenCalledTimes(1);
-    });
-});
-
-describe('douyin Web-only nearby capability', () => {
-    it('reports unavailable explicitly instead of returning city keyword results', async () => {
-        expect(nearby.browser).toBe(false);
-        await expect(nearby.func({})).rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('no nearby data source has been verified') });
     });
 });

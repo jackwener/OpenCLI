@@ -10317,20 +10317,6 @@
   },
   {
     "site": "douyin",
-    "name": "nearby",
-    "description": "能力检查：当前未验证抖音 Web 附近数据源；明确报不可用，不冒充附近结果",
-    "access": "read",
-    "domain": "www.douyin.com",
-    "strategy": "local",
-    "browser": false,
-    "args": [],
-    "columns": [],
-    "type": "js",
-    "modulePath": "douyin/nearby.js",
-    "sourceFile": "douyin/nearby.js"
-  },
-  {
-    "site": "douyin",
     "name": "profile",
     "description": "获取账号信息",
     "access": "read",
@@ -42736,59 +42722,6 @@
     "type": "js",
     "modulePath": "xiaohongshu/messages.js",
     "sourceFile": "xiaohongshu/messages.js",
-    "navigateBefore": false
-  },
-  {
-    "site": "xiaohongshu",
-    "name": "nearby",
-    "description": "搜索附近/同城笔记；必须成功应用网页位置筛选，不回退普通搜索",
-    "access": "read",
-    "domain": "www.xiaohongshu.com",
-    "strategy": "cookie",
-    "browser": true,
-    "args": [
-      {
-        "name": "query",
-        "type": "str",
-        "required": true,
-        "positional": true,
-        "help": "Search keyword (not an App recommendation feed)"
-      },
-      {
-        "name": "scope",
-        "type": "str",
-        "default": "nearby",
-        "required": false,
-        "help": "Platform location filter",
-        "choices": [
-          "nearby",
-          "same-city"
-        ]
-      },
-      {
-        "name": "limit",
-        "type": "int",
-        "default": 20,
-        "required": false,
-        "help": "Maximum posts (1-100)"
-      }
-    ],
-    "columns": [
-      "rank",
-      "post_id",
-      "title",
-      "author",
-      "author_id",
-      "author_url",
-      "likes",
-      "published_at",
-      "location_source",
-      "distance_meters",
-      "url"
-    ],
-    "type": "js",
-    "modulePath": "xiaohongshu/nearby.js",
-    "sourceFile": "xiaohongshu/nearby.js",
     "navigateBefore": false
   },
   {

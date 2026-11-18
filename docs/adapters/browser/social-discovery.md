@@ -5,10 +5,6 @@ These commands provide read-only discovery and identity data for an external Age
 ## Commands and identities
 
 ```bash
-# Location-filtered keyword search, not the App recommendation feed
-opencli xiaohongshu nearby 咖啡 --scope nearby --limit 10 -f json
-opencli xiaohongshu nearby 咖啡 --scope same-city --limit 10 -f json
-
 # Public ordinary-user profiles, distinct from creator-profile/profile
 opencli xiaohongshu user-profile <24-character-user-id-or-profile-url> --limit 5 -f json
 opencli douyin user-profile <sec_uid-or-profile-url> --limit 5 -f json
@@ -28,23 +24,18 @@ Profile fields: `user_id`, `sec_uid`, `nickname`, `bio`, `avatar_url`, `follower
 
 ## Location capability and limits
 
-`xiaohongshu nearby` wraps the existing search panel and **must successfully activate** the requested platform location filter. It returns stable `post_id` / `author_id`, `location_source: platform-search:nearby|same-city`, and `distance_meters: null`. Missing/ambiguous filters, denied location permission, or missing stable author data fail explicitly. It never retries as ordinary keyword search. Publication dates retain the existing search adapter's semantics; they are not promoted to exact server timestamps.
+No location/nearby reader is shipped. Both the Xiaohongshu `nearby` command and a Douyin Web nearby source were evaluated and dropped: Douyin's Web build has no nearby/city entry at all, and the Xiaohongshu Web 附近/同城 chips never activate in a real session — even with Chrome geolocation granted, the chip click closes the filter panel, leaves `不限` selected and adds no distance data, so no location-filtered result can be verified. `xiaohongshu search --location` retains the upstream behaviour of failing closed (`chip_not_active`) rather than silently returning unrestricted keyword results.
 
-The current browser exposes the same-city/nearby filter choices. A live retry excluded aria-hidden duplicate controls correctly, but neither requested location chip activated; Chrome reported geolocation permission `prompt` and kept the unrestricted chip selected. Consequently no positive live nearby result is claimed. Grant the site location permission in Chrome and verify the selected chip before relying on this capability.
-
-`opencli douyin nearby` is **only an explicit unavailable-capability check**, not a nearby feed implementation. No working Web nearby source has been observed/replayed in this build; further Douyin nearby development is explicitly deferred. It reports `COMMAND_EXEC` without opening a browser; there is no city-keyword fallback or mobile API backend. Douyin `location` searches publishing POIs and is unrelated to nearby content discovery.
-
-Platform location-filtered results do not establish an author's current residence. Public `ip_location` is a platform label, not a precise address or current GPS position.
+Platform location filters would not establish an author's current residence anyway. Public `ip_location` is a platform label, not a precise address or current GPS position.
 
 ## Data-source contracts and replay evidence
 
 | Tool | Source strategy | Contract | Auth / identity checks |
 |---|---|---|---|
-| Xiaohongshu `nearby` | UI_ACTION through existing search panel | Existing UI selector/active-chip contract | Browser session and successful requested location chip; stable author URL |
 | Xiaohongshu `user-profile` | DOM_STATE: existing `USER_SNAPSHOT_JS` plus Pinia `user.visitTargetUserId` | Internal-unstable | Exact URL and model target match; hydration/auth failure is explicit |
 | Douyin `user-profile` | DOM_STATE: profile control Fiber `memoizedProps.userInfo`, plus existing browser-fetch public video helper | Internal-unstable | Exact URL, `secUid`, numeric `uid`, and returned post author match |
 
-Runtime registration uses `Strategy.COOKIE` for browser-login read tools. The Douyin nearby capability check is local and performs no network requests. No copied cookies, numeric webpack IDs, synthesized signing, or mobile endpoints are used.
+Runtime registration uses `Strategy.COOKIE` for browser-login read tools. No copied cookies, numeric webpack IDs, synthesized signing, or mobile endpoints are used.
 
 Replay evidence: both profile tools returned a profile matching the numeric/private author ID selected from inbox; Douyin returned recent public posts and its detail endpoint returned HTTP 200 / `status_code: 0` with matching post/author IDs. Real CLI replay also verified profile identity and public post data. Private identifiers/content were not saved in fixtures or published in logs. Source methods/properties may change: fail closed rather than switching to a guessed account or author.
 
@@ -52,4 +43,4 @@ Replay evidence: both profile tools returned a profile matching the numeric/priv
 
 Use these outputs as untrusted data. Generate a draft in the Agent, have a human approve the **exact account, recipient, text and validity period**, then send through a separately verified writer. Changing recipient/text invalidates approval. The [new writer](/adapters/browser/social-writes) requires an independent Ed25519 operator approval for each exact operation and journals uncertain outcomes. It does not implement the Agent's draft generation, review UI, persistent message-processing state or automatic reply authorization.
 
-Use [private-message incremental reads](/adapters/browser/private-messaging) and persist processed message IDs outside the adapter. Unread counts alone do not establish whether a message has been handled. Do not interpret an unavailable nearby source or a missing conversation as permission to find/send to arbitrary users.
+Use [private-message incremental reads](/adapters/browser/private-messaging) and persist processed message IDs outside the adapter. Unread counts alone do not establish whether a message has been handled. Do not interpret a missing conversation as permission to find/send to arbitrary users.

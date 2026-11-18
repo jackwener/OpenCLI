@@ -15,7 +15,6 @@
 | `opencli douyin write-status <request-id>` | 查询本地写入回执；不执行服务端对账 |
 | `opencli douyin follow <target>` | 关注预检查；执行需独立签名审批 |
 | `opencli douyin unfollow <target>` | 取关预检查；执行需独立签名审批 |
-| `opencli douyin nearby` | 仅能力检查：当前未验证 Web 附近数据源，明确报不可用 |
 | `opencli douyin profile` | 获取本人创作者账号信息 |
 | `opencli douyin videos` | 获取作品列表 |
 | `opencli douyin drafts` | 获取草稿列表 |
@@ -74,7 +73,7 @@ opencli douyin profile -f json
 
 ## Ordinary-user discovery
 
-See [social discovery](/adapters/browser/social-discovery) for `user-profile`, `detail`, the unavailable Web nearby capability and source/identity contracts. `location` searches publishing POIs, not nearby content. Public `sec_uid` maps to numeric `user_id` through the profile tool; `messages` requires numeric/private IDs; new private writers can also resolve a public profile URL or `sec_uid` to a verified numeric UID.
+See [social discovery](/adapters/browser/social-discovery) for `user-profile`, `detail` and source/identity contracts. `location` searches publishing POIs, not nearby content. Public `sec_uid` maps to numeric `user_id` through the profile tool; `messages` requires numeric/private IDs; new private writers can also resolve a public profile URL or `sec_uid` to a verified numeric UID.
 
 ## Private Messages
 
@@ -90,7 +89,7 @@ Use the exact `conversation_id` or numeric `user_id` from inbox, not a nickname 
 
 ## Approved writes
 
-See [social writes](/adapters/browser/social-writes) for `send`, `conversation-open`, `follow`, `unfollow`, external signing and `write-status`. All new mutators default to preflight; only `--execute --request-id <UUID> --approval <file>` can execute. Unknown outcomes retain an account lock and must not be automatically retried. Six cross-platform live preflight paths passed, but real writes/new-author creation remain unverified pending designated objects and permission. Douyin Web nearby development is deferred.
+See [social writes](/adapters/browser/social-writes) for `send`, `conversation-open`, `follow`, `unfollow`, external signing and `write-status`. All new mutators default to preflight; only `--execute --request-id <UUID> --approval <file>` can execute. Unknown outcomes retain an account lock and must not be automatically retried. Six cross-platform live preflight paths passed, but real writes/new-author creation remain unverified pending designated objects and permission.
 
 ## Prerequisites
 

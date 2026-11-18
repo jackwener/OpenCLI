@@ -1,8 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { JSDOM } from 'jsdom';
 import { command as profile, PROFILE_SNAPSHOT_JS, projectUserProfile } from './user-profile.js';
-import { command as nearby, parseNearbyArgs, projectNearbyRow } from './nearby.js';
-import { command as search } from './search.js';
 import { NOTE_EXTRACT_JS, command as note } from './note.js';
 import { PROFILE_COLUMNS, publicCount } from '../_shared/social-profile.js';
 const id = 'bbbbbbbbbbbbbbbbbbbbbbbb';
@@ -42,24 +40,6 @@ describe('xiaohongshu ordinary user profile', () => {
         expect(page.wait).toHaveBeenCalledTimes(1);
         expect(() => profile.validateArgs({ target: 'nickname' })).toThrow();
         expect(() => profile.validateArgs({ target: id, limit: 21 })).toThrow('--limit');
-    });
-});
-
-describe('xiaohongshu nearby location provenance', () => {
-    it('requires a real location filter and stable author IDs; never fabricates distance', async () => {
-        const row = { url: `https://www.xiaohongshu.com/explore/${postId}?xsec_token=synthetic`, title: 'Synthetic', author: 'Example', author_url: url, likes: '1', published_at: '2026-01-01' };
-        const run = vi.spyOn(search, 'func').mockResolvedValue([row]);
-        const rows = await nearby.func({}, { query: 'coffee', scope: 'nearby', limit: 2 });
-        expect(run).toHaveBeenCalledWith({}, { query: 'coffee', location: 'nearby', limit: 2 });
-        expect(rows[0]).toMatchObject({ author_id: id, location_source: 'platform-search:nearby', distance_meters: null });
-        expect(() => projectNearbyRow({ ...row, author_url: 'https://evil.example/' }, 'nearby', 0)).toThrow();
-    });
-    it('propagates location permission errors rather than retrying as ordinary search', async () => {
-        const run = vi.spyOn(search, 'func').mockRejectedValue(new Error('geolocation denied'));
-        await expect(nearby.func({}, { query: 'coffee' })).rejects.toThrow('geolocation denied');
-        expect(run).toHaveBeenCalledTimes(1);
-        expect(() => parseNearbyArgs({ query: '', scope: 'nearby' })).toThrow('keyword');
-        expect(() => parseNearbyArgs({ query: 'coffee', scope: 'keyword-city' })).toThrow('--scope');
     });
 });
 

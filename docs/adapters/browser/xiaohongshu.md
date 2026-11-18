@@ -19,7 +19,6 @@
 | `opencli xiaohongshu write-status <request-id>` | Read a local execution receipt, not server reconciliation |
 | `opencli xiaohongshu user` | Get public notes from a user profile |
 | `opencli xiaohongshu user-profile` | Ordinary-user public profile, stable user ID and loaded public notes |
-| `opencli xiaohongshu nearby` | Location-filtered keyword search; requires a successfully selected nearby/same-city chip |
 | `opencli xiaohongshu saved` | List saved/collected notes (`/user/profile/<id>?tab=fav&subTab=note`) |
 | `opencli xiaohongshu liked` | List liked notes (`/user/profile/<id>?tab=liked&subTab=note`) |
 | `opencli xiaohongshu download` | Download images and videos from a note |
@@ -103,7 +102,7 @@ opencli xiaohongshu delete-note 6a08ba0b000000000702a893 --execute
 
 ## Ordinary-user discovery
 
-See [social discovery](/adapters/browser/social-discovery) for `nearby`, `user-profile`, stable note-author fields, source contracts and precise location limitations. These are read-only tools, not an automated greeting or reply workflow.
+See [social discovery](/adapters/browser/social-discovery) for `user-profile`, stable note-author fields and source contracts. These are read-only tools, not an automated greeting or reply workflow.
 
 ## Approved writes
 
