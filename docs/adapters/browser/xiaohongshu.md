@@ -6,13 +6,14 @@
 
 | Command | Description |
 |---------|-------------|
-| `opencli xiaohongshu search` | Search notes by keyword (returns title, author, likes, URL) |
+| `opencli xiaohongshu search` | Search notes by keyword (returns title, author, likes, URL); `--type user` searches accounts instead |
 | `opencli xiaohongshu ask` | Ask 点点 and return its answer with citation sources (`sources[]` in JSON) |
 | `opencli xiaohongshu note` | Read full note content (title, author, description, likes, collects, comments, tags) |
 | `opencli xiaohongshu comments` | Read comments from a note (`--with-replies` for nested 楼中楼 replies) |
 | `opencli xiaohongshu feed` | Home feed recommendations (reads the hydrated Pinia store; URLs carry `xsec_token` for drill-down) |
 | `opencli xiaohongshu notifications` | User notifications (mentions, likes, connections) |
 | `opencli xiaohongshu user` | Get public notes from a user profile |
+| `opencli xiaohongshu user-info` | Profile card for one user (nickname, red_id, desc, fans, follows, likes_collects, avatar, follow status) |
 | `opencli xiaohongshu saved` | List saved/collected notes (`/user/profile/<id>?tab=fav&subTab=note`) |
 | `opencli xiaohongshu liked` | List liked notes (`/user/profile/<id>?tab=liked&subTab=note`) |
 | `opencli xiaohongshu download` | Download images and videos from a note |
@@ -22,6 +23,7 @@
 | `opencli xiaohongshu comment-delete` | Delete one of your own comments on a note (requires `--execute`) |
 | `opencli xiaohongshu follow` | Follow a user from the profile UI and verify the button state flips |
 | `opencli xiaohongshu unfollow` | Unfollow a user from the profile UI, confirm the modal, and verify the button state flips |
+| `opencli xiaohongshu user-following` | Accounts the logged-in user follows (the web app exposes no endpoint for other users' lists) |
 | `opencli xiaohongshu creator-notes` | Creator's note list with per-note metrics |
 | `opencli xiaohongshu creator-note-detail` | Detailed analytics for a single creator note |
 | `opencli xiaohongshu creator-notes-summary` | Combined note list + detail analytics summary |
@@ -88,11 +90,14 @@ opencli xiaohongshu delete-note 6a08ba0b000000000702a893 --execute
 > With `comments --with-replies`, `reply_to` is the direct reply target displayed by the page. Replies without an explicit `回复 <name>` marker target the enclosing top-level comment.
 > `ask` is separate from ordinary `search`: it submits the question to 点点, returns `answer`, `source_count`, and `sources[]`, and keeps `xsec_token` in JSON when Xiaohongshu returns one. The current 点点 source API may return bare note IDs without `xsec_token`; in that case `url` falls back to `/explore/<note_id>` and `xsec_token` is an empty string. Each source also carries the engagement and identity metadata 点点 returns: `like_count`, `note_type` (`normal`/`video`), `user_id`, and `published_at` (each omitted when 点点 does not provide it), so citation analysis can read likes and note format without a follow-up `search`/`note` round-trip.
 > `delete-note` operates in creator center and accepts a 24-character note ID or exact Xiaohongshu note URL; it defaults to dry-run verification and only deletes with `--execute`.
+> `user-following` only works for the logged-in account (no argument, or your own id): the web app has no endpoint for other users' following lists — the profile's "关注 N" counter is plain text — so passing another user id fails with an `ArgumentError` before anything is captured. The rows come from the IM widget's own `/api/im/web/users/following/all` request, read through extension network capture rather than replayed, and carry `user_id`, `nickname`, `avatar` and `url` only (`desc` and `fans` are `null`).
 > `comment` posts a top-level comment on a note and refuses to send anything without `--execute` (without it you get an `ArgumentError` before any navigation or request). It does not click the UI — the send button is intercepted by overlays here, and a click that quietly does nothing looks exactly like one that posted. There is no Pinia action for posting a comment either (the note store holds only comment *view* state), so the command reaches the note page's own bundled API module through webpack's runtime and calls the wrapper that posts to `/api/sns/web/v1/comment/post`, which is how the signed `X-s`/`X-t`/`X-S-Common` headers get produced. That wrapper is located by matching the endpoint in its source, not by its minified export name, which changes on every xiaohongshu build. The target should be a full signed note URL with `xsec_token`; a bare 24-character hex note ID is accepted but often fails to open. Navigation is paced by the shared risk-control helper, and the command posts **exactly once** — it never retries, because a retried comment is a duplicate comment.
 > On success the row is `status: "success"` with `comment_id`, `verified: true`, and `url` pointing at the comment (`<note url>#comment-<id>`). When xiaohongshu accepts the write but returns no comment id, the command **still reports success** (`status: "posted-unverified"`, `verified: false`, `url` = the note URL) and prints `COMMENT_UNVERIFIED` on stderr. Treat that as "sent, go check the note", never as a failure to retry.
 > `comment-delete` removes one of your own comments and takes the `comment_id` that `comment` printed (the `comments` read command does not expose ids). It goes through the same bundled API module, calling the wrapper for `/api/sns/web/v1/comment/delete` — on the web the "…" affordance only appears while the pointer is over the comment and the menu then opens on *click*, not on hover — reading it as a hover-expanded menu is the natural mistake and wastes a lot of time, and long-pressing your own comment in the mobile app opens the note share sheet rather than a delete option. Its error handling is deliberately the **opposite** of `comment`'s: posting is not idempotent, so an accepted-but-unconfirmed post is reported as success to stop callers double-posting, whereas deleting is idempotent, so an unconfirmed delete **fails loudly** — re-running it is harmless, while a false success would leave the comment up. `--execute` is required for both.
 > `follow` and `unfollow` are write commands on the public profile page. They verify the browser stayed on the requested `/user/profile/<id>` target before clicking, and verify the visible follow-state button after the action.
 > `publish --card-text` uses creator-center 文字配图. It requires generated card images to appear in the current composer before filling title/body or submitting. If you request `--card-style`, that exact live page style must be selected; unavailable styles fail instead of silently falling back.
+> `user-info` reads the server-rendered profile store (`__INITIAL_STATE__.user.userPageData`, the same store `user` reads notes from), so it needs no signed API call: `fans` / `follows` / `likes_collects` are numbers, `following` is a boolean derived from `follow_status` (`none|follows|fans|both`), and `notes_count` is `null` because the web profile does not expose it.
+> `search --type user` drives the search page's own `search` store (`getUserLists` / `loadMoreUsers`, the "用户" tab) instead of replaying the signed user-search request, and returns `user_id`, `nickname`, `red_id`, `avatar`, `desc`, `fans`, `notes_count`, `followed`, `url`; counts are numbers, unknown values are `null` (the user-search API carries no bio, so `desc` is usually `null`). Pass a `user_id` on to `user-info` for the full profile card.
 
 ## Prerequisites
 
