@@ -13,6 +13,7 @@
 | `opencli xiaohongshu feed` | Home feed recommendations (reads the hydrated Pinia store; URLs carry `xsec_token` for drill-down) |
 | `opencli xiaohongshu notifications` | User notifications (mentions, likes, connections) |
 | `opencli xiaohongshu user` | Get public notes from a user profile |
+| `opencli xiaohongshu user-info` | Profile card for one user (nickname, red_id, desc, fans, follows, likes_collects, avatar, follow status) |
 | `opencli xiaohongshu saved` | List saved/collected notes (`/user/profile/<id>?tab=fav&subTab=note`) |
 | `opencli xiaohongshu liked` | List liked notes (`/user/profile/<id>?tab=liked&subTab=note`) |
 | `opencli xiaohongshu download` | Download images and videos from a note |
@@ -93,6 +94,7 @@ opencli xiaohongshu delete-note 6a08ba0b000000000702a893 --execute
 > `comment-delete` removes one of your own comments and takes the `comment_id` that `comment` printed (the `comments` read command does not expose ids). It goes through the same bundled API module, calling the wrapper for `/api/sns/web/v1/comment/delete` — on the web the "…" affordance only appears while the pointer is over the comment and the menu then opens on *click*, not on hover — reading it as a hover-expanded menu is the natural mistake and wastes a lot of time, and long-pressing your own comment in the mobile app opens the note share sheet rather than a delete option. Its error handling is deliberately the **opposite** of `comment`'s: posting is not idempotent, so an accepted-but-unconfirmed post is reported as success to stop callers double-posting, whereas deleting is idempotent, so an unconfirmed delete **fails loudly** — re-running it is harmless, while a false success would leave the comment up. `--execute` is required for both.
 > `follow` and `unfollow` are write commands on the public profile page. They verify the browser stayed on the requested `/user/profile/<id>` target before clicking, and verify the visible follow-state button after the action.
 > `publish --card-text` uses creator-center 文字配图. It requires generated card images to appear in the current composer before filling title/body or submitting. If you request `--card-style`, that exact live page style must be selected; unavailable styles fail instead of silently falling back.
+> `user-info` reads the server-rendered profile store (`__INITIAL_STATE__.user.userPageData`, the same store `user` reads notes from), so it needs no signed API call: `fans` / `follows` / `likes_collects` are numbers, `following` is a boolean derived from `follow_status` (`none|follows|fans|both`), and `notes_count` is `null` because the web profile does not expose it.
 
 ## Prerequisites
 

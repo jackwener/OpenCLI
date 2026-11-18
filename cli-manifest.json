@@ -42520,6 +42520,43 @@
   },
   {
     "site": "xiaohongshu",
+    "name": "user-info",
+    "description": "小红书用户信息（昵称 / 小红书号 / 简介 / 粉丝 / 关注 / 获赞与收藏 / 头像）",
+    "access": "read",
+    "domain": "www.xiaohongshu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "user-id",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "User ID (e.g. 5d8f88dc0000000001005d3a) or profile URL"
+      }
+    ],
+    "columns": [
+      "user_id",
+      "nickname",
+      "red_id",
+      "desc",
+      "fans",
+      "follows",
+      "likes_collects",
+      "notes_count",
+      "following",
+      "follow_status",
+      "ip_location",
+      "avatar",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "xiaohongshu/user-info.js",
+    "sourceFile": "xiaohongshu/user-info.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "xiaohongshu",
     "name": "whoami",
     "description": "Show the current logged-in xiaohongshu account",
     "access": "read",
