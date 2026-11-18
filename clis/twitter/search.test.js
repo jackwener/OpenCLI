@@ -218,3 +218,72 @@ describe('twitter search filter helpers', () => {
         });
     });
 });
+
+describe('twitter search --type people', () => {
+    const { parsePeopleTimeline, userToRow, TYPE_CHOICES } = __test__;
+
+    function peoplePayload(users, cursor) {
+        const entries = users.map((u) => ({
+            entryId: `user-${u.rest_id}`,
+            content: { entryType: 'TimelineTimelineItem', itemContent: { itemType: 'TimelineUser', user_results: { result: u } } },
+        }));
+        if (cursor) entries.push({ entryId: `cursor-bottom-${cursor}`, content: { entryType: 'TimelineTimelineCursor', cursorType: 'Bottom', value: cursor } });
+        return { data: { search_by_raw_query: { search_timeline: { timeline: { instructions: [{ type: 'TimelineAddEntries', entries }] } } } } };
+    }
+
+    function user(id, screenName, extra = {}) {
+        return {
+            __typename: 'User',
+            rest_id: id,
+            core: { screen_name: screenName, name: `Name ${screenName}` },
+            legacy: { description: `bio ${screenName}`, followers_count: 42 },
+            avatar: { image_url: `https://pbs.twimg.com/profile_images/${id}/p_normal.png` },
+            ...extra,
+        };
+    }
+
+    it('exposes tweets|people as --type choices', () => {
+        expect(TYPE_CHOICES).toEqual(['tweets', 'people']);
+        expect(resolveSearchProduct({ type: 'people', product: 'live' })).toBe('People');
+        expect(resolveSearchProduct({ type: 'tweets', product: 'live' })).toBe('Latest');
+    });
+
+    it('maps User nodes into account rows with numbers and avatar', () => {
+        expect(userToRow(user('1', 'alice', { is_blue_verified: true }), new Set())).toEqual({
+            user_id: '1',
+            screen_name: 'alice',
+            name: 'Name alice',
+            bio: 'bio alice',
+            followers: 42,
+            verified: true,
+            url: 'https://x.com/alice',
+            avatar: 'https://pbs.twimg.com/profile_images/1/p_400x400.png',
+        });
+        const seen = new Set(['1']);
+        expect(userToRow(user('1', 'alice'), seen)).toBeNull();
+        expect(userToRow({ __typename: 'UserUnavailable' }, seen)).toBeNull();
+    });
+
+    it('parses the People timeline with its bottom cursor', () => {
+        const { rows, nextCursor } = parsePeopleTimeline(peoplePayload([user('1', 'a'), user('2', 'b')], 'c1'), new Set());
+        expect(rows.map((r) => r.screen_name)).toEqual(['a', 'b']);
+        expect(nextCursor).toBe('c1');
+    });
+
+    it('sends product=People, returns account rows and skips engagement re-ranking', async () => {
+        const command = getRegistry().get('twitter/search');
+        const evaluate = vi.fn()
+            .mockResolvedValueOnce(null)
+            .mockResolvedValueOnce(peoplePayload([user('1', 'a'), user('2', 'b')], 'c1'))
+            .mockResolvedValueOnce(peoplePayload([user('3', 'c')], null));
+        const page = {
+            getCookies: vi.fn().mockResolvedValue([{ name: 'ct0', value: 'csrf' }]),
+            goto: vi.fn().mockResolvedValue(undefined),
+            evaluate,
+        };
+        const rows = await command.func(page, { query: 'machine learning', type: 'people', limit: 3, 'top-by-engagement': 2 });
+        expect(rows.map((r) => r.screen_name)).toEqual(['a', 'b', 'c']);
+        expect(rows[0]).not.toHaveProperty('engagement_score');
+        expect(evaluate.mock.calls[1][0]).toContain('\\"product\\":\\"People\\"');
+    });
+});

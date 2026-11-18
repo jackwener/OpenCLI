@@ -37801,7 +37801,7 @@
   {
     "site": "twitter",
     "name": "search",
-    "description": "Search Twitter/X for tweets, with optional --from / --has / --exclude / --product filters mapped to X's search operators",
+    "description": "Search Twitter/X for tweets (or accounts with --type people), with optional --from / --has / --exclude / --product filters mapped to X's search operators",
     "access": "read",
     "domain": "x.com",
     "strategy": "cookie",
@@ -37826,10 +37826,21 @@
         ]
       },
       {
+        "name": "type",
+        "type": "string",
+        "default": "tweets",
+        "required": false,
+        "help": "tweets (default) returns tweet rows; people reads the People tab and returns account rows {user_id, screen_name, name, bio, followers, verified, url, avatar}.",
+        "choices": [
+          "tweets",
+          "people"
+        ]
+      },
+      {
         "name": "product",
         "type": "string",
         "required": false,
-        "help": "Which X search tab to read: top (default), live (Latest), photos, videos. Maps to the f= URL param.",
+        "help": "Which X search tab to read: top (default), live (Latest), photos, videos. Maps to the f= URL param. Ignored when --type people.",
         "choices": [
           "top",
           "live",
@@ -37901,6 +37912,12 @@
       "media_durations",
       "card",
       "quoted_tweet",
+      "user_id",
+      "screen_name",
+      "name",
+      "followers",
+      "verified",
+      "avatar",
       "author_verified"
     ],
     "type": "js",
