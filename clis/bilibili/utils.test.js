@@ -127,6 +127,11 @@ describe('parseDurationText', () => {
         expect(parseDurationText('1:02:03')).toBe(3723);
     });
 
+    it('accepts four-digit minute totals that search returns for 合集 videos', () => {
+        expect(parseDurationText('1413:45')).toBe(84825);
+        expect(parseDurationText('2398:14')).toBe(143894);
+    });
+
     it('passes through numbers and returns 0 for anything unparseable', () => {
         expect(parseDurationText(434)).toBe(434);
         expect(parseDurationText('')).toBe(0);

@@ -7,12 +7,23 @@ cli({
         { name: 'type', default: 'video', help: 'video or user' },
         { name: 'page', type: 'int', default: 1, help: 'Result page' },
         { name: 'limit', type: 'int', default: 20, help: 'Number of results' },
+        { name: 'within-days', type: 'int', default: 0, help: 'Video search only: keep videos published in the last N days (0 = no limit); results stay in relevance order' },
     ],
     columns: ['rank', 'title', 'author', 'mid', 'score', 'plays', 'likes', 'danmaku', 'favorites', 'duration', 'duration_sec', 'pubdate_ts', 'url', 'cover', 'face', 'desc'],
     func: async (page, kwargs) => {
         const { query: keyword, type = 'video', page: pageNum = 1, limit = 20 } = kwargs;
         const searchType = type === 'user' ? 'bili_user' : 'video';
-        const payload = await apiGet(page, '/x/web-interface/wbi/search/type', { params: { search_type: searchType, keyword, page: pageNum }, signed: true });
+        const params = { search_type: searchType, keyword, page: pageNum };
+        // Same filter as the 发布时间 picker on search.bilibili.com: the API narrows by publish time
+        // server-side and keeps relevance order. Filtering client-side instead would throw most of a
+        // page away on narrow queries, whose top hits are usually years old.
+        const withinDays = Number(kwargs['within-days'] ?? 0);
+        if (searchType === 'video' && Number.isFinite(withinDays) && withinDays > 0) {
+            const now = Math.floor(Date.now() / 1000);
+            params.pubtime_begin_s = now - Math.floor(withinDays * 86400);
+            params.pubtime_end_s = now;
+        }
+        const payload = await apiGet(page, '/x/web-interface/wbi/search/type', { params, signed: true });
         const results = payload?.data?.result ?? [];
         return results.slice(0, Number(limit)).map((item, i) => {
             if (searchType === 'bili_user') {
