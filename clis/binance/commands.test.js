@@ -5,6 +5,8 @@ import { executePipeline } from '@jackwener/opencli/pipeline';
 // Import all binance adapters to register them
 import './top.js';
 import './gainers.js';
+import './losers.js';
+import './ticker.js';
 import './pairs.js';
 
 function loadPipeline(name) {
@@ -51,6 +53,42 @@ describe('binance adapters', () => {
     const result = await executePipeline(null, loadPipeline('gainers'), { args: { limit: 3 } });
 
     expect(result.map((item) => item.symbol)).toEqual(['HUNDRED', 'TEN', 'NINE']);
+  });
+
+  it('keeps price, change, volume, high and low on top rows', async () => {
+    mockJsonOnce([
+      { symbol: 'AAA', lastPrice: '1.5', priceChangePercent: '-2.1', highPrice: '1.9', lowPrice: '1.2', quoteVolume: '500', volume: '300', count: 42 },
+    ]);
+
+    const result = await executePipeline(null, loadPipeline('top'), { args: { limit: 1 } });
+
+    expect(result).toEqual([
+      { rank: 1, symbol: 'AAA', price: '1.5', change_24h: '-2.1', high: '1.9', low: '1.2', volume: '500' },
+    ]);
+  });
+
+  it.each(['gainers', 'losers'])('keeps price, change and volume on %s rows', async (name) => {
+    mockJsonOnce([
+      { symbol: 'AAA', lastPrice: '1.5', priceChangePercent: '-2.1', quoteVolume: '500' },
+    ]);
+
+    const result = await executePipeline(null, loadPipeline(name), { args: { limit: 1 } });
+
+    expect(result).toEqual([
+      { rank: 1, symbol: 'AAA', price: '1.5', change_24h: '-2.1', volume: '500' },
+    ]);
+  });
+
+  it('keeps every ticker column', async () => {
+    mockJsonOnce([
+      { symbol: 'AAA', lastPrice: '1.5', priceChangePercent: '-2.1', highPrice: '1.9', lowPrice: '1.2', volume: '300', quoteVolume: '500', count: 42 },
+    ]);
+
+    const result = await executePipeline(null, loadPipeline('ticker'), { args: { limit: 1 } });
+
+    expect(result).toEqual([
+      { symbol: 'AAA', price: '1.5', change_pct: '-2.1', high: '1.9', low: '1.2', volume: '300', quote_vol: '500', trades: 42 },
+    ]);
   });
 
   it('keeps only TRADING pairs', async () => {

@@ -16,7 +16,7 @@ cli({
     { fetch: { url: 'https://data-api.binance.vision/api/v3/ticker/24hr' } },
     { map: { symbol: '${{ item.symbol }}', price: '${{ item.lastPrice }}', change_pct: '${{ item.priceChangePercent }}', high: '${{ item.highPrice }}', low: '${{ item.lowPrice }}', volume: '${{ item.volume }}', quote_vol: '${{ item.quoteVolume }}', trades: '${{ item.count }}', sort_volume: '${{ Number(item.quoteVolume) }}' } },
     { sort: { by: 'sort_volume', order: 'desc' } },
-    { map: { symbol: '${{ item.symbol }}', price: '${{ item.lastPrice }}', change_pct: '${{ item.priceChangePercent }}', high: '${{ item.highPrice }}', low: '${{ item.lowPrice }}', volume: '${{ item.volume }}', quote_vol: '${{ item.quoteVolume }}', trades: '${{ item.count }}' } },
+    { map: { symbol: '${{ item.symbol }}', price: '${{ item.price }}', change_pct: '${{ item.change_pct }}', high: '${{ item.high }}', low: '${{ item.low }}', volume: '${{ item.volume }}', quote_vol: '${{ item.quote_vol }}', trades: '${{ item.trades }}' } },
     { limit: '${{ args.limit }}' },
   ],
 });
