@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
-import { CommandExecutionError, TimeoutError } from '@jackwener/opencli/errors';
+import { CommandExecutionError, EmptyResultError, TimeoutError } from '@jackwener/opencli/errors';
 import { __test__ } from './followers.js';
 
 function followerResult(screenName, overrides = {}) {
@@ -152,6 +152,40 @@ describe('twitter followers command', () => {
         const navigation = page.evaluate.mock.calls.find(([script]) => String(script).includes('history.pushState'));
         expect(String(navigation?.[0])).toContain('/elonmusk/followers');
         expect(String(navigation?.[0])).not.toContain('verified_followers');
+    });
+
+    it('reads the Verified Followers tab through BlueVerifiedFollowers with --verified', async () => {
+        const command = getRegistry().get('twitter/followers');
+        const page = createFollowersPage([
+            [followersPayload(['carrier', 'monkey'], 'cursor-1')],
+            [followersPayload(['monkey', 'stephen'], null)],
+        ], { currentPath: '/paulg/verified_followers' });
+
+        const rows = await command.func(page, { user: 'paulg', limit: 10, verified: true });
+
+        expect(rows.map((row) => row.screen_name)).toEqual(['carrier', 'monkey', 'stephen']);
+        expect(page.installInterceptor.mock.calls).toEqual([['/BlueVerifiedFollowers?']]);
+        expect(page.autoScroll).toHaveBeenCalledTimes(1);
+        const navigation = page.evaluate.mock.calls.find(([script]) => String(script).includes('history.pushState'));
+        expect(String(navigation?.[0])).toContain('"/paulg/verified_followers"');
+    });
+
+    it('fails when --verified navigation does not land on the Verified Followers tab', async () => {
+        const command = getRegistry().get('twitter/followers');
+        const page = createFollowersPage([[followersPayload(['carrier'], null)]], { currentPath: '/paulg/followers' });
+
+        await expect(command.func(page, { user: 'paulg', limit: 10, verified: true }))
+            .rejects.toThrow('SPA navigation to Twitter verified followers failed');
+    });
+
+    it('names the verified list when it comes back empty', async () => {
+        const command = getRegistry().get('twitter/followers');
+        const page = createFollowersPage([[followersPayload([], null)]], { currentPath: '/nobody/verified_followers' });
+
+        const error = await command.func(page, { user: 'nobody', limit: 10, verified: true }).catch((err) => err);
+
+        expect(error).toBeInstanceOf(EmptyResultError);
+        expect(error.hint).toBe('No verified followers found for @nobody');
     });
 
     it('does not silently return partial rows when a continuation capture times out', async () => {

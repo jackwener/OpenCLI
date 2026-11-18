@@ -4,6 +4,10 @@ import { looksLikePrivateTwitterTimeline, normalizeTwitterGraphqlPayload, normal
 
 const MAX_PAGINATION_PAGES = 100;
 const CAPTURE_TIMEOUT_SECONDS = 10;
+// The Verified Followers tab (BlueVerifiedFollowers) returns the same timeline
+// shape as the Followers tab, limited to followers with a blue check.
+const FOLLOWERS_TIMELINE = { tab: 'followers', operation: 'Followers', label: 'followers' };
+const VERIFIED_FOLLOWERS_TIMELINE = { tab: 'verified_followers', operation: 'BlueVerifiedFollowers', label: 'verified followers' };
 
 function extractFollower(result) {
     if (!result || result.__typename !== 'User')
@@ -86,6 +90,7 @@ cli({
             help: 'Twitter/X handle (with or without @). Omit to fetch followers of the currently logged-in account.',
         },
         { name: 'limit', type: 'int', default: 50, help: 'Maximum number of follower rows to return (default 50). Must be a positive integer.' },
+        { name: 'verified', type: 'boolean', default: false, help: 'Read the Verified Followers tab instead: only followers with X Premium or legacy verification.' },
     ],
     // The GraphQL payload also carries per-user relationship counts; use
     // `twitter profile` when a dedicated follower count is needed. `verified`
@@ -97,6 +102,7 @@ cli({
             throw new ArgumentError('limit must be a positive integer');
         }
 
+        const timeline = kwargs.verified === true ? VERIFIED_FOLLOWERS_TIMELINE : FOLLOWERS_TIMELINE;
         const rawUser = String(kwargs.user ?? '').trim();
         let targetUser = normalizeScreenName(rawUser);
         if (rawUser && !targetUser) {
@@ -117,8 +123,8 @@ cli({
             throw new ArgumentError('twitter followers user cannot be empty', 'Example: opencli twitter followers @elonmusk --limit 100');
         }
 
-        await page.installInterceptor('/Followers?');
-        const targetPath = `/${targetUser}/followers`;
+        await page.installInterceptor(`/${timeline.operation}?`);
+        const targetPath = `/${targetUser}/${timeline.tab}`;
         await page.evaluate(`() => {
             const targetPath = ${JSON.stringify(targetPath)};
             window.history.pushState({}, '', targetPath);
@@ -128,11 +134,11 @@ cli({
             await page.waitForCapture(CAPTURE_TIMEOUT_SECONDS);
         }
         catch {
-            throw new TimeoutError('twitter followers API capture', CAPTURE_TIMEOUT_SECONDS, 'No Followers response was observed after opening the followers list.');
+            throw new TimeoutError('twitter followers API capture', CAPTURE_TIMEOUT_SECONDS, `No ${timeline.operation} response was observed after opening the ${timeline.label} list.`);
         }
         const currentPath = unwrapBrowserResult(await page.evaluate('() => window.location.pathname'));
-        if (typeof currentPath !== 'string' || !currentPath.toLowerCase().endsWith('/followers')) {
-            throw new CommandExecutionError('SPA navigation to Twitter followers failed');
+        if (typeof currentPath !== 'string' || !currentPath.toLowerCase().endsWith(`/${timeline.tab}`)) {
+            throw new CommandExecutionError(`SPA navigation to Twitter ${timeline.label} failed`);
         }
 
         const allFollowers = [];
@@ -171,7 +177,7 @@ cli({
                 await page.waitForCapture(CAPTURE_TIMEOUT_SECONDS);
             }
             catch {
-                throw new TimeoutError('twitter followers pagination', CAPTURE_TIMEOUT_SECONDS, `Twitter returned a continuation cursor after ${allFollowers.length} rows, but the next Followers response was not observed.`);
+                throw new TimeoutError('twitter followers pagination', CAPTURE_TIMEOUT_SECONDS, `Twitter returned a continuation cursor after ${allFollowers.length} rows, but the next ${timeline.operation} response was not observed.`);
             }
             await consumeCaptured();
             pages++;
@@ -184,9 +190,9 @@ cli({
         }
         if (allFollowers.length === 0) {
             if (looksLikePrivateTwitterTimeline(lastRawResponse)) {
-                throw new EmptyResultError('twitter followers', `No follower data returned for @${targetUser} (the target account may have set their followers list to private)`);
+                throw new EmptyResultError('twitter followers', `No ${timeline.label} data returned for @${targetUser} (the target account may have set their followers list to private)`);
             }
-            throw new EmptyResultError('twitter followers', `No followers found for @${targetUser}`);
+            throw new EmptyResultError('twitter followers', `No ${timeline.label} found for @${targetUser}`);
         }
         return allFollowers.slice(0, limit);
     }
