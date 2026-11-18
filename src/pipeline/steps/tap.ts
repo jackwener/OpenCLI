@@ -7,12 +7,15 @@
  * 3. Captures the response matching the URL pattern
  * 4. Auto-cleans up interception in finally block
  * 5. Returns the captured data (optionally sub-selected)
+ *
+ * The IIFE resolves to `{ ok: true, data }` or `{ ok: false, error, hint }`;
+ * failures are thrown here so they never reach later steps as data.
  */
 
 import type { IPage } from '../../types.js';
 import { render } from '../template.js';
 import { generateTapInterceptorJs } from '../../interceptor.js';
-import { CliError } from '../../errors.js';
+import { CliError, CommandExecutionError } from '../../errors.js';
 
 interface TapParams {
   store?: string;
@@ -88,9 +91,9 @@ export async function stepTap(
           } catch {}
         }
 
-        if (!store) return { error: 'Store not found: ' + storeName, hint: 'Page may not be fully loaded or store name may be incorrect' };
+        if (!store) return { ok: false, error: 'Store not found: ' + storeName, hint: 'Page may not be fully loaded or store name may be incorrect' };
         if (typeof store[${JSON.stringify(actionName)}] !== 'function') {
-          return { error: 'Action not found: ' + ${JSON.stringify(actionName)} + ' on store ' + storeName,
+          return { ok: false, error: 'Action not found: ' + ${JSON.stringify(actionName)} + ' on store ' + storeName,
             hint: 'Available: ' + Object.keys(store).filter(k => typeof store[k] === 'function' && !k.startsWith('$') && !k.startsWith('_')).join(', ') };
         }
 
@@ -107,10 +110,14 @@ export async function stepTap(
         ${tap.restorePatch}
       }
 
-      if (!${tap.capturedVar}) return { error: 'No matching response captured for pattern: ' + capturePattern };
-      return ${tap.capturedVar}${selectChain} ?? ${tap.capturedVar};
+      if (!${tap.capturedVar}) return { ok: false, error: 'No matching response captured for pattern: ' + capturePattern };
+      return { ok: true, data: ${tap.capturedVar}${selectChain} ?? ${tap.capturedVar} };
     }
   `;
 
-  return page!.evaluate(js);
+  const result = await page!.evaluate(js) as { ok: boolean; data?: unknown; error?: string; hint?: string };
+  if (!result?.ok) {
+    throw new CommandExecutionError(`tap: ${result?.error ?? 'store action returned no result'}`, result?.hint);
+  }
+  return result.data;
 }
