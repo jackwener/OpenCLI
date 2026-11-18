@@ -236,6 +236,31 @@ export async function readYoutubeSapisid(page) {
 }
 
 /**
+ * Parse YouTube display counts ("1.2M subscribers", "345 videos", "12.5K",
+ * "1,234", "1.2万位订阅者") into an integer. Returns null when no number can
+ * be read so callers emit `null` instead of a fake 0.
+ *
+ * Pure — safe to inject into page.evaluate() via `parseYoutubeCount.toString()`.
+ */
+export function parseYoutubeCount(text) {
+    if (typeof text === 'number') return Number.isFinite(text) ? Math.round(text) : null;
+    if (typeof text !== 'string') return null;
+    const cleaned = text.replace(/,/g, '').trim();
+    const match = cleaned.match(/(\d+(?:\.\d+)?)\s*([KkMmBb]|万|亿|千)?/);
+    if (!match) return null;
+    const base = Number(match[1]);
+    if (!Number.isFinite(base)) return null;
+    const unit = match[2] || '';
+    const multiplier = unit === 'K' || unit === 'k' || unit === '千' ? 1e3
+        : unit === 'M' || unit === 'm' ? 1e6
+            : unit === 'B' || unit === 'b' ? 1e9
+                : unit === '万' ? 1e4
+                    : unit === '亿' ? 1e8
+                        : 1;
+    return Math.round(base * multiplier);
+}
+
+/**
  * Depth-first search for the first value stored under `key` anywhere inside a
  * nested InnerTube payload (objects and arrays). Returns `undefined` when the
  * key is absent. YouTube renames renderer wrappers often, so callers look for

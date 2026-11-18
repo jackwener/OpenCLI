@@ -3,66 +3,10 @@
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { extractSelectedRichGridContents, parseVideoItem } from './channel-helpers.js';
+import { parseYoutubeCount } from './utils.js';
 
-export function extractSelectedRichGridContents(browseData) {
-    const tabs = browseData?.contents?.twoColumnBrowseResultsRenderer?.tabs || [];
-    const readRichGrid = (tab) => tab?.tabRenderer?.content?.richGridRenderer?.contents;
-    const selectedTab = tabs.find(t => t?.tabRenderer?.selected);
-    const selectedContents = readRichGrid(selectedTab);
-    if (Array.isArray(selectedContents))
-        return selectedContents;
-    const fallbackContents = readRichGrid(tabs.find(t => {
-        const contents = readRichGrid(t);
-        return Array.isArray(contents) && contents.length > 0;
-    })) || readRichGrid(tabs.find(t => Array.isArray(readRichGrid(t))));
-    return Array.isArray(fallbackContents) ? fallbackContents : [];
-}
-
-export function parseVideoItem(item) {
-    const content = item?.richItemRenderer?.content || item || {};
-    const normalizeId = (value) => {
-        const id = String(value || '').trim();
-        return /^[A-Za-z0-9_-]+$/.test(id) ? id : '';
-    };
-    // New lockupViewModel format
-    const lvm = content.lockupViewModel;
-    if (lvm && lvm.contentType === 'LOCKUP_CONTENT_TYPE_VIDEO') {
-        const id = normalizeId(lvm.contentId);
-        const meta = lvm.metadata?.lockupMetadataViewModel;
-        const title = meta?.title?.content || '';
-        if (!id || !title)
-            return null;
-        const rows = meta?.metadata?.contentMetadataViewModel?.metadataRows || [];
-        const parts = (rows[0]?.metadataParts || []).map(p => p.text?.content).filter(Boolean);
-        let duration = '';
-        for (const ov of (lvm.contentImage?.thumbnailViewModel?.overlays || [])) {
-            for (const b of (ov.thumbnailBottomOverlayViewModel?.badges || [])) {
-                if (b.thumbnailBadgeViewModel?.text) duration = b.thumbnailBadgeViewModel.text;
-            }
-        }
-        return {
-            title,
-            duration,
-            views: parts.join(' | '),
-            url: 'https://www.youtube.com/watch?v=' + id,
-        };
-    }
-    // Legacy videoRenderer format
-    const v = content.videoRenderer || content.gridVideoRenderer;
-    if (v) {
-        const id = normalizeId(v.videoId);
-        const title = v.title?.runs?.[0]?.text || v.title?.simpleText || '';
-        if (!id || !title)
-            return null;
-        return {
-            title,
-            duration: v.lengthText?.simpleText || v.thumbnailOverlays?.find(o => o.thumbnailOverlayTimeStatusRenderer)?.thumbnailOverlayTimeStatusRenderer?.text?.simpleText || '',
-            views: (v.shortViewCountText?.simpleText || '') + (v.publishedTimeText?.simpleText ? ' | ' + v.publishedTimeText.simpleText : ''),
-            url: 'https://www.youtube.com/watch?v=' + id,
-        };
-    }
-    return null;
-}
+export { extractSelectedRichGridContents, parseVideoItem };
 
 cli({
     site: 'youtube',
@@ -95,6 +39,7 @@ cli({
         if (!apiKey || !context) return {error: 'YouTube config not found'};
         const extractSelectedRichGridContents = ${extractSelectedRichGridContents.toString()};
         const parseVideoItem = ${parseVideoItem.toString()};
+        const parseYoutubeCount = ${parseYoutubeCount.toString()};
 
         // Resolve handle to browseId if needed
         let browseId = channelId;
@@ -125,20 +70,25 @@ cli({
         const metadata = data.metadata?.channelMetadataRenderer || {};
         const header = data.header?.pageHeaderRenderer || data.header?.c4TabbedHeaderRenderer || {};
 
-        // Subscriber count from header
+        // Subscriber / video counts from header
         let subscriberCount = '';
+        let videoCountText = '';
         try {
           const rows = header.content?.pageHeaderViewModel?.metadata?.contentMetadataViewModel?.metadataRows || [];
           for (const row of rows) {
             for (const part of (row.metadataParts || [])) {
               const text = part.text?.content || '';
-              if (text.includes('subscriber')) subscriberCount = text;
+              if (/subscriber|订阅|位訂閱|abonn|suscriptor|Abonnent/i.test(text)) subscriberCount = text;
+              else if (/video|视频|影片|vidéo|Video/i.test(text)) videoCountText = text;
             }
           }
         } catch {}
         // Fallback for old c4TabbedHeaderRenderer format
         if (!subscriberCount && header.subscriberCountText?.simpleText) {
           subscriberCount = header.subscriberCountText.simpleText;
+        }
+        if (!videoCountText && header.videosCountText) {
+          videoCountText = header.videosCountText.simpleText || (header.videosCountText.runs || []).map(r => r.text).join('');
         }
 
         // Extract recent videos from Home tab
@@ -193,14 +143,19 @@ cli({
           }
         }
 
+        const resolvedChannelId = metadata.externalId || browseId;
         return {
           name: metadata.title || '',
-          channelId: metadata.externalId || browseId,
+          channelId: resolvedChannelId,
+          // snake_case twin of channelId, the key search / channel-videos rows use.
+          channel_id: resolvedChannelId,
           handle: metadata.vanityChannelUrl?.split('/').pop() || '',
           // Channel avatar (thumbnails are smallest-first; take the largest).
           avatar: metadata.avatar?.thumbnails?.slice(-1)?.[0]?.url || '',
           description: (metadata.description || '').substring(0, 500),
           subscribers: subscriberCount,
+          subscribers_count: parseYoutubeCount(subscriberCount),
+          video_count: parseYoutubeCount(videoCountText),
           url: metadata.channelUrl || 'https://www.youtube.com/channel/' + browseId,
           keywords: metadata.keywords || '',
           recentVideos,
@@ -215,9 +170,14 @@ cli({
         const videos = result.recentVideos;
         delete result.recentVideos;
         // Channel info as field/value pairs + recent videos as table
+        // Numeric metadata (subscribers_count, video_count) must stay numbers in
+        // JSON output — stringifying them here would hand consumers "21200000"
+        // instead of 21200000. Table rendering coerces for display anyway.
         const rows = Object.entries(result).map(([field, value]) => ({
             field,
-            value: String(value),
+            value: value === null || value === undefined || typeof value === 'number'
+                ? value ?? null
+                : String(value),
         }));
         if (videos && videos.length > 0) {
             rows.push({ field: '---', value: '--- Recent Videos ---' });

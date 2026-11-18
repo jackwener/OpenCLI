@@ -82,3 +82,22 @@ describe('youtube utils', () => {
         });
     });
 });
+
+describe('parseYoutubeCount', () => {
+    it('parses subscriber / video display text into integers', async () => {
+        const { parseYoutubeCount } = await import('./utils.js');
+        expect(parseYoutubeCount('1.2M subscribers')).toBe(1200000);
+        expect(parseYoutubeCount('345 videos')).toBe(345);
+        expect(parseYoutubeCount('12.5K')).toBe(12500);
+        expect(parseYoutubeCount('1,234 subscribers')).toBe(1234);
+        expect(parseYoutubeCount('1.2万位订阅者')).toBe(12000);
+        expect(parseYoutubeCount(7)).toBe(7);
+    });
+
+    it('returns null when no number is present', async () => {
+        const { parseYoutubeCount } = await import('./utils.js');
+        expect(parseYoutubeCount('')).toBeNull();
+        expect(parseYoutubeCount('No videos')).toBeNull();
+        expect(parseYoutubeCount(undefined)).toBeNull();
+    });
+});

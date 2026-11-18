@@ -93,9 +93,11 @@ describe('parseVideoItem', () => {
         };
         const result = __test__.parseVideoItem(item);
         expect(result).toEqual({
+            video_id: 'abc123',
             title: 'Test Video',
             duration: '12:34',
             views: '10K views | 2 days ago',
+            published: '2 days ago',
             url: 'https://www.youtube.com/watch?v=abc123',
         });
     });
@@ -116,9 +118,11 @@ describe('parseVideoItem', () => {
         };
         const result = __test__.parseVideoItem(item);
         expect(result).toEqual({
+            video_id: 'xyz789',
             title: 'Legacy Video',
             duration: '5:00',
             views: '1K views | 3 days ago',
+            published: '3 days ago',
             url: 'https://www.youtube.com/watch?v=xyz789',
         });
     });
@@ -284,6 +288,55 @@ describe('parseVideoItem', () => {
     });
 });
 
+describe('youtube channel row assembly', () => {
+    it('keeps numeric metadata as numbers and stringifies only text values', async () => {
+        const { getRegistry } = await import('@jackwener/opencli/registry');
+        const command = getRegistry().get('youtube/channel');
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn().mockResolvedValue({
+                name: 'Veritasium',
+                channelId: 'UC1',
+                channel_id: 'UC1',
+                handle: '@veritasium',
+                avatar: 'https://yt3/a.jpg',
+                description: 'desc',
+                subscribers: '2120万位订阅者',
+                subscribers_count: 21200000,
+                video_count: 531,
+                url: 'https://www.youtube.com/channel/UC1',
+                keywords: '',
+                recentVideos: [],
+            }),
+        };
+        const rows = await command.func(page, { id: '@veritasium', limit: 1 });
+        const byField = Object.fromEntries(rows.map((r) => [r.field, r.value]));
+        // Numbers must survive as numbers so JSON consumers do not get "21200000".
+        expect(byField.subscribers_count).toBe(21200000);
+        expect(byField.video_count).toBe(531);
+        expect(byField.subscribers).toBe('2120万位订阅者');
+        expect(byField.channel_id).toBe('UC1');
+    });
+
+    it('emits null (not "null") for metadata the header does not carry', async () => {
+        const { getRegistry } = await import('@jackwener/opencli/registry');
+        const command = getRegistry().get('youtube/channel');
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn().mockResolvedValue({
+                name: 'X', channelId: 'UC1', channel_id: 'UC1', handle: '', avatar: '',
+                description: '', subscribers: '', subscribers_count: null, video_count: null,
+                url: 'u', keywords: '', recentVideos: [],
+            }),
+        };
+        const rows = await command.func(page, { id: 'UC1', limit: 1 });
+        const byField = Object.fromEntries(rows.map((r) => [r.field, r.value]));
+        expect(byField.subscribers_count).toBeNull();
+        expect(byField.video_count).toBeNull();
+    });
+});
 
 describe('youtube channel handle resolution', () => {
     const channelId = 'UC' + 'a'.repeat(22);
