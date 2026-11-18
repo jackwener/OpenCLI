@@ -42092,7 +42092,7 @@
   {
     "site": "xiaohongshu",
     "name": "follow",
-    "description": "关注小红书用户 (profile UI automation)",
+    "description": "关注小红书用户（走页面 store 的 toFollow 接口，已关注时返回 already_following=true 而不报错）",
     "access": "write",
     "domain": "www.xiaohongshu.com",
     "strategy": "cookie",
@@ -42107,8 +42107,11 @@
       }
     ],
     "columns": [
-      "status",
+      "ok",
       "user_id",
+      "already_following",
+      "status",
+      "verified",
       "url"
     ],
     "type": "js",
