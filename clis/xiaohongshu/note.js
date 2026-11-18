@@ -10,6 +10,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 import { AuthRequiredError, CliError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { parseNoteId, buildNoteUrl } from './note-helpers.js';
 import { readXhsDetailPage } from './risk-control.js';
+import { parsePrivateUserId } from './im.js';
 /**
  * Host-agnostic IIFE that scrapes note title / author / counts / tags from a
  * rendered note detail page. Exported so the rednote adapter can reuse the
@@ -43,6 +44,8 @@ export const NOTE_EXTRACT_JS = `
         const author = scope
           ? clean(scope.querySelector('.username, .author-wrapper .name'))
           : clean(document.querySelector('.username, .author-wrapper .name'))
+        const authorLink = scope?.querySelector('.author-wrapper a[href*="/user/profile/"], a.username[href*="/user/profile/"], .author-container a[href*="/user/profile/"]')
+        const authorUrl = authorLink ? new URL(authorLink.getAttribute('href'), location.href).href : null
         // Scope to .interact-container — the post's main interaction bar.
         // Without scoping, .like-wrapper / .chat-wrapper also match each
         // comment's like/reply buttons in the comment section, and
@@ -61,7 +64,7 @@ export const NOTE_EXTRACT_JS = `
           if (t) tags.push(t)
         })
 
-        return { pageUrl: location.href, securityBlock, loginWall, notFound, title, desc, author, likes, likesPresent, collects, comments, tags }
+        return { pageUrl: location.href, securityBlock, loginWall, notFound, title, desc, author, authorUrl, likes, likesPresent, collects, comments, tags }
       })()
     `;
 // A loaded bar renders a zero collect/comment count as its label, but a zero
@@ -144,6 +147,11 @@ export const command = cli({
             }
             for (const field of [...COUNT_FIELDS, 'likesPresent'])
                 d[field] = fresh[field];
+            // The author header hydrates together with the interaction bar, so a
+            // first read that had to poll almost always lacked the author link.
+            // Keep it only when the later read actually resolved it.
+            if (fresh.author) d.author = fresh.author;
+            if (fresh.authorUrl) d.authorUrl = fresh.authorUrl;
         }
         const missing = unloadedCounts(d);
         if (missing.length) {
@@ -161,6 +169,10 @@ export const command = cli({
             { field: 'collects', value: countValue(d.collects || '') },
             { field: 'comments', value: countValue(d.comments || '') },
         ];
+        if (d.authorUrl) {
+            rows.push({ field: 'author_id', value: parsePrivateUserId(d.authorUrl) });
+            rows.push({ field: 'author_url', value: d.authorUrl });
+        }
         if (d.tags?.length) {
             rows.push({ field: 'tags', value: d.tags.join(', ') });
         }

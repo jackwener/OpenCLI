@@ -9840,6 +9840,56 @@
   },
   {
     "site": "douyin",
+    "name": "conversation-open",
+    "description": "预检查或审批后打开/创建普通用户一对一会话，不发送消息",
+    "access": "write",
+    "domain": "www.douyin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "target",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Numeric UID, private ID, sec_uid or exact public profile URL"
+      },
+      {
+        "name": "execute",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Execute a signed, approved operation; default is read-only preflight"
+      },
+      {
+        "name": "request-id",
+        "type": "str",
+        "required": false,
+        "help": "UUID from preflight, required for execution and replay protection"
+      },
+      {
+        "name": "approval",
+        "type": "str",
+        "required": false,
+        "help": "Operator-signed approval JSON file, required for execution"
+      }
+    ],
+    "columns": [
+      "status",
+      "account_id",
+      "user_id",
+      "conversation_id",
+      "message_id",
+      "request_id",
+      "approval_payload"
+    ],
+    "type": "js",
+    "modulePath": "douyin/conversation-open.js",
+    "sourceFile": "douyin/conversation-open.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "douyin",
     "name": "delete",
     "description": "删除作品（优先使用创作者后台作品管理；找不到时回退到旧删除接口）",
     "access": "write",
@@ -9991,6 +10041,56 @@
   },
   {
     "site": "douyin",
+    "name": "follow",
+    "description": "关注普通用户；默认预检查，执行需独立签名审批",
+    "access": "write",
+    "domain": "www.douyin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "target",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Public sec_uid or exact www.douyin.com/user profile URL"
+      },
+      {
+        "name": "execute",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Execute a signed, approved operation; default is read-only preflight"
+      },
+      {
+        "name": "request-id",
+        "type": "str",
+        "required": false,
+        "help": "UUID from preflight, required for execution and replay protection"
+      },
+      {
+        "name": "approval",
+        "type": "str",
+        "required": false,
+        "help": "Operator-signed approval JSON file, required for execution"
+      }
+    ],
+    "columns": [
+      "status",
+      "account_id",
+      "user_id",
+      "conversation_id",
+      "message_id",
+      "request_id",
+      "approval_payload"
+    ],
+    "type": "js",
+    "modulePath": "douyin/follow.js",
+    "sourceFile": "douyin/follow.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "douyin",
     "name": "hashtag",
     "description": "话题搜索 / AI推荐 / 热点词",
     "access": "read",
@@ -10041,6 +10141,45 @@
     "modulePath": "douyin/hashtag.js",
     "sourceFile": "douyin/hashtag.js",
     "navigateBefore": "https://creator.douyin.com"
+  },
+  {
+    "site": "douyin",
+    "name": "inbox",
+    "description": "获取抖音私聊会话列表（不主动标记已读）",
+    "access": "read",
+    "domain": "www.douyin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Maximum matching private conversations (1-1000)"
+      },
+      {
+        "name": "unread",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Only unread private conversations; filter before applying limit"
+      }
+    ],
+    "columns": [
+      "rank",
+      "conversation_id",
+      "user_id",
+      "nickname",
+      "last_message",
+      "updated_at",
+      "unread_count",
+      "profile_url"
+    ],
+    "type": "js",
+    "modulePath": "douyin/inbox.js",
+    "sourceFile": "douyin/inbox.js",
+    "navigateBefore": false
   },
   {
     "site": "douyin",
@@ -10108,6 +10247,73 @@
     "navigateBefore": false,
     "siteSession": "persistent",
     "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "douyin",
+    "name": "messages",
+    "description": "读取抖音指定私聊的最近 N 条、全部可访问历史或精确水位增量",
+    "access": "read",
+    "domain": "www.douyin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "target",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Conversation ID or user ID from inbox"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "required": false,
+        "help": "Most recent messages to return (default 50; 1-10000); cannot combine with --all"
+      },
+      {
+        "name": "all",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Read all history available to this web account"
+      },
+      {
+        "name": "after-message",
+        "type": "str",
+        "required": false,
+        "help": "Read after this exact message ID; fail if checkpoint is absent. Default all new messages; --limit selects oldest N new messages."
+      },
+      {
+        "name": "max-pages",
+        "type": "int",
+        "default": 200,
+        "required": false,
+        "help": "Safety bound on history requests (1-2000); fail rather than truncate"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 120,
+        "required": false,
+        "help": "Command timeout in seconds (1-3600)"
+      }
+    ],
+    "columns": [
+      "index",
+      "conversation_id",
+      "message_id",
+      "sender_id",
+      "is_self",
+      "type",
+      "text",
+      "created_at",
+      "revoked",
+      "raw_content"
+    ],
+    "type": "js",
+    "modulePath": "douyin/messages.js",
+    "sourceFile": "douyin/messages.js",
+    "navigateBefore": false
   },
   {
     "site": "douyin",
@@ -10293,6 +10499,63 @@
   },
   {
     "site": "douyin",
+    "name": "send",
+    "description": "预检查或审批后发送普通用户私信；支持新作者创建会话，未知结果不重试",
+    "access": "write",
+    "domain": "www.douyin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "target",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Numeric UID, private conversation ID, sec_uid or exact public profile URL"
+      },
+      {
+        "name": "text",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Exact message text (1-2000 characters)"
+      },
+      {
+        "name": "execute",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Execute a signed, approved operation; default is read-only preflight"
+      },
+      {
+        "name": "request-id",
+        "type": "str",
+        "required": false,
+        "help": "UUID from preflight, required for execution and replay protection"
+      },
+      {
+        "name": "approval",
+        "type": "str",
+        "required": false,
+        "help": "Operator-signed approval JSON file, required for execution"
+      }
+    ],
+    "columns": [
+      "status",
+      "account_id",
+      "user_id",
+      "conversation_id",
+      "message_id",
+      "request_id",
+      "approval_payload"
+    ],
+    "type": "js",
+    "modulePath": "douyin/send.js",
+    "sourceFile": "douyin/send.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "douyin",
     "name": "stats",
     "description": "获取单个作品的创作者中心深层指标",
     "access": "read",
@@ -10316,6 +10579,56 @@
     "modulePath": "douyin/stats.js",
     "sourceFile": "douyin/stats.js",
     "navigateBefore": "https://creator.douyin.com"
+  },
+  {
+    "site": "douyin",
+    "name": "unfollow",
+    "description": "取消关注普通用户；默认预检查，执行需独立签名审批",
+    "access": "write",
+    "domain": "www.douyin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "target",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Public sec_uid or exact www.douyin.com/user profile URL"
+      },
+      {
+        "name": "execute",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Execute a signed, approved operation; default is read-only preflight"
+      },
+      {
+        "name": "request-id",
+        "type": "str",
+        "required": false,
+        "help": "UUID from preflight, required for execution and replay protection"
+      },
+      {
+        "name": "approval",
+        "type": "str",
+        "required": false,
+        "help": "Operator-signed approval JSON file, required for execution"
+      }
+    ],
+    "columns": [
+      "status",
+      "account_id",
+      "user_id",
+      "conversation_id",
+      "message_id",
+      "request_id",
+      "approval_payload"
+    ],
+    "type": "js",
+    "modulePath": "douyin/unfollow.js",
+    "sourceFile": "douyin/unfollow.js",
+    "navigateBefore": false
   },
   {
     "site": "douyin",
@@ -10355,6 +10668,50 @@
     "modulePath": "douyin/update.js",
     "sourceFile": "douyin/update.js",
     "navigateBefore": "https://creator.douyin.com"
+  },
+  {
+    "site": "douyin",
+    "name": "user-profile",
+    "description": "读取指定普通用户主页、数字 UID 与近期公开作品（非本人创作者账号）",
+    "access": "read",
+    "domain": "www.douyin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "target",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "sec_uid or exact public profile URL (not numeric UID)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 5,
+        "required": false,
+        "help": "Maximum recent public posts (1-20)"
+      }
+    ],
+    "columns": [
+      "user_id",
+      "sec_uid",
+      "nickname",
+      "bio",
+      "avatar_url",
+      "follower_count",
+      "following_count",
+      "liked_count",
+      "post_count",
+      "follow_status",
+      "ip_location",
+      "profile_url",
+      "posts"
+    ],
+    "type": "js",
+    "modulePath": "douyin/user-profile.js",
+    "sourceFile": "douyin/user-profile.js",
+    "navigateBefore": false
   },
   {
     "site": "douyin",
@@ -10476,6 +10833,33 @@
     "sourceFile": "douyin/auth.js",
     "navigateBefore": false,
     "siteSession": "persistent"
+  },
+  {
+    "site": "douyin",
+    "name": "write-status",
+    "description": "读取本地审批写入回执；unknown 不解锁、不自动重发",
+    "access": "read",
+    "strategy": "local",
+    "browser": false,
+    "args": [
+      {
+        "name": "request-id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Execution request UUID"
+      }
+    ],
+    "columns": [
+      "request_id",
+      "status",
+      "conversation_id",
+      "message_id",
+      "payload_hash"
+    ],
+    "type": "js",
+    "modulePath": "douyin/write-status.js",
+    "sourceFile": "douyin/write-status.js"
   },
   {
     "site": "dribbble",
@@ -41693,6 +42077,56 @@
   },
   {
     "site": "xiaohongshu",
+    "name": "conversation-open",
+    "description": "预检查或审批后准备新作者原生聊天窗口，不发送消息；服务端会话随首条消息建立",
+    "access": "write",
+    "domain": "www.xiaohongshu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "target",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "24-character user ID or exact public profile URL"
+      },
+      {
+        "name": "execute",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Execute a signed, approved operation; default is read-only preflight"
+      },
+      {
+        "name": "request-id",
+        "type": "str",
+        "required": false,
+        "help": "UUID from preflight, required for execution and replay protection"
+      },
+      {
+        "name": "approval",
+        "type": "str",
+        "required": false,
+        "help": "Operator-signed approval JSON file, required for execution"
+      }
+    ],
+    "columns": [
+      "status",
+      "account_id",
+      "user_id",
+      "conversation_id",
+      "message_id",
+      "request_id",
+      "approval_payload"
+    ],
+    "type": "js",
+    "modulePath": "xiaohongshu/conversation-open.js",
+    "sourceFile": "xiaohongshu/conversation-open.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "xiaohongshu",
     "name": "creator-note-detail",
     "description": "小红书单篇笔记详情页数据 (笔记信息 + 核心/互动数据 + 观看来源 + 观众画像 + 趋势数据)",
     "access": "read",
@@ -42118,6 +42552,45 @@
   },
   {
     "site": "xiaohongshu",
+    "name": "inbox",
+    "description": "获取小红书私聊会话列表（不主动标记已读）",
+    "access": "read",
+    "domain": "www.xiaohongshu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Maximum matching private conversations (1-1000)"
+      },
+      {
+        "name": "unread",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Only unread private conversations; filter before applying limit"
+      }
+    ],
+    "columns": [
+      "rank",
+      "conversation_id",
+      "user_id",
+      "nickname",
+      "last_message",
+      "updated_at",
+      "unread_count",
+      "profile_url"
+    ],
+    "type": "js",
+    "modulePath": "xiaohongshu/inbox.js",
+    "sourceFile": "xiaohongshu/inbox.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "xiaohongshu",
     "name": "liked",
     "description": "小红书赞过笔记列表",
     "access": "read",
@@ -42183,6 +42656,73 @@
     "navigateBefore": false,
     "siteSession": "persistent",
     "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "xiaohongshu",
+    "name": "messages",
+    "description": "读取小红书指定私聊的最近 N 条、全部可访问历史或精确水位增量",
+    "access": "read",
+    "domain": "www.xiaohongshu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "target",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Conversation ID or user ID from inbox"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "required": false,
+        "help": "Most recent messages to return (default 50; 1-10000); cannot combine with --all"
+      },
+      {
+        "name": "all",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Read all history available to this web account"
+      },
+      {
+        "name": "after-message",
+        "type": "str",
+        "required": false,
+        "help": "Read after this exact message ID; fail if checkpoint is absent. Default all new messages; --limit selects oldest N new messages."
+      },
+      {
+        "name": "max-pages",
+        "type": "int",
+        "default": 200,
+        "required": false,
+        "help": "Safety bound on history requests (1-2000); fail rather than truncate"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 120,
+        "required": false,
+        "help": "Command timeout in seconds (1-3600)"
+      }
+    ],
+    "columns": [
+      "index",
+      "conversation_id",
+      "message_id",
+      "sender_id",
+      "is_self",
+      "type",
+      "text",
+      "created_at",
+      "revoked",
+      "raw_content"
+    ],
+    "type": "js",
+    "modulePath": "xiaohongshu/messages.js",
+    "sourceFile": "xiaohongshu/messages.js",
+    "navigateBefore": false
   },
   {
     "site": "xiaohongshu",
@@ -42450,6 +42990,63 @@
   },
   {
     "site": "xiaohongshu",
+    "name": "send",
+    "description": "预检查或审批后发送普通用户私信；新对象通过原生聊天准备，未知结果不重试",
+    "access": "write",
+    "domain": "www.xiaohongshu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "target",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Exact 24-character user ID or public profile URL"
+      },
+      {
+        "name": "text",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Exact text (1-1000 characters; no boundary whitespace or CR)"
+      },
+      {
+        "name": "execute",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Execute a signed, approved operation; default is read-only preflight"
+      },
+      {
+        "name": "request-id",
+        "type": "str",
+        "required": false,
+        "help": "UUID from preflight, required for execution and replay protection"
+      },
+      {
+        "name": "approval",
+        "type": "str",
+        "required": false,
+        "help": "Operator-signed approval JSON file, required for execution"
+      }
+    ],
+    "columns": [
+      "status",
+      "account_id",
+      "user_id",
+      "conversation_id",
+      "message_id",
+      "request_id",
+      "approval_payload"
+    ],
+    "type": "js",
+    "modulePath": "xiaohongshu/send.js",
+    "sourceFile": "xiaohongshu/send.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "xiaohongshu",
     "name": "unfollow",
     "description": "取消关注小红书用户 (profile UI automation)",
     "access": "write",
@@ -42520,6 +43117,50 @@
   },
   {
     "site": "xiaohongshu",
+    "name": "user-profile",
+    "description": "读取普通用户主页档案及首屏公开笔记（非创作者后台）",
+    "access": "read",
+    "domain": "www.xiaohongshu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "target",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "User ID or exact public profile URL"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 5,
+        "required": false,
+        "help": "Maximum posts from the loaded profile snapshot (1-20); not all history"
+      }
+    ],
+    "columns": [
+      "user_id",
+      "sec_uid",
+      "nickname",
+      "bio",
+      "avatar_url",
+      "follower_count",
+      "following_count",
+      "liked_count",
+      "post_count",
+      "follow_status",
+      "ip_location",
+      "profile_url",
+      "posts"
+    ],
+    "type": "js",
+    "modulePath": "xiaohongshu/user-profile.js",
+    "sourceFile": "xiaohongshu/user-profile.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "xiaohongshu",
     "name": "whoami",
     "description": "Show the current logged-in xiaohongshu account",
     "access": "read",
@@ -42538,6 +43179,33 @@
     "sourceFile": "xiaohongshu/auth.js",
     "navigateBefore": false,
     "siteSession": "persistent"
+  },
+  {
+    "site": "xiaohongshu",
+    "name": "write-status",
+    "description": "读取本地审批写入回执；unknown 不解锁、不自动重发",
+    "access": "read",
+    "strategy": "local",
+    "browser": false,
+    "args": [
+      {
+        "name": "request-id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Execution request UUID"
+      }
+    ],
+    "columns": [
+      "request_id",
+      "status",
+      "conversation_id",
+      "message_id",
+      "payload_hash"
+    ],
+    "type": "js",
+    "modulePath": "xiaohongshu/write-status.js",
+    "sourceFile": "xiaohongshu/write-status.js"
   },
   {
     "site": "xiaoyuzhou",
