@@ -42539,6 +42539,43 @@
   },
   {
     "site": "xiaohongshu",
+    "name": "user-following",
+    "description": "小红书关注列表（仅限当前登录账号；web 端不提供他人的关注列表）",
+    "access": "read",
+    "domain": "www.xiaohongshu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "user-id",
+        "type": "string",
+        "required": false,
+        "positional": true,
+        "help": "Optional. Omit for the logged-in user; passing your own ID or profile URL is equivalent. Other users are rejected because the web app has no endpoint for their lists."
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 200,
+        "required": false,
+        "help": "Maximum rows to return (1-2000)"
+      }
+    ],
+    "columns": [
+      "user_id",
+      "nickname",
+      "desc",
+      "fans",
+      "avatar",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "xiaohongshu/user-following.js",
+    "sourceFile": "xiaohongshu/user-following.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "xiaohongshu",
     "name": "user-info",
     "description": "小红书用户信息（昵称 / 小红书号 / 简介 / 粉丝 / 关注 / 获赞与收藏 / 头像）",
     "access": "read",
