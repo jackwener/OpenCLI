@@ -17,7 +17,7 @@ cli({
     { filter: 'item.priceChangePercent' },
     { map: { symbol: '${{ item.symbol }}', price: '${{ item.lastPrice }}', change_24h: '${{ item.priceChangePercent }}', volume: '${{ item.quoteVolume }}', sort_change: '${{ Number(item.priceChangePercent) }}' } },
     { sort: { by: 'sort_change' } },
-    { map: { rank: '${{ index + 1 }}', symbol: '${{ item.symbol }}', price: '${{ item.lastPrice }}', change_24h: '${{ item.priceChangePercent }}', volume: '${{ item.quoteVolume }}' } },
+    { map: { rank: '${{ index + 1 }}', symbol: '${{ item.symbol }}', price: '${{ item.price }}', change_24h: '${{ item.change_24h }}', volume: '${{ item.volume }}' } },
     { limit: '${{ args.limit }}' },
   ],
 });
