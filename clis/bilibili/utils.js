@@ -158,7 +158,8 @@ export function stripHtml(s) {
 export function parseDurationText(value) {
     if (typeof value === 'number' && Number.isFinite(value)) return Math.max(0, Math.trunc(value));
     const text = String(value ?? '').trim();
-    if (!/^\d{1,3}(:\d{1,2}){1,2}$/.test(text)) return 0;
+    // 第一段不限位数：search 对合集类视频给的是总分钟数，"2398:14" 这种四位很常见。
+    if (!/^\d+(:\d{1,2}){1,2}$/.test(text)) return 0;
     const parts = text.split(':').map(Number);
     return parts.reduce((total, part) => total * 60 + part, 0);
 }
