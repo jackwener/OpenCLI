@@ -39,7 +39,22 @@ describe('twitter profile command', () => {
             likes: 4,
             verified: true,
             created_at: 'Sun Mar 20 00:00:00 +0000 2011',
+            avatar: null,
+            user_id: null,
         }]);
+    });
+
+    it('emits avatar (upscaled to 400x400) and user_id for discovery consumers', () => {
+        const rows = __test__.mapTwitterProfileResult({
+            rest_id: '12345',
+            core: { screen_name: 'u', name: 'U', created_at: 'now' },
+            avatar: { image_url: 'https://pbs.twimg.com/profile_images/1/abc_normal.jpg' },
+            legacy: { description: 'bio' },
+        }, 'u');
+        expect(rows[0]).toMatchObject({
+            avatar: 'https://pbs.twimg.com/profile_images/1/abc_400x400.jpg',
+            user_id: '12345',
+        });
     });
 
     it('falls back to legacy profile fields for older UserByScreenName responses', () => {

@@ -41,6 +41,13 @@ const PRODUCT_TO_GRAPHQL_PRODUCT = Object.freeze({
     photos: 'Photos',
     videos: 'Videos',
 });
+
+/**
+ * `--type` selects the result schema. `tweets` (default) reads the tab chosen
+ * by --product; `people` reads X's "People" tab (`f=user`), whose GraphQL
+ * product is `People` and whose entries are User objects instead of tweets.
+ */
+const TYPE_CHOICES = Object.freeze(['tweets', 'people']);
 const MAX_PAGINATION_PAGES = 100;
 
 const SEARCH_TIMELINE_OPERATION = {
@@ -162,6 +169,7 @@ function resolveSearchFParam(kwargs) {
 }
 
 function resolveSearchProduct(kwargs) {
+    if (kwargs.type === 'people') return 'People';
     const product = kwargs.product || (kwargs.filter === 'live' ? 'live' : 'top');
     return PRODUCT_TO_GRAPHQL_PRODUCT[product] || 'Top';
 }
@@ -261,25 +269,80 @@ function parseSearchTimeline(data, seen) {
     return { rows, nextCursor };
 }
 
+/**
+ * Map one `user_results.result` node from the People tab into a row.
+ * Dedupes on rest_id (handles can change, ids cannot).
+ */
+function userToRow(result, seen) {
+    if (!result || result.__typename !== 'User') return null;
+    const restId = String(result.rest_id || result.id_str || '');
+    if (!restId || seen.has(restId)) return null;
+    seen.add(restId);
+    const core = result.core || {};
+    const legacy = result.legacy || {};
+    const screenName = core.screen_name || legacy.screen_name || '';
+    if (!screenName) return null;
+    return {
+        user_id: restId,
+        screen_name: screenName,
+        name: core.name || legacy.name || '',
+        bio: result.profile_bio?.description || legacy.description || '',
+        followers: result.relationship_counts?.followers ?? legacy.followers_count ?? legacy.normal_followers_count ?? 0,
+        verified: Boolean(result.is_blue_verified || result.verification?.verified || legacy.verified),
+        url: `https://x.com/${screenName}`,
+        avatar: extractAuthorAvatar(result) || null,
+    };
+}
+
+function parsePeopleTimeline(data, seen) {
+    const rows = [];
+    let nextCursor = null;
+    const instructions = data?.data?.search_by_raw_query?.search_timeline?.timeline?.instructions || [];
+    const visit = (value) => {
+        if (!value || typeof value !== 'object') return;
+        if (value.user_results?.result) {
+            const row = userToRow(value.user_results.result, seen);
+            if (row) rows.push(row);
+        }
+        if (
+            (value.entryType === 'TimelineTimelineCursor' || value.__typename === 'TimelineTimelineCursor')
+            && (value.cursorType === 'Bottom' || value.cursorType === 'ShowMore')
+            && value.value
+        ) {
+            nextCursor = value.value;
+        }
+        if (Array.isArray(value)) {
+            for (const item of value) visit(item);
+            return;
+        }
+        for (const child of Object.values(value)) {
+            if (child && typeof child === 'object') visit(child);
+        }
+    };
+    visit(instructions);
+    return { rows, nextCursor };
+}
+
 cli({
     site: 'twitter',
     name: 'search',
     access: 'read',
-    description: 'Search Twitter/X for tweets, with optional --from / --has / --exclude / --product filters mapped to X\'s search operators',
+    description: 'Search Twitter/X for tweets (or accounts with --type people), with optional --from / --has / --exclude / --product filters mapped to X\'s search operators',
     domain: 'x.com',
     strategy: Strategy.COOKIE,
     browser: true,
     args: [
         { name: 'query', type: 'string', required: true, positional: true, help: 'Search query. Raw X operators (e.g. "exact phrase", #tag, OR, lang:en, since:YYYY-MM-DD, from:, since:) are passed through unchanged.' },
         { name: 'filter', type: 'string', default: 'top', choices: ['top', 'live'], help: 'Legacy alias for --product. Kept for backwards compatibility; if --product is set it wins.' },
-        { name: 'product', type: 'string', choices: PRODUCT_CHOICES, help: 'Which X search tab to read: top (default), live (Latest), photos, videos. Maps to the f= URL param.' },
+        { name: 'type', type: 'string', default: 'tweets', choices: TYPE_CHOICES, help: 'tweets (default) returns tweet rows; people reads the People tab and returns account rows {user_id, screen_name, name, bio, followers, verified, url, avatar}.' },
+        { name: 'product', type: 'string', choices: PRODUCT_CHOICES, help: 'Which X search tab to read: top (default), live (Latest), photos, videos. Maps to the f= URL param. Ignored when --type people.' },
         { name: 'from', type: 'string', help: 'Restrict to tweets authored by <user>. Leading @ is stripped. Equivalent to appending `from:<user>` to the query.' },
         { name: 'has', type: 'string', choices: HAS_CHOICES, help: 'Restrict to tweets that have media|images|videos|links|replies. Maps to X\'s `filter:<has>` operator.' },
         { name: 'exclude', type: 'string', choices: EXCLUDE_CHOICES, help: 'Exclude tweets matching <type>: replies|retweets|media|links. Maps to X\'s `-filter:<x>` operator (retweets → -filter:nativeretweets).' },
         { name: 'limit', type: 'int', default: 15, help: 'Maximum number of tweets to return (default 15). Result count after server-side filtering.' },
         { name: 'top-by-engagement', type: 'int', default: 0, help: 'When set to N>0, re-rank the results by weighted engagement (likes×1 + retweets×3 + replies×2 + bookmarks×5 + log10(views+1)×0.5) and return the top N. Default 0 keeps X\'s native ordering.' },
     ],
-    columns: ['id', 'author', 'author_avatar', 'bio', 'text', 'created_at', 'likes', 'retweets', 'replies', 'views', 'url', 'has_media', 'media_urls', 'media_posters', 'media_durations', 'card', 'quoted_tweet', 'author_verified'],
+    columns: ['id', 'author', 'author_avatar', 'bio', 'text', 'created_at', 'likes', 'retweets', 'replies', 'views', 'url', 'has_media', 'media_urls', 'media_posters', 'media_durations', 'card', 'quoted_tweet', 'user_id', 'screen_name', 'name', 'followers', 'verified', 'avatar', 'author_verified'],
     func: async (page, kwargs) => {
         const finalQuery = buildSearchQuery(kwargs.query, kwargs);
         if (!finalQuery) {
@@ -301,6 +364,8 @@ cli({
             'Content-Type': 'application/json',
         });
         const product = resolveSearchProduct(kwargs);
+        const wantPeople = kwargs.type === 'people';
+        const parsePage = wantPeople ? parsePeopleTimeline : parseSearchTimeline;
         const results = [];
         const seen = new Set();
         let cursor = null;
@@ -325,12 +390,13 @@ cli({
                 if (results.length === 0) throw new CommandExecutionError(describeTwitterApiError('SearchTimeline', data.error));
                 break;
             }
-            const { rows, nextCursor } = parseSearchTimeline(data, seen);
+            const { rows, nextCursor } = parsePage(data, seen);
             results.push(...rows);
             if (!nextCursor || nextCursor === cursor) break;
             cursor = nextCursor;
         }
         const trimmed = results.slice(0, kwargs.limit);
+        if (wantPeople) return trimmed;
         return applyTopByEngagement(trimmed, kwargs['top-by-engagement']);
     }
 });
@@ -341,6 +407,9 @@ export const __test__ = {
     resolveSearchProduct,
     buildSearchTimelineRequest,
     parseSearchTimeline,
+    parsePeopleTimeline,
+    userToRow,
+    TYPE_CHOICES,
     HAS_CHOICES,
     EXCLUDE_CHOICES,
     PRODUCT_CHOICES,
