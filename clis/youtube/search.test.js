@@ -316,6 +316,13 @@ describe('youtube search', () => {
             duration: 'CHANNEL',
             published: '',
             url: 'https://www.youtube.com/@OpenAI',
+            // Ids and numeric counts alongside the display text.
+            channel_id: 'channel-id',
+            handle: '@OpenAI',
+            subscribers: '2M subscribers',
+            subscribers_count: 2000000,
+            video_count: null,
+            description: null,
         }]);
     });
 

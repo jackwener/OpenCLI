@@ -9,7 +9,7 @@ import {
     EmptyResultError,
     TimeoutError,
 } from '@jackwener/opencli/errors';
-import { readYoutubeSapisid, SAPISID_HASH_FN } from './utils.js';
+import { parseYoutubeCount, readYoutubeSapisid, SAPISID_HASH_FN } from './utils.js';
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 50;
@@ -69,7 +69,7 @@ cli({
         { name: 'upload', default: '', help: 'Upload date: hour, today, week, month, year' },
         { name: 'sort', default: '', help: 'Sort by: relevance, date, views, rating' },
     ],
-    columns: ['rank', 'title', 'channel', 'channel_avatar', 'video_id', 'views', 'duration', 'published', 'url'],
+    columns: ['rank', 'title', 'channel', 'channel_avatar', 'video_id', 'views', 'duration', 'published', 'url', 'channel_id', 'handle', 'subscribers', 'subscribers_count', 'video_count', 'description'],
     func: async (page, kwargs) => {
         const query = String(kwargs.query || '').trim();
         if (!query) throw new ArgumentError('youtube search query cannot be empty');
@@ -95,6 +95,7 @@ cli({
         const resultType = ${JSON.stringify(resultType)};
         const maxPages = ${MAX_PAGES};
         const requestTimeoutMs = ${REQUEST_TIMEOUT_SECONDS * 1000};
+        const parseYoutubeCount = ${parseYoutubeCount.toString()};
         const cfg = window.ytcfg?.data_ || {};
         const apiKey = cfg.INNERTUBE_API_KEY;
         const context = cfg.INNERTUBE_CONTEXT;
@@ -178,16 +179,39 @@ cli({
           const path = channel?.navigationEndpoint?.commandMetadata?.webCommandMetadata?.url
             || channel?.navigationEndpoint?.browseEndpoint?.canonicalBaseUrl
             || (channel?.channelId ? '/channel/' + channel.channelId : '');
-          const handleCandidate = readText(channel?.subscriberCountText);
-          return [channel?.channelId || channel?.navigationEndpoint?.browseEndpoint?.browseId || '', {
+          const channelId = channel?.channelId || channel?.navigationEndpoint?.browseEndpoint?.browseId || '';
+          // YouTube overloads these two text fields by locale/surface: one of them
+          // is the @handle, the other the subscriber count; videoCountText may
+          // also hold the count when the handle sits in subscriberCountText.
+          const subText = readText(channel?.subscriberCountText);
+          const vidText = readText(channel?.videoCountText);
+          const canonical = channel?.navigationEndpoint?.browseEndpoint?.canonicalBaseUrl || '';
+          const handle = [
+            readText(channel?.channelHandleText),
+            canonical.startsWith('/@') ? canonical.slice(1) : '',
+            subText.startsWith('@') ? subText : '',
+            vidText.startsWith('@') ? vidText : '',
+          ].find(Boolean) || '';
+          const subscribers = [
+            !subText.startsWith('@') ? subText : '',
+            !vidText.startsWith('@') ? vidText : '',
+          ].find(Boolean) || '';
+          const videoCountCandidate = /video|视频|影片/i.test(vidText) ? vidText : '';
+          return [channelId, {
             title: readText(channel?.title),
-            channel: handleCandidate.startsWith('@') ? handleCandidate : '',
+            channel: handle,
             channel_avatar: readAvatar(channel, true),
             video_id: '',
-            views: readText(channel?.videoCountText) || (!handleCandidate.startsWith('@') ? handleCandidate : ''),
+            views: videoCountCandidate || subscribers,
             duration: 'CHANNEL',
             published: '',
             url: absoluteUrl(path),
+            channel_id: channelId || null,
+            handle: handle || null,
+            subscribers: subscribers || null,
+            subscribers_count: parseYoutubeCount(subscribers),
+            video_count: parseYoutubeCount(videoCountCandidate),
+            description: readText(channel?.descriptionSnippet) || null,
           }];
         }
 

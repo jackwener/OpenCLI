@@ -44280,7 +44280,13 @@
       "views",
       "duration",
       "published",
-      "url"
+      "url",
+      "channel_id",
+      "handle",
+      "subscribers",
+      "subscribers_count",
+      "video_count",
+      "description"
     ],
     "type": "js",
     "modulePath": "youtube/search.js",
