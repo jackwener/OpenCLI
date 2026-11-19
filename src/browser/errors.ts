@@ -65,10 +65,14 @@ function errorMessage(err: unknown): string {
  * These are authoritative — the message-pattern tables below are only a
  * fallback for extensions that predate error codes.
  *
- * `detached_mid_command` and `cdp_timeout` are deliberately non-retryable:
- * both mean execution died MID-command, so a blind re-run could double-apply
- * a write. (The legacy pattern table still retries "Detached while handling
- * command" because old extensions cannot distinguish pre- from mid-execution.)
+ * `detached_mid_command`, `cdp_timeout` and `chrome_call_timeout` are
+ * deliberately non-retryable: all three mean execution died MID-command, so a
+ * blind re-run could double-apply a write. (The legacy pattern table still
+ * retries "Detached while handling command" because old extensions cannot
+ * distinguish pre- from mid-execution.) `chrome_call_timeout` is the extension
+ * giving up on a chrome.windows.create / tabs.create / tabs.update that never
+ * answered: the window or tab may or may not exist, so a re-run could leave a
+ * duplicate.
  */
 const ERROR_CODE_ADVICE: Record<string, RetryAdvice> = {
   attach_failed: { kind: 'extension-transient', retryable: true, delayMs: 1500 },
@@ -76,6 +80,7 @@ const ERROR_CODE_ADVICE: Record<string, RetryAdvice> = {
   target_navigated: { kind: 'target-navigation', retryable: true, delayMs: 200 },
   detached_mid_command: { kind: 'non-retryable', retryable: false, delayMs: 0 },
   cdp_timeout: { kind: 'non-retryable', retryable: false, delayMs: 0 },
+  chrome_call_timeout: { kind: 'non-retryable', retryable: false, delayMs: 0 },
 };
 
 /**
