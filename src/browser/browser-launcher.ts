@@ -6,11 +6,16 @@
  * or ~/.opencli):
  *   {
  *     "start": ["systemctl", "--user", "start", "chromium.service"],
- *     "profileDir": "/path/to/chromium/Default"
+ *     "restart": ["systemctl", "--user", "restart", "chromium.service"],
+ *     "profileDir": "/path/to/chromium/Default",
+ *     "unbindBoundSessions": true
  *   }
  * "start" runs without a shell and should start the existing browser profile
- * (a service manager unit, an app launcher, ...). "profileDir" lets OpenCLI drop
- * the saved "OpenCLI Browser" tab groups Chromium keeps from earlier runs.
+ * (a service manager unit, an app launcher, ...); "restart" restarts it when
+ * the browser runs but its Bridge never connects. "profileDir" lets OpenCLI
+ * drop the saved "OpenCLI Browser" tab groups Chromium keeps from earlier
+ * runs. "unbindBoundSessions" lets a session bound to a user tab be unbound
+ * when a command needs an OpenCLI-owned tab.
  */
 import { spawnSync } from 'node:child_process';
 import * as fs from 'node:fs';
@@ -19,7 +24,9 @@ import * as path from 'node:path';
 
 export interface BrowserLauncherConfig {
   start?: string[];
+  restart?: string[];
   profileDir?: string;
+  unbindBoundSessions?: boolean;
 }
 
 const OPENCLI_GROUP_TITLE = Buffer.from('OpenCLI Browser');
@@ -34,22 +41,29 @@ export function launcherConfigPath(): string {
 export function loadLauncherConfig(): BrowserLauncherConfig {
   try {
     const raw = JSON.parse(fs.readFileSync(launcherConfigPath(), 'utf-8')) as Record<string, unknown>;
-    const start = Array.isArray(raw.start) && raw.start.length > 0 && raw.start.every(arg => typeof arg === 'string')
-      ? raw.start as string[]
-      : undefined;
+    const argv = (value: unknown): string[] | undefined =>
+      Array.isArray(value) && value.length > 0 && value.every(arg => typeof arg === 'string') ? value as string[] : undefined;
+    const start = argv(raw.start);
+    const restart = argv(raw.restart);
     const profileDir = typeof raw.profileDir === 'string' && raw.profileDir.trim() ? raw.profileDir : undefined;
-    return { ...(start && { start }), ...(profileDir && { profileDir }) };
+    return {
+      ...(start && { start }),
+      ...(restart && { restart }),
+      ...(profileDir && { profileDir }),
+      ...(raw.unbindBoundSessions === true && { unbindBoundSessions: true }),
+    };
   } catch {
     return {};
   }
 }
 
-/** Runs the configured start command. Returns false when none is configured or it fails. */
-export function startConfiguredBrowser(config: BrowserLauncherConfig = loadLauncherConfig()): boolean {
-  if (!config.start) return false;
+/** Runs the configured start or restart command. False when none is configured or it fails. */
+export function runBrowserLauncher(kind: 'start' | 'restart', config: BrowserLauncherConfig = loadLauncherConfig()): boolean {
+  const argv = config[kind];
+  if (!argv) return false;
   if (config.profileDir) cleanSavedOpenCLIGroups(config.profileDir);
-  const [command, ...args] = config.start;
-  const result = spawnSync(command, args, { stdio: 'ignore', timeout: 60_000 });
+  const [command, ...args] = argv;
+  const result = spawnSync(command, args, { stdio: 'ignore', timeout: 120_000 });
   return result.status === 0;
 }
 

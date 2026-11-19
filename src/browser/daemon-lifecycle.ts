@@ -7,7 +7,7 @@ import { BrowserConnectError } from '../errors.js';
 import { PKG_VERSION } from '../version.js';
 import { waitForBridgeReady } from './bridge-readiness.js';
 import { isDaemonStale } from './daemon-version.js';
-import { startConfiguredBrowser } from './browser-launcher.js';
+import { loadLauncherConfig, runBrowserLauncher } from './browser-launcher.js';
 import { DEFAULT_BROWSER_CONNECT_TIMEOUT } from './config.js';
 import { fetchDaemonStatus, getDaemonHealth, requestDaemonShutdown, type DaemonHealth, type DaemonStatus } from './daemon-transport.js';
 
@@ -73,7 +73,8 @@ export const daemonLifecycleHooks = {
   requestDaemonShutdown,
   spawnDaemonProcess,
   waitForDaemonStop,
-  startConfiguredBrowser: (): boolean => startConfiguredBrowser(),
+  runBrowserLauncher: (kind: 'start' | 'restart'): boolean => runBrowserLauncher(kind),
+  restartDaemon: () => restartDaemon(),
 };
 
 export async function restartDaemon(opts: { stopTimeoutMs?: number; startTimeoutMs?: number } = {}): Promise<DaemonRestartResult> {
@@ -160,21 +161,29 @@ export async function ensureBrowserBridgeReady(
   const finalHealth = await waitForBridgeReady(getDaemonHealth, { timeoutMs, contextId, preferredContextId });
   if (finalHealth.state === 'ready') return finalHealth;
 
-  // No extension connected: start the browser once through the configured
-  // launcher (browser-launcher.json), then wait for its Bridge to connect.
-  if (finalHealth.state === 'no-extension' && daemonLifecycleHooks.startConfiguredBrowser()) {
-    if (verbose && (process.env.OPENCLI_VERBOSE || process.stderr.isTTY)) {
-      process.stderr.write('⏳ Started the browser; waiting for the extension to connect...\n');
-    }
-    const launchedHealth = await waitForBridgeReady(getDaemonHealth, {
-      timeoutMs: Math.max(timeoutMs, DEFAULT_BROWSER_CONNECT_TIMEOUT * 1000),
-      contextId,
-      preferredContextId,
-    });
-    if (launchedHealth.state === 'ready') return launchedHealth;
-    throw browserConnectErrorFromHealth(launchedHealth, contextId);
+  // No extension connected and a launcher is configured (browser-launcher.json):
+  // escalate once per step, each bounded by the browser connect timeout —
+  // restart the daemon, start the browser, then restart the browser.
+  const launcher = loadLauncherConfig();
+  if (finalHealth.state !== 'no-extension' || (!launcher.start && !launcher.restart)) {
+    throw browserConnectErrorFromHealth(finalHealth, contextId);
   }
-  throw browserConnectErrorFromHealth(finalHealth, contextId);
+  const recoveryTimeoutMs = Math.max(timeoutMs, DEFAULT_BROWSER_CONNECT_TIMEOUT * 1000);
+  const steps: Array<{ label: string; run: () => Promise<boolean> | boolean; timeoutMs: number }> = [
+    { label: 'Restarting the daemon', run: async () => (await daemonLifecycleHooks.restartDaemon()).spawned, timeoutMs: Math.min(recoveryTimeoutMs, 15_000) },
+    { label: 'Starting the browser', run: () => daemonLifecycleHooks.runBrowserLauncher('start'), timeoutMs: recoveryTimeoutMs },
+    { label: 'Restarting the browser', run: () => daemonLifecycleHooks.runBrowserLauncher('restart'), timeoutMs: recoveryTimeoutMs },
+  ];
+  let lastHealth: DaemonHealth = finalHealth;
+  for (const step of steps) {
+    if (!(await step.run())) continue;
+    if (verbose && (process.env.OPENCLI_VERBOSE || process.stderr.isTTY)) {
+      process.stderr.write(`⏳ ${step.label}; waiting for the extension to connect...\n`);
+    }
+    lastHealth = await waitForBridgeReady(getDaemonHealth, { timeoutMs: step.timeoutMs, contextId, preferredContextId });
+    if (lastHealth.state === 'ready') return lastHealth;
+  }
+  throw browserConnectErrorFromHealth(lastHealth, contextId);
 }
 
 function browserConnectErrorFromHealth(health: DaemonHealth, contextId?: string): BrowserConnectError {
