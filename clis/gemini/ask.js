@@ -52,8 +52,9 @@ function validateAskModelValue(value) {
             'Use "opencli gemini models" to list available values.'
         );
     }
+    if (value === 'auto') return;
     // Reject short aliases like "pro", "flash", "flash-lite" that lack a version number.
-    if (!/\d+\.\d+/.test(value)) {
+    if (!/\d+/.test(value)) {
         throw new ArgumentError(
             '--model "' + value + '" is not accepted. ' +
             'Short aliases like "pro", "flash", or "flash-lite" are not supported. ' +
@@ -61,8 +62,8 @@ function validateAskModelValue(value) {
             'Use "opencli gemini models" to list available values.'
         );
     }
-    // Must match canonical format: X.Y-variant
-    if (!/^\d+\.\d+-[a-z][a-z-]*$/.test(value)) {
+    // Versioned variants and codenames support integer or dotted versions.
+    if (!/^\d+(?:\.\d+)?-[a-z][a-z-]*$/.test(value)) {
         throw new ArgumentError(
             '--model "' + value + '" is not a valid canonical model id. ' +
             'Expected format: version-variant (e.g. "2.5-flash", "3.1-pro"). ' +
@@ -91,7 +92,7 @@ export const askCommand = cli({
         { name: 'model', type: 'string', required: false, help: 'Gemini model to use (e.g. "2.5-flash"). Use "opencli gemini models" to list available values.' },
         { name: 'timeout', type: 'int', required: false, help: 'Max seconds to wait (default: 60)', default: 60 },
         { name: 'new', required: false, help: 'Start a new chat first (true/false, default: false)', default: 'false' },
-        { name: 'thinking', required: false, help: 'Thinking level: standard or extended (omitted = leave unchanged)', default: null },
+        { name: 'thinking', required: false, help: 'Thinking level: low, medium, high, standard or extended (omitted = leave unchanged)', default: null },
     ],
     columns: ['response'],
     func: async (page, kwargs) => {
@@ -119,9 +120,9 @@ export const askCommand = cli({
         if (hasThinking) {
             const thinkingRaw = String(kwargs.thinking ?? '').trim();
             const thinkingValue = thinkingRaw.toLowerCase();
-            if (thinkingValue !== 'standard' && thinkingValue !== 'extended') {
+            if (!['low', 'medium', 'high', 'standard', 'extended'].includes(thinkingValue)) {
                 throw new ArgumentError(
-                    `--thinking must be 'standard' or 'extended', got '${thinkingRaw}'`,
+                    `--thinking must be 'low', 'medium', 'high', 'standard' or 'extended', got '${thinkingRaw}'`,
                     'Run `opencli gemini models` to see available thinking levels.',
                 );
             }

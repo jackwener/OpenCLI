@@ -1967,6 +1967,7 @@ function openModelPickerForThinkingScript() {
       const MODE_SELECTOR_PATTERNS = [
         /模式选择器/i,
         /mode[\\s-]*selector/i,
+        /mode[\\s-]*picker/i,
         /model[\\s-]*selector/i,
         /model[\\s-]*picker/i,
         /选择模型/i,
@@ -2090,6 +2091,8 @@ function clickThinkingToggleInMenuScript() {
         }
       }
 
+      // Include submenu triggers even when the menu also has radio rows.
+      menuItems = Array.from(new Set([...menuItems, ...document.querySelectorAll('[role="menu"] [role="menuitem"], gem-menu-item[value="thinking_level"]')])).filter(isVisible);
       const thinkingToggle = menuItems.find((item) => {
         const text = (item.textContent || '').replace(/\\s+/g, ' ').trim();
         return /思考等级|thinking level|thinking mode/i.test(text);
@@ -2109,21 +2112,24 @@ function clickThinkingToggleInMenuScript() {
  * already-open model-picker menu (after the thinking section has been
  * expanded).  Closes the menu after selection (or on failure).
  *
- * @param {string} thinkingValue - 'standard' or 'extended'
+ * @param {string} thinkingValue - low, medium, high, standard or extended
  * @returns a function string for page.evaluate() that returns the matched
  *          label text, or empty string on failure
  */
-function selectThinkingInMenuScript(thinkingValue) {
+function selectThinkingInMenuScript(thinkingValue, readOnly = false) {
     const normalizedValue = String(thinkingValue || '').trim().toLowerCase();
     if (!normalizedValue) return '(() => "")';
     const labelMap = JSON.stringify({
         standard: ['standard', '标准', '標準'],
         extended: ['extended', '扩展', '擴展', '拡張'],
+        low: ['low'],
+        medium: ['medium'],
+        high: ['high'],
     });
     return `
     (() => {
       const LABEL_MAP = ${labelMap};
-      const candidateLabels = LABEL_MAP['${normalizedValue}'] || ['${normalizedValue}'];
+      const candidateLabels = LABEL_MAP[${JSON.stringify(normalizedValue)}] || [];
 
       const isVisible = (el) => {
         if (!(el instanceof HTMLElement)) return false;
@@ -2151,7 +2157,8 @@ function selectThinkingInMenuScript(thinkingValue) {
       const matchesThinking = (node) => {
         const combined = normalize(textOf(node));
         if (!combined) return false;
-        return candidateLabels.some((label) => combined.includes(label));
+        const labelText = normalize(node.querySelector?.('.label')?.textContent || combined);
+        return candidateLabels.some((label) => labelText === label || labelText.startsWith(label + ' ') || (label.charCodeAt(0) > 127 && labelText.startsWith(label)));
       };
 
       // Search inside visible menu containers first.
@@ -2198,6 +2205,10 @@ function selectThinkingInMenuScript(thinkingValue) {
         return 0;
       });
 
+      if (${readOnly}) {
+        const selected = candidates.find(node => node.getAttribute('aria-checked') === 'true' || node.getAttribute('aria-selected') === 'true' || node.querySelector('[aria-label="Selected"], .selected'));
+        return selected ? (selected.textContent || '').trim() : '';
+      }
       const target = candidates[0];
       let matchedLabel = '';
       try {
@@ -2228,7 +2239,7 @@ function selectThinkingInMenuScript(thinkingValue) {
  *  6. Close the menu.
  *
  * @param {object} page - Puppeteer page object
- * @param {string} thinkingValue - 'standard' or 'extended'
+ * @param {string} thinkingValue - low, medium, high, standard or extended
  * @returns {Promise<string>} matched label text, or empty string on failure
  */
 export async function selectGeminiThinking(page, thinkingValue) {
@@ -2257,7 +2268,20 @@ export async function selectGeminiThinking(page, thinkingValue) {
 
     if (typeof matched === 'string' && matched) {
         await page.wait(0.3);
-        return matched;
+        try {
+            const reopened = unwrapGeminiEvaluateResult(
+                await page.evaluate(openModelPickerForThinkingScript()), 'Gemini thinking read-back');
+            if (!reopened?.ok) return '';
+            await page.wait(0.8);
+            const expanded = unwrapGeminiEvaluateResult(
+                await page.evaluate(clickThinkingToggleInMenuScript()), 'Gemini thinking toggle');
+            if (expanded) await page.wait(0.5);
+            const selected = unwrapGeminiEvaluateResult(
+                await page.evaluate(selectThinkingInMenuScript(thinkingValue, true)), 'Gemini thinking read-back');
+            return typeof selected === 'string' ? selected : '';
+        } finally {
+            await page.evaluate('document.body.click()');
+        }
     }
 
     return '';
@@ -2297,6 +2321,7 @@ function getCurrentGeminiModelScript() {
       const MODE_SELECTOR_PATTERNS = [
         /模式选择器/i,
         /mode[\\s-]*selector/i,
+        /mode[\\s-]*picker/i,
         /model[\\s-]*selector/i,
         /model[\\s-]*picker/i,
         /选择模型/i,
@@ -2373,6 +2398,11 @@ function getCurrentGeminiModelScript() {
         if (fallbackMatch) {
           return fallbackMatch[1] + '-' + fallbackMatch[2].toLowerCase();
         }
+
+        if (/^auto(?:$|\\s|adapts\\b)/i.test(cleaned)) return 'auto';
+        // Sublabels may be concatenated directly to the descriptive row title.
+        const codename = cleaned.match(/(\\d+(?:\\.\\d+)?)[\\s-]+([a-z]+)$/i);
+        if (codename) return codename[1] + '-' + codename[2];
         if (/\\d+(?:\\.\\d+)?/.test(cleaned) && cleaned.length < 60) {
           return cleaned.replace(/\\s+/g, '-').replace(/[^a-z0-9.-]/g, '');
         }
@@ -2382,8 +2412,12 @@ function getCurrentGeminiModelScript() {
       const picker = findModelPicker();
       if (!picker) return '';
 
-      const combined = normalize(picker.textContent || '') + ' ' + normalize(picker.getAttribute('aria-label') || '');
-      return canonicalModelId(combined);
+      const selected = document.querySelector('gem-menu-item[role="menuitemradio"][aria-checked="true"]');
+      if (selected) {
+        const id = canonicalModelId(selected.textContent);
+        if (id) return id;
+      }
+      return canonicalModelId(picker.textContent) || canonicalModelId(picker.getAttribute('aria-label'));
     })()
     `;
 }
@@ -2397,7 +2431,21 @@ function getCurrentGeminiModelScript() {
  */
 export async function getCurrentGeminiModel(page) {
     await ensureGeminiPage(page);
-    const modelId = await page.evaluate(getCurrentGeminiModelScript()).catch(() => '');
+    let modelId = await page.evaluate(getCurrentGeminiModelScript()).catch(() => '');
+    if (!modelId) {
+        // Current mode buttons show only the codename (e.g. Neon). Resolve
+        // its version from the selected radio row in the rendered menu.
+        const opened = unwrapGeminiEvaluateResult(
+            await page.evaluate(openModelPickerForThinkingScript()), 'Gemini model picker');
+        if (opened?.ok) {
+            try {
+                await page.wait(0.8);
+                modelId = await page.evaluate(getCurrentGeminiModelScript());
+            } finally {
+                await page.evaluate('document.body.click()');
+            }
+        }
+    }
     return typeof modelId === 'string' ? modelId : '';
 }
 
@@ -2730,6 +2778,11 @@ function selectModelInMenuScript(modelId) {
         if (fallbackMatch) {
           return fallbackMatch[1] + '-' + fallbackMatch[2].toLowerCase();
         }
+
+        if (/^auto(?:$|\\s|adapts\\b)/i.test(cleaned)) return 'auto';
+        // Sublabels may be concatenated directly to the descriptive row title.
+        const codename = cleaned.match(/(\\d+(?:\\.\\d+)?)[\\s-]+([a-z]+)$/i);
+        if (codename) return codename[1] + '-' + codename[2];
         if (/\\d+(?:\\.\\d+)?/.test(cleaned) && cleaned.length < 60) {
           return cleaned.replace(/\\s+/g, '-').replace(/[^a-z0-9.-]/g, '');
         }

@@ -616,3 +616,17 @@ describe('discoverModelsScript — read-only verification (DOM fixture)', () => 
         expect(spy['Send message'] || 0).toBe(0);
     });
 });
+
+describe('current Gemini mode menu', () => {
+    it.each(['discoverModelsScript', 'readMenuModelsScript', 'readMenuScript'])('parses codenames through %s', (script) => {
+        const { window } = createGeminiDom(`
+            <bard-mode-switcher><button aria-label="Open mode picker, currently Auto">Auto</button></bard-mode-switcher>
+            <gem-menu role="menu">
+              <gem-menu-item role="menuitemradio"><span>Auto</span><div>Adapts to your needs</div></gem-menu-item>
+              <gem-menu-item role="menuitemradio"><span>Everyday help</span><div>4 Hydrogen</div></gem-menu-item>
+              <gem-menu-item role="menuitemradio"><span>Deeper analysis</span><div>4 Neon</div></gem-menu-item>
+              <gem-menu-item role="menuitemradio"><span>Code &amp; complex work</span><div>4 Carbon</div></gem-menu-item>
+            </gem-menu>`);
+        expect(window.eval(__test__[script]()).map(row => row.model)).toEqual(['auto', '4-hydrogen', '4-neon', '4-carbon']);
+    });
+});

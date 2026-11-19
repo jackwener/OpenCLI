@@ -143,6 +143,10 @@ function setupDiscoveryEmpty(page) {
 // ── validateAskModelValue ────────────────────────────────────────────────
 
 describe('validateAskModelValue', () => {
+    it.each(['auto', '4-hydrogen', '4-neon', '4-carbon', '5-argon'])('accepts current mode id %s', value => {
+        expect(() => validateAskModelValue(value)).not.toThrow();
+    });
+
     it('accepts canonical model ids', () => {
         expect(() => validateAskModelValue('2.5-flash')).not.toThrow();
         expect(() => validateAskModelValue('2.5-flash-lite')).not.toThrow();
@@ -647,7 +651,7 @@ describe('gemini ask thinking selection', () => {
             });
         } catch (e) { err = e; }
         expect(err).toBeInstanceOf(ArgumentError);
-        expect(err.message).toContain("--thinking must be 'standard' or 'extended'");
+        expect(err.message).toContain("--thinking must be 'low', 'medium', 'high', 'standard' or 'extended'");
         expect(mocks.selectGeminiThinking).not.toHaveBeenCalled();
         expect(mocks.readGeminiSnapshot).not.toHaveBeenCalled();
         expect(mocks.sendGeminiMessage).not.toHaveBeenCalled();
@@ -660,7 +664,7 @@ describe('gemini ask thinking selection', () => {
             await askCommand.func(page, { prompt: 'test', timeout: 20, thinking: '' });
         } catch (e) { err = e; }
         expect(err).toBeInstanceOf(ArgumentError);
-        expect(err.message).toContain("--thinking must be 'standard' or 'extended'");
+        expect(err.message).toContain("--thinking must be 'low', 'medium', 'high', 'standard' or 'extended'");
     });
 
     // ── Current-model-scoped validation ──────────────────────────────
@@ -1216,5 +1220,20 @@ describe('gemini ask thinking selection', () => {
         // (for selection, not for restoration).
         expect(mocks.selectGeminiModel).toHaveBeenCalledTimes(1);
         expect(mocks.selectGeminiThinking).toHaveBeenCalledTimes(1);
+    });
+});
+
+
+describe('current thinking levels', () => {
+    it.each(['low', 'medium', 'high'])('accepts %s', async thinking => {
+        const page = createPageMock();
+        mocks.ensureGeminiPage.mockResolvedValue(undefined);
+        setupDiscoveryAndModel(page, [{ model: '4-neon', thinkingValues: [] }], '4-neon');
+        setupHappyPath();
+        mocks.selectGeminiThinking.mockResolvedValueOnce(thinking);
+        mocks.waitForGeminiResponse.mockReset().mockResolvedValueOnce('OK');
+        const result = await askCommand.func(page, { prompt: 'test', timeout: 20, thinking });
+        expect(mocks.selectGeminiThinking).toHaveBeenCalledWith(page, thinking);
+        expect(result).toEqual([{ response: '💬 OK' }]);
     });
 });

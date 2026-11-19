@@ -12177,7 +12177,7 @@
         "type": "str",
         "default": null,
         "required": false,
-        "help": "Thinking level: standard or extended (omitted = leave unchanged)"
+        "help": "Thinking level: low, medium, high, standard or extended (omitted = leave unchanged)"
       }
     ],
     "columns": [
