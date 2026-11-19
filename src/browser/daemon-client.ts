@@ -11,6 +11,7 @@ import { COMMAND_RESULT_UNKNOWN_CODE, COMMAND_RESULT_UNKNOWN_HINT } from '../dae
 import { classifyBrowserError } from './errors.js';
 import { profileRouteParams, resolveProfileSelection } from './profile.js';
 import { DEFAULT_BROWSER_CONNECT_TIMEOUT } from './config.js';
+import { loadLauncherConfig } from './browser-launcher.js';
 import { ensureBrowserBridgeReady } from './daemon-lifecycle.js';
 import { isPreDispatchError } from './bridge-readiness.js';
 import {
@@ -349,7 +350,33 @@ export {
  * (the outcome is genuinely unknown) and client-side AbortError (the shared
  * deadline is already exhausted).
  */
+const BOUND_SESSION_CODES = new Set(['bound_tab_mutation_blocked', 'bound_window_operation_blocked']);
+
+/**
+ * With "unbindBoundSessions" in browser-launcher.json, a command refused
+ * because its session is bound to a user tab unbinds the session (the user
+ * tab stays open) and runs once more on an OpenCLI-owned tab.
+ */
 async function sendCommandRaw(
+  action: DaemonCommand['action'],
+  params: Omit<DaemonCommand, 'id' | 'action'>,
+): Promise<DaemonResult> {
+  try {
+    return await sendCommandOnce(action, params);
+  } catch (err) {
+    if (!(err instanceof BrowserCommandError) || !err.code || !BOUND_SESSION_CODES.has(err.code)
+      || typeof params.session !== 'string' || !loadLauncherConfig().unbindBoundSessions) throw err;
+    await sendCommandOnce('close-window', {
+      session: params.session,
+      surface: params.surface ?? 'browser',
+      ...(params.contextId && { contextId: params.contextId }),
+    });
+    const { page: _page, ...rest } = params;
+    return sendCommandOnce(action, rest);
+  }
+}
+
+async function sendCommandOnce(
   action: DaemonCommand['action'],
   params: Omit<DaemonCommand, 'id' | 'action'>,
 ): Promise<DaemonResult> {

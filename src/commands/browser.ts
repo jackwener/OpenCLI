@@ -3,6 +3,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { DEFAULT_BROWSER_CONNECT_TIMEOUT } from '../browser/config.js';
+import { cleanSavedOpenCLIGroups, launcherConfigPath, loadLauncherConfig } from '../browser/browser-launcher.js';
 import { bindTab, BrowserCommandError, sendCommand } from '../browser/daemon-client.js';
 import { buildExtractHtmlJs, runExtractFromHtml } from '../browser/extract.js';
 import { buildFindJs, buildSemanticFindJs, isFindError, type FindError, type FindResult, type SemanticFindOptions } from '../browser/find.js';
@@ -585,6 +586,18 @@ export function registerBrowserCommands(program: Command): Command {
       saveBrowserTargetState(undefined, getBrowserScope(session, contextId));
       emitResult({ unbound: true, session });
     }));
+
+  browser.command('clean-saved-groups')
+    .description('Drop saved "OpenCLI Browser" tab groups from a stopped Chromium profile (profile dir from browser-launcher.json)')
+    .option('--profile-dir <dir>', 'Chromium profile directory, e.g. ~/.config/chromium/Default')
+    .action((opts: { profileDir?: string }) => {
+      const profileDir = opts.profileDir ?? loadLauncherConfig().profileDir;
+      if (!profileDir) {
+        emitFailure({ code: 'invalid_args', message: `No profile dir: pass --profile-dir or set "profileDir" in ${launcherConfigPath()}.`, exitCode: 2 });
+        return;
+      }
+      emitResult(cleanSavedOpenCLIGroups(profileDir));
+    });
 
   const browserTab = browser
     .command('tab')
