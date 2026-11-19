@@ -1,0 +1,118 @@
+{
+ "loaderData": {
+  "layout": null,
+  "rank_hot-drama/page": {
+   "rankKey": "hongguo",
+   "canonicalUrl": "https://hongguoduanju.com/rank/hot-drama",
+   "updatedText": "11月19日已更新·基于红果内观看/互动等综合热度排序",
+   "pageNum": 1,
+   "isCrawler": false,
+   "content": {
+    "isSuccess": true,
+    "rankList": [
+     {
+      "id": "7705824595416190014",
+      "seriesId": "7705824595416190014",
+      "rank": 1,
+      "title": "穿越八零，我把娘俩宠成宝",
+      "cover": "https://p3-novel.byteimg.com/novel-pic/898c39547d16b1ddb3c5ab399559ecc1~tplv-shrink:640:0.image",
+      "href": "/detail?series_id=7705824595416190014",
+      "playHref": "/player/7705824595416190014",
+      "rankType": "hot_play",
+      "reservationOnly": false,
+      "primaryMetricText": "8515万热度",
+      "heatText": "8515万热度",
+      "statusTags": [],
+      "scoreText": "8分",
+      "favoriteText": "129.3万收藏",
+      "likeText": "492.8万点赞",
+      "scoreCountText": "2634人评分",
+      "shareText": "6.9万分享",
+      "tags": [
+       "AI剧",
+       "剧情",
+       "赵乾志 · 陈芸"
+      ],
+      "description": "现代社会的生意人赵乾志因车祸意外穿越到八十年代，成为同名的乡村无赖丈夫。面对长期遭受家暴、贫困和欺凌的陈芸母女，他决心改变原身的生活方式，承担家庭责任，并凭借现代见识从古董、药材等生意起步，逐渐走上经商致富之路。陈芸从恐惧防备到逐渐信任，两人在共同生活和创业中建立感情，最终带着女儿改善生活、在城市站稳脚跟。",
+      "episodeVids": [
+       "7705826165692304409",
+       "7705826348597529625"
+      ],
+      "episodeCount": 317,
+      "openEpisodeCount": 5,
+      "isPaid": false
+     },
+     {
+      "id": "7704532495357725721",
+      "seriesId": "7704532495357725721",
+      "rank": 2,
+      "title": "持械入宋：第十一季",
+      "cover": "https://p6-novel.byteimg.com/novel-pic/a5d74075608a35b1f34ca608f8e98ba8~tplv-shrink:640:0.image",
+      "href": "/detail?series_id=7704532495357725721",
+      "playHref": "/player/7704532495357725721",
+      "rankType": "hot_play",
+      "reservationOnly": false,
+      "primaryMetricText": "8273万热度",
+      "heatText": "8273万热度",
+      "statusTags": [],
+      "scoreText": "9.5分",
+      "favoriteText": "105.9万收藏",
+      "likeText": "238.3万点赞",
+      "scoreCountText": "8932人评分",
+      "shareText": "3.2万分享",
+      "tags": [
+       "AI剧",
+       "宫廷",
+       "林昭 · 陈素"
+      ],
+      "description": "西北战局再度升级！林昭挥军渡河，连破西境防线，兵锋直逼西境都城；谢长风、马振邦随军推进，陈素坐镇后方，五人小队的分工第一次真正形成完整战局。与此同时，王浩川结束钱塘州任职，临行前再破一局，新的人脉与棋子也开始汇聚，并开始为京城布局。南境与西境的较量也从前线延伸至朝堂与使臣交锋，西境使臣急于求和，东境也在暗中布局。五人小队一边打仗，一边抢时间、争资源、布后手，即将迎来真正的决战时刻！",
+      "episodeVids": [
+       "7704532501426867224",
+       "7704532503687597080"
+      ],
+      "episodeCount": 113,
+      "openEpisodeCount": 5,
+      "isPaid": false
+     },
+     {
+      "id": "7697459724635098174",
+      "seriesId": "7697459724635098174",
+      "rank": 3,
+      "title": "全球死考：刚下刑场你让我去考试一季",
+      "cover": "https://p3-novel.byteimg.com/novel-pic/90efdb1e9bc01e1e4dade7b9a4833446~tplv-shrink:640:0.image",
+      "href": "/detail?series_id=7697459724635098174",
+      "playHref": "/player/7697459724635098174",
+      "rankType": "hot_play",
+      "reservationOnly": false,
+      "primaryMetricText": "7598万热度",
+      "heatText": "7598万热度",
+      "statusTags": [],
+      "scoreText": "9.2分",
+      "favoriteText": "382.2万收藏",
+      "likeText": "1021.1万点赞",
+      "scoreCountText": "1.6万人评分",
+      "shareText": "31.6万分享",
+      "tags": [
+       "漫剧",
+       "脑洞",
+       "夜林 · 贺铮"
+      ],
+      "description": "在这里，六十分不是及格，是买命。三千万考生被拖入死亡高考，军方破局的底牌，竟是十八岁的重犯夜林。面对异种、尸潮与厉鬼，他凭一把枪和近乎残酷的推理，带同伴杀出绝境。直到仙门开启，万米仙尸被铁链吊起，他才发现，人类拼命寻找的生路，竟通向神明的坟场。如果连神都死了，谁还在主持这场考试？",
+      "episodeVids": [
+       "7697465535398677529",
+       "7697465811157404697"
+      ],
+      "episodeCount": 785,
+      "openEpisodeCount": 5,
+      "isPaid": false
+     }
+    ],
+    "pagination": {
+     "pageNum": 1,
+     "totalPages": 5,
+     "nextUrl": "https://hongguoduanju.com/rank/hot-drama?page=2"
+    }
+   }
+  }
+ }
+}

@@ -1,0 +1,46 @@
+{
+ "loaderData": {
+  "player_layout": null,
+  "player_(series_id)/(vid)/page": {
+   "series_id": "7706512650816982040",
+   "vid": "7706514815799282713",
+   "episodeSocialInfo": {
+    "episode_like_count": "59728",
+    "reviews": {
+     "total_count": "3687",
+     "reviews": [
+      {
+       "create_time": "1794608277",
+       "digg_count": "112",
+       "user_name": "用户4",
+       "content": "爱了爱了[爱慕][爱慕][爱慕]哈哈哈哈哈太幸福[送花][送花][送花][送花]"
+      },
+      {
+       "create_time": "1794586583",
+       "digg_count": "90",
+       "user_name": "用户5",
+       "content": "哇，看了一下第三季的阵容，好强大呀，叶璇依旧还在[爱慕][爱慕]\n还有另一位香港"
+      },
+      {
+       "create_time": "1794670729",
+       "digg_count": "70",
+       "user_name": "用户6",
+       "content": "李豪：我妻子那可是土生土长的英国人，毕业于royal college of ar"
+      }
+     ]
+    }
+   },
+   "seriesDetail": {
+    "series_id": "7706512650816982040",
+    "series_name": "少夫人来自东北3",
+    "accessible_episode_cnt": 5,
+    "pay_type": 0,
+    "vid_list": [
+     "7706514645208534041",
+     "7706514815799282713",
+     "7706514786745338905"
+    ]
+   }
+  }
+ }
+}

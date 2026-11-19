@@ -1,0 +1,93 @@
+{
+ "loaderData": {
+  "detail_layout": null,
+  "detail_page": {
+   "recommendations": {},
+   "seriesDetail": {
+    "episode_cnt": 96,
+    "accessible_episode_cnt": 5,
+    "pay_type": 0,
+    "series_id": "7706512650816982040",
+    "series_name": "少夫人来自东北3",
+    "series_cover": "https://p3-novel.byteimg.com/novel-pic/899ba52ee34a534d9be948a093468ed1~tplv-shrink:640:0.image",
+    "series_intro": "东北女孩钱小卉随丈夫周赫轩赴伦敦参加周家寿宴，却遭堂哥赫铭排挤，也因文化差异受到大爷爷否定。面对继承权争夺与家族矛盾，小卉凭爽朗真诚和智慧化解危机，帮助大爷爷寻回故乡亲人和身份认同，也守护家人感情，最终赢得伦敦周家的认可。",
+    "tags": [
+     "家庭",
+     "家庭温情",
+     "团宠",
+     "直爽女主",
+     "豪门",
+     "现代"
+    ],
+    "episode_right_text": "全96集",
+    "celebrities": [
+     {
+      "is_label": false,
+      "nickname": "梁雯晶",
+      "sub_title": "饰 钱小卉",
+      "celebrity_id": "7497215074432455960"
+     },
+     {
+      "is_label": false,
+      "nickname": "业文Kevin",
+      "sub_title": "饰 周赫轩",
+      "celebrity_id": "7543087687075370302"
+     }
+    ],
+    "series_episode_info": {
+     "episode_cnt": 96,
+     "episode_total_cnt": 96,
+     "series_status": 1
+    },
+    "vid_list": [
+     "7706514645208534041",
+     "7706514815799282713",
+     "7706514786745338905"
+    ],
+    "first_visible_time": "1794585840",
+    "season_info": {
+     "series_group_id": "7612205792048974873"
+    },
+    "record_number": "(豫)微短剧备字(2026)第057号"
+   },
+   "seriesSocialInfo": {
+    "rating": 9.6,
+    "series_like_count": "2650000",
+    "series_favorite_count": "1401000",
+    "rating_count": "15204",
+    "rank_label": "真人剧热播榜第1名",
+    "hot_score_data": {
+     "score": 70313435,
+     "text": "7031万热度"
+    },
+    "reviews": {
+     "total_count": "2458",
+     "reviews": [
+      {
+       "create_time": "1794588661",
+       "digg_count": "660",
+       "rating": 10,
+       "user_name": "用户1",
+       "content": "应抖音红果之邀，我来剧评。我们这个温馨美满的家庭迎来了新一季的欢乐和挑战，近一年"
+      },
+      {
+       "create_time": "1794596045",
+       "digg_count": "521",
+       "rating": 9,
+       "user_name": "用户2",
+       "content": "从第一季追到第三季，今天第三季终于出了，熬着夜看完啦，这一季真的很好看！超出了我"
+      },
+      {
+       "create_time": "1794588579",
+       "digg_count": "396",
+       "rating": 10,
+       "user_name": "用户3",
+       "content": "好看好看哈哈哈 千等万等 日日期盼 终于等来了东北大妞 期待第4季[没看够][求"
+      }
+     ]
+    }
+   },
+   "isSuccess": true
+  }
+ }
+}
