@@ -477,6 +477,32 @@ function withLeaseMutation<T>(fn: () => Promise<T>): Promise<T> {
   return run;
 }
 
+/**
+ * Chrome window/tab spawn calls have no timeout of their own. A call that never
+ * settles (in-place Chrome update under a running browser, wedged renderer)
+ * leaves the owned-container single-flight pending forever: the daemon's
+ * deadline reports command_result_unknown, and every later command queues
+ * behind the stuck lease. Bound the spawn path so it fails as a known,
+ * terminal error instead.
+ */
+const CHROME_CALL_TIMEOUT_MS = 30_000;
+
+function withChromeCallTimeout<T>(promise: Promise<T>, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  return Promise.race([
+    promise,
+    new Promise<never>((_resolve, reject) => {
+      timer = setTimeout(() => reject(new CommandFailure(
+        'chrome_call_timeout',
+        `chrome.${label} did not return within ${CHROME_CALL_TIMEOUT_MS / 1000}s - Chrome never answered the call (in-place browser update, or a wedged renderer). The target may or may not exist; restart Chrome, then retry.`,
+        'Restart Chrome to clear the wedged call. Reload the extension if this repeats after a Chrome update.',
+      )), CHROME_CALL_TIMEOUT_MS);
+    }),
+  ]).finally(() => {
+    if (timer !== undefined) clearTimeout(timer);
+  });
+}
+
 function makeSession(
   key: string,
   session: Omit<TargetLease, 'idleTimer' | 'idleDeadlineAt' | 'contextId' | 'ownership' | 'lifecycle' | 'windowRole'>,
@@ -1028,13 +1054,13 @@ async function ensureOwnedContainerWindowUnlocked(
 
   // Note: Do NOT set `state` parameter here. Chrome 146+ rejects 'normal' as an invalid
   // state value for windows.create(). The window defaults to 'normal' state anyway.
-  const win = await chrome.windows.create({
+  const win = await withChromeCallTimeout(chrome.windows.create({
     url: startUrl,
     focused: mode === 'foreground',
     width: 1280,
     height: 900,
     type: 'normal',
-  });
+  }), 'windows.create');
   container.windowId = win.id!;
   // Persist windowId before any further awaits so a worker crash between
   // `windows.create` returning and the subsequent `tabs.group` call still
@@ -1112,12 +1138,12 @@ async function createOwnedTabLeaseUnlocked(leaseKey: string, initialUrl?: string
     tab = await chrome.tabs.get(initialTabId);
     await consumeIdlePlaceholder(tab);
     if (!isTargetUrl(tab.url, targetUrl)) {
-      tab = await chrome.tabs.update(initialTabId, { url: targetUrl });
+      tab = await withChromeCallTimeout(chrome.tabs.update(initialTabId, { url: targetUrl }), 'tabs.update');
       await new Promise(resolve => setTimeout(resolve, 300));
       tab = await chrome.tabs.get(initialTabId);
     }
   } else {
-    tab = await chrome.tabs.create({ windowId, url: targetUrl, active: true });
+    tab = await withChromeCallTimeout(chrome.tabs.create({ windowId, url: targetUrl, active: true }), 'tabs.create');
   }
   const tabId = tab.id;
   if (!tabId) throw new Error('Failed to create tab lease in automation container');
@@ -1612,7 +1638,7 @@ async function resolveTab(tabId: number | undefined, leaseKey: string, initialUr
   const tabs = await chrome.tabs.query({ windowId: scopedWindowId });
   const reuseTab = existingSession?.owned ? undefined : tabs.find(t => t.id);
   if (reuseTab?.id) {
-    await chrome.tabs.update(reuseTab.id, { url: BLANK_PAGE });
+    await withChromeCallTimeout(chrome.tabs.update(reuseTab.id, { url: BLANK_PAGE }), 'tabs.update');
     await new Promise(resolve => setTimeout(resolve, 300));
     try {
       const updated = await chrome.tabs.get(reuseTab.id);
@@ -1624,7 +1650,7 @@ async function resolveTab(tabId: number | undefined, leaseKey: string, initialUr
   }
 
   // Fallback: create a new tab
-  const newTab = await chrome.tabs.create({ windowId: scopedWindowId, url: BLANK_PAGE, active: true });
+  const newTab = await withChromeCallTimeout(chrome.tabs.create({ windowId: scopedWindowId, url: BLANK_PAGE, active: true }), 'tabs.create');
   if (!newTab.id) throw new Error('Failed to create tab in automation container');
   await ensureOwnedContainerGroup(role, scopedWindowId, [newTab.id]);
   return { tabId: newTab.id, tab: await chrome.tabs.get(newTab.id) };
@@ -1791,7 +1817,7 @@ async function handleNavigate(cmd: Command, leaseKey: string): Promise<Result> {
     await executor.detach(tabId);
   }
 
-  await chrome.tabs.update(tabId, { url: targetUrl });
+  await withChromeCallTimeout(chrome.tabs.update(tabId, { url: targetUrl }), 'tabs.update');
 
   // Wait until navigation completes. Resolve when status is 'complete' AND either:
   // - the URL matches the target (handles same-URL / canonicalized navigations), OR
@@ -1890,7 +1916,7 @@ async function handleTabs(cmd: Command, leaseKey: string): Promise<Result> {
         return pageScopedResult(cmd.id, created.tabId, { url: created.tab?.url });
       }
       const windowId = await getAutomationWindow(leaseKey);
-      let tab = await chrome.tabs.create({ windowId, url: cmd.url ?? BLANK_PAGE, active: true });
+      let tab = await withChromeCallTimeout(chrome.tabs.create({ windowId, url: cmd.url ?? BLANK_PAGE, active: true }), 'tabs.create');
       const tabId = tab.id;
       if (!tabId) return { id: cmd.id, ok: false, error: 'Failed to create tab' };
       const group = await ensureOwnedContainerGroup(getOwnedWindowRole(leaseKey), windowId, [tabId]);

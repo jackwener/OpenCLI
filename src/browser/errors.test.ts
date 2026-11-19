@@ -54,6 +54,20 @@ describe('classifyBrowserError', () => {
     }
   });
 
+  it('classifies chrome_call_timeout as non-retryable from code and from message', () => {
+    const coded = classifyBrowserError(Object.assign(new Error('chrome.tabs.create did not return within 30s'), { code: 'chrome_call_timeout' }));
+    expect(coded.kind).toBe('non-retryable');
+    expect(coded.retryable).toBe(false);
+
+    // Pre-error-code extensions only send the message; a re-run could leave a
+    // duplicate window/tab, so it must stay terminal there too.
+    const legacy = classifyBrowserError(new Error(
+      'chrome.tabs.create did not return within 30s - Chrome never answered the call (in-place browser update, or a wedged renderer). The target may or may not exist; restart Chrome, then retry.',
+    ));
+    expect(legacy.kind).toBe('non-retryable');
+    expect(legacy.retryable).toBe(false);
+  });
+
   it('handles non-Error values', () => {
     expect(classifyBrowserError('Extension disconnected').kind).toBe('extension-transient');
     expect(classifyBrowserError(42).kind).toBe('non-retryable');

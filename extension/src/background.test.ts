@@ -2861,4 +2861,62 @@ describe('background tab isolation', () => {
     const leftover = (await chrome.storage.local.get(REGISTRY_KEY) as any)[REGISTRY_KEY];
     expect(leftover).toBeUndefined();
   });
+
+  it('fails a chrome.tabs.create that never settles as chrome_call_timeout', async () => {
+    vi.useFakeTimers();
+    const { chrome } = createChromeMock();
+    chrome.tabs.create = vi.fn(() => new Promise<never>(() => {}));
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    mod.__test__.setAutomationWindowId(adapterKey('stuck'), 1);
+
+    const result = mod.__test__.handleCommand({
+      id: 'stuck-new',
+      action: 'tabs',
+      op: 'new',
+      url: 'https://stuck.example/',
+      session: 'stuck',
+      surface: 'adapter',
+    });
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    expect(await result).toMatchObject({ id: 'stuck-new', ok: false, errorCode: 'chrome_call_timeout' });
+    expect((await result).error).toContain('chrome.tabs.create did not return within 30s');
+  });
+
+  it('clears the owned-container single-flight after a chrome.windows.create timeout', async () => {
+    vi.useFakeTimers();
+    const { chrome } = createChromeMock();
+    chrome.windows.create = vi.fn(() => new Promise<never>(() => {}));
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+
+    const stuck = mod.__test__.handleCommand({
+      id: 'stuck-container',
+      action: 'tabs',
+      op: 'new',
+      url: 'https://stuck.example/',
+      session: 'recover',
+      surface: 'adapter',
+    });
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(await stuck).toMatchObject({ ok: false, errorCode: 'chrome_call_timeout' });
+
+    // The single-flight must be free again, or every later command hangs behind
+    // it and the daemon reports command_result_unknown instead.
+    chrome.windows.create = vi.fn(async ({ url, focused, width, height, type }: any) => ({ id: 7, url, focused, width, height, type }));
+    const retry = mod.__test__.handleCommand({
+      id: 'recover-container',
+      action: 'tabs',
+      op: 'new',
+      url: 'https://recover.example/',
+      session: 'recover',
+      surface: 'adapter',
+    });
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    expect(await retry).toMatchObject({ id: 'recover-container', ok: true });
+  });
 });
