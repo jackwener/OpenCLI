@@ -7,6 +7,7 @@ export async function fetchRankedRedditSearch(query, subreddit, sort, time, limi
     const seenPages = new Set();
     const ids = [];
     const seenIds = new Set();
+    const listingRows = new Map();
     const wall = (response, text, url) => ({ kind: 'login-wall', sentinel: {
         __loginWall: true, status: response.status, url: response.url || url,
         contentType: response.headers.get('content-type') || '', bodyPreview: text.slice(0, 100),
@@ -42,15 +43,46 @@ export async function fetchRankedRedditSearch(query, subreddit, sort, time, limi
             || (!units.length && doc.querySelector('form[action*="/login"], #loginForm, #challenge-form, iframe[src*="recaptcha"], iframe[src*="hcaptcha"]'))) return wall(response, text, next);
         for (const unit of units) {
             const unitIds = new Set();
+            let context;
             for (const tracker of unit.querySelectorAll('search-telemetry-tracker[data-faceplate-tracking-context]')) {
                 try {
-                    const id = JSON.parse(tracker.getAttribute('data-faceplate-tracking-context'))?.post?.id;
+                    const tracking = JSON.parse(tracker.getAttribute('data-faceplate-tracking-context'));
+                    const id = tracking?.post?.id;
+                    if (id) context = tracking;
                     if (typeof id === 'string' && /^t3_[a-z0-9]+$/.test(id)) unitIds.add(id);
                 } catch { /* Ignore non-post telemetry, never execute page scripts. */ }
             }
             if (unitIds.size !== 1) return { kind: 'malformed', detail: 'web search result has missing or ambiguous post identity' };
             const id = [...unitIds][0];
-            if (!seenIds.has(id)) { seenIds.add(id); ids.push(id); }
+            if (!seenIds.has(id)) {
+                seenIds.add(id); ids.push(id);
+                // Keep the server-rendered listing alongside ranking IDs. Hydration
+                // supplies body/media, but its endpoint can be blocked independently.
+                const link = unit.querySelector('[data-testid="post-title-text"], [data-testid="post-title"]');
+                const permalink = link?.getAttribute('href') || '';
+                const counters = unit.querySelectorAll('[data-testid="search-counter-row"] faceplate-number[number]');
+                const score = counters[0]?.getAttribute('number');
+                const comments = counters[1]?.getAttribute('number');
+                const timestamp = unit.querySelector('time[datetime]')?.getAttribute('datetime')
+                    || unit.querySelector('faceplate-timeago[ts]')?.getAttribute('ts');
+                const created = Date.parse(timestamp || '') / 1000;
+                const title = context?.post?.title || link?.textContent?.trim();
+                const community = context?.subreddit?.name;
+                // Never substitute fabricated zero counts or an unrelated permalink.
+                if (title && community && permalink.startsWith('/r/')
+                    && permalink.split('/')[4] === id.slice(3)
+                    && score !== undefined && comments !== undefined
+                    && Number.isFinite(Number(score)) && Number.isFinite(Number(comments))
+                    && Number.isFinite(created)) {
+                    listingRows.set(id, { kind: 't3', data: {
+                        id: id.slice(3), name: id, title,
+                        subreddit_name_prefixed: 'r/' + community,
+                        author: context?.profile?.name || '',
+                        score: Number(score), num_comments: Number(comments),
+                        permalink, created_utc: created,
+                    } });
+                }
+            }
             if (ids.length === limit) break;
         }
         if (ids.length >= limit) { next = ''; break; }
@@ -78,7 +110,14 @@ export async function fetchRankedRedditSearch(query, subreddit, sort, time, limi
     const byName = new Map();
     for (let offset = 0; offset < ids.length; offset += 100) {
         const result = await listing('/by_id/' + ids.slice(offset, offset + 100).join(',') + '.json?raw_json=1', '/by_id post hydration');
-        if (result.kind !== 'ok') return result;
+        if (result.kind !== 'ok') {
+            if (result.kind !== 'fetch-failed' || result.failure?.reason !== 'blocked') return result;
+            if (ids.some(id => !listingRows.has(id))) {
+                return { kind: 'malformed', detail: 'hydration was blocked and the search listing is missing post details' };
+            }
+            return { kind: 'ok', rows: ids.map(id => byName.get(id) || listingRows.get(id)),
+                listingFallback: true, capped: Boolean(next && ids.length < limit) };
+        }
         for (const row of result.rows) {
             const name = row?.data?.name || (row?.data?.id ? 't3_' + row.data.id : '');
             if ((row.kind === undefined || row.kind === 't3') && seenIds.has(name) && !byName.has(name)) {

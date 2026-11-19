@@ -54,10 +54,30 @@ describe('Reddit ranked web search', () => {
   ])('never falls back after a blocked web response: %j', async response => {
     const f = fixture([response]); await expect(f.run()).rejects.toThrow(); expect(f.fetch).toHaveBeenCalledTimes(1);
   });
-  it('reports Reddit\'s network-security block on /by_id hydration as SECURITY_BLOCK, not LOGIN_WALL (#2720)', async () => {
-    const f = fixture([{ body: unit('a') }, { status: 403, body: '<body class=theme-beta><p>You\'ve been blocked by network security.</p></body>' }]);
-    await expect(f.run()).rejects.toMatchObject({ code: 'SECURITY_BLOCK', message: expect.stringContaining('/by_id post hydration') });
-    expect(f.fetch).toHaveBeenCalledTimes(2);
+  it('uses listing details in ranked order when post hydration is security-blocked', async () => {
+    const details = id => unit(id, `
+      <a data-testid="post-title-text" href="/r/test/comments/${id}/post/">Fish &amp; chips ${id}</a>
+      <search-telemetry-tracker data-faceplate-tracking-context='{"post":{"id":"t3_${id}"},"subreddit":{"name":"test"},"profile":{"name":"alice"}}'></search-telemetry-tracker>
+      <faceplate-timeago ts="2026-11-19T00:00:00Z"></faceplate-timeago>
+      <div data-testid="search-counter-row"><faceplate-number number="-2"></faceplate-number> votes
+      <faceplate-number number="0"></faceplate-number> comments</div>`);
+    const f = fixture([
+      { body: details('a') + partial('/svc/shreddit/search?cursor=next') },
+      { body: details('a') + details('b') },
+      { status: 403, body: '<p>You have been blocked by network security.</p>' },
+    ]);
+    const results = await f.run({ limit: 2 });
+    expect(results.map(r => r.id)).toEqual(['a', 'b']);
+    expect(results[0]).toMatchObject({
+      title: 'Fish & chips a', subreddit: 'r/test', author: 'alice', score: -2,
+      comments: 0, url: 'https://www.reddit.com/r/test/comments/a/post/',
+      created_utc: Date.parse('2026-11-19T00:00:00Z') / 1000, selftext: '', gallery_urls: [],
+    });
+    expect(f.fetch).toHaveBeenCalledTimes(3);
+  });
+  it('reports incomplete listing details when hydration is blocked', async () => {
+    const f = fixture([{ body: unit('a') }, { status: 403, body: '<p>blocked by network security</p>' }]);
+    await expect(f.run()).rejects.toThrow(/listing is missing post details/);
   });
   it('reports a network-security block on the web search page as SECURITY_BLOCK without falling back', async () => {
     const f = fixture([{ status: 403, body: '<body class=theme-beta><p>You\'ve been blocked by network security.</p></body>' }]);

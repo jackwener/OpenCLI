@@ -149,6 +149,7 @@ cli({
         }
         const rows = mapSearchResult(result).slice(0, limit);
         if (result.fallback) log.warn('Reddit web-search markup was unavailable; using legacy search ranking.');
+        if (result.listingFallback) log.warn('Reddit blocked post hydration; using search listing details. Body and media may be unavailable.');
         if (result.missing) log.warn(`Reddit did not return details for ${result.missing} ranked posts; preserving the remaining web-search order.`);
         if (result.capped) log.warn('Reddit search reached its 10-page pagination limit.');
         return rows;
