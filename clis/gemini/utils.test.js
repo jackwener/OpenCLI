@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { JSDOM } from 'jsdom';
 import { CommandExecutionError } from '@jackwener/opencli/errors';
-import { __test__, collectGeminiTranscriptAdditions, getGeminiConversationList, getGeminiPageState, getGeminiVisibleTurns, pickGeminiDeepResearchExportUrl, readGeminiSnapshot, sanitizeGeminiResponseText, selectGeminiModel, selectGeminiThinking, sendGeminiMessage, } from './utils.js';
+import { __test__, getCurrentGeminiModel, collectGeminiTranscriptAdditions, getGeminiConversationList, getGeminiPageState, getGeminiVisibleTurns, pickGeminiDeepResearchExportUrl, readGeminiSnapshot, sanitizeGeminiResponseText, selectGeminiModel, selectGeminiThinking, sendGeminiMessage, } from './utils.js';
 function createPageMock() {
     return {
         goto: vi.fn().mockResolvedValue(undefined),
@@ -616,12 +616,16 @@ describe('Gemini model/thinking selection Browser Bridge envelopes', () => {
             .mockResolvedValueOnce('https://gemini.google.com/app')
             .mockResolvedValueOnce({ session: 'site:gemini', data: { ok: true } })
             .mockResolvedValueOnce({ session: 'site:gemini', data: true })
-            .mockResolvedValueOnce({ session: 'site:gemini', data: 'Extended' });
+            .mockResolvedValueOnce({ session: 'site:gemini', data: 'Extended' })
+            .mockResolvedValueOnce({ session: 'site:gemini', data: { ok: true } })
+            .mockResolvedValueOnce({ session: 'site:gemini', data: true })
+            .mockResolvedValueOnce({ session: 'site:gemini', data: 'Extended' })
+            .mockResolvedValueOnce(null);
 
         const result = await selectGeminiThinking(page, 'extended');
 
         expect(result).toBe('Extended');
-        expect(page.evaluate).toHaveBeenCalledTimes(4);
+        expect(page.evaluate).toHaveBeenCalledTimes(8);
     });
 
     it('unwraps envelopes while selecting a model', async () => {
@@ -678,5 +682,55 @@ describe('gemini Spanish UI reply handling', () => {
         });
         const lines = dom.window.eval(`(${__test__.readGeminiSnapshotScript().trim()})`);
         expect(lines.transcriptLines).toEqual(['Hola']);
+    });
+});
+
+describe('current Gemini mode picker', () => {
+    it.each(['auto', '4-hydrogen', '4-neon', '4-carbon', '5-argon'])('selects and reads %s', (id) => {
+        const label = id === 'auto' ? 'Auto' : id.split('-')[1];
+        const row = id === 'auto' ? 'AutoAdapts to your needs' : 'Descriptive title' + id.replace('-', ' ');
+        const { window, document } = createPickerDom(`<bard-mode-switcher><button aria-label="Open mode picker, currently ${label}">${label}</button></bard-mode-switcher><gem-menu role="menu"><gem-menu-item role="menuitemradio" aria-checked="true">${row}</gem-menu-item><gem-menu-item role="menuitemradio">Other mode</gem-menu-item></gem-menu>`);
+        const picker = document.querySelector('button');
+        picker.click = vi.fn();
+        expect(window.eval(__test__.openModelPickerForThinkingScript()).ok).toBe(true);
+        expect(picker.click).toHaveBeenCalled();
+        expect(window.eval(__test__.selectGeminiModelScript(id)).ok).toBe(true);
+        expect(window.eval(__test__.getCurrentGeminiModelScript())).toBe(id);
+    });
+});
+
+
+describe('codename model read-back', () => {
+    it('opens the menu to resolve the version and dismisses it after reading', async () => {
+        const { window, document } = createPickerDom('<bard-mode-switcher><button aria-label="Open mode picker, currently Neon">Neon</button></bard-mode-switcher>');
+        document.querySelector('button').onclick = () => {
+            document.body.insertAdjacentHTML('beforeend', '<gem-menu role="menu"><gem-menu-item role="menuitemradio" aria-checked="true">Deeper analysis4 Neon</gem-menu-item></gem-menu>');
+        };
+        document.body.click = vi.fn();
+        const page = {
+            evaluate: vi.fn(async script => script === 'window.location.href' ? 'https://gemini.google.com/app' : window.eval(script)),
+            wait: vi.fn(async () => {}),
+        };
+        expect(await getCurrentGeminiModel(page)).toBe('4-neon');
+        expect(document.body.click).toHaveBeenCalledOnce();
+    });
+});
+
+describe('thinking level selection and read-back', () => {
+    it.each(['low', 'medium', 'high', 'standard', 'extended'])('verifies %s from the selected radio', async level => {
+        const { window, document } = createPickerDom(`<button aria-label="Open mode picker, currently Neon">Neon</button><gem-menu role="menu" hidden><gem-menu-item role="menuitem" value="thinking_level">Thinking level</gem-menu-item><div id="levels" hidden><gem-menu-item role="menuitemradio" aria-checked="false"><span class="label">${level}</span><div>Explanation</div></gem-menu-item><gem-menu-item role="menuitemradio">Other option</gem-menu-item></div></gem-menu>`);
+        const menu = document.querySelector('gem-menu');
+        document.querySelector('button').onclick = () => { menu.hidden = false; };
+        document.querySelector('[value="thinking_level"]').onclick = () => { document.querySelector('#levels').hidden = false; };
+        document.querySelector('[role="menuitemradio"]').onclick = e => e.currentTarget.setAttribute('aria-checked', 'true');
+        document.body.click = () => { menu.hidden = true; };
+        const page = { evaluate: async script => script === 'window.location.href' ? 'https://gemini.google.com/app' : window.eval(script), wait: async () => {} };
+        expect(await selectGeminiThinking(page, level)).toBe(level + 'Explanation');
+        expect(menu.hidden).toBe(true);
+    });
+    it('rejects a click that did not change the selected level', async () => {
+        const { window, document } = createPickerDom('<button aria-label="Open mode picker, currently Neon">Neon</button><gem-menu role="menu"><gem-menu-item role="menuitemradio" aria-checked="false"><span class="label">High</span></gem-menu-item><gem-menu-item role="menuitemradio" aria-checked="true">Low</gem-menu-item></gem-menu>');
+        const page = { evaluate: async script => script === 'window.location.href' ? 'https://gemini.google.com/app' : window.eval(script), wait: async () => {} };
+        expect(await selectGeminiThinking(page, 'high')).toBe('');
     });
 });

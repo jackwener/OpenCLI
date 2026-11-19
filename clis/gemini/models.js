@@ -45,6 +45,7 @@ function findModelPickerLogic() {
       const MODE_SELECTOR_PATTERNS = [
         /模式选择器/i,
         /mode[\\s-]*selector/i,
+        /mode[\\s-]*picker/i,
         /model[\\s-]*selector/i,
         /model[\\s-]*picker/i,
         /选择模型/i,
@@ -138,6 +139,11 @@ function modelParsingLogic() {
         }
 
         // For experimental / custom models: use a cleaned version of the label.
+
+        if (/^auto(?:$|\\s|adapts\\b)/i.test(cleaned)) return 'auto';
+        // Sublabels may be concatenated directly to the descriptive row title.
+        const codename = cleaned.match(/(\\d+(?:\\.\\d+)?)[\\s-]+([a-z]+)$/i);
+        if (codename) return codename[1] + '-' + codename[2];
         if (/\\d+(?:\\.\\d+)?/.test(cleaned) && cleaned.length < 60) {
           return cleaned.replace(/\\s+/g, '-').replace(/[^a-z0-9.-]/g, '');
         }
@@ -261,7 +267,7 @@ function readMenuAndCloseLogic() {
 
       // Guard: only thinking options, no model entries → bail out.
       const hasModelEntries = results.some((r) => {
-        return /\\d+\\.\\d+/.test(r.model) || /flash|pro|lite/i.test(r.model);
+        return r.model === 'auto' || /^\\d+(?:\\.\\d+)?-[a-z][a-z-]*$/.test(r.model);
       });
       if (!hasModelEntries) {
         try { document.body.click(); } catch (_) {}
@@ -362,7 +368,7 @@ export function readMenuModelsScript() {
       }
 
       const hasModelEntries = results.some((r) => {
-        return /\\d+\\.\\d+/.test(r.model) || /flash|pro|lite/i.test(r.model);
+        return r.model === 'auto' || /^\\d+(?:\\.\\d+)?-[a-z][a-z-]*$/.test(r.model);
       });
       if (!hasModelEntries) return [];
 
