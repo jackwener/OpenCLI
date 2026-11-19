@@ -12,6 +12,7 @@ import {
   setDaemonRunContext,
 } from './daemon-client.js';
 import { SessionBusyError } from '../errors.js';
+import * as browserLauncher from './browser-launcher.js';
 import * as daemonLifecycle from './daemon-lifecycle.js';
 
 describe('daemon-client', () => {
@@ -780,5 +781,116 @@ describe('isUnknownOutcomeError', () => {
   it('unwraps an unknown-outcome error nested in a cause chain', () => {
     const wrapped = new Error('adapter failed', { cause: new BrowserCommandError('lost', 'command_lost') });
     expect(isUnknownOutcomeError(wrapped)).toBe(true);
+  });
+});
+
+describe('sendCommand unbindBoundSessions retry', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn());
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const jsonResponse = (payload: unknown) => Promise.resolve({
+    ok: true,
+    json: () => Promise.resolve(payload),
+  } as Response);
+
+  it.each(['bound_tab_mutation_blocked', 'bound_window_operation_blocked'] as const)(
+    'closes the bound session window and retries once without page on %s when unbindBoundSessions is enabled',
+    async (errorCode) => {
+      vi.spyOn(browserLauncher, 'loadLauncherConfig').mockReturnValue({ unbindBoundSessions: true });
+      const fetchMock = vi.mocked(fetch);
+      fetchMock
+        .mockImplementationOnce(() => jsonResponse({ ok: false, errorCode, error: 'session bound to user tab' }))
+        .mockImplementationOnce(() => jsonResponse({ ok: true, data: {} }))
+        .mockImplementationOnce(() => jsonResponse({ ok: true, data: { url: 'https://example.com' } }));
+
+      const res = await sendCommand('navigate', {
+        session: 'site:demo',
+        page: 'bound-tab-1',
+        surface: 'adapter',
+        contextId: 'ctx-1',
+        url: 'https://example.com',
+      });
+
+      expect(res).toEqual({ url: 'https://example.com' });
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+
+      const firstBody = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
+      const closeBody = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body));
+      const retryBody = JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body));
+
+      expect(firstBody).toMatchObject({ action: 'navigate', session: 'site:demo', page: 'bound-tab-1' });
+      expect(closeBody).toMatchObject({
+        action: 'close-window',
+        session: 'site:demo',
+        surface: 'adapter',
+        contextId: 'ctx-1',
+      });
+      expect(retryBody).toMatchObject({
+        action: 'navigate',
+        session: 'site:demo',
+        surface: 'adapter',
+        contextId: 'ctx-1',
+        url: 'https://example.com',
+      });
+      expect(retryBody.page).toBeUndefined();
+    },
+  );
+
+  it('does not retry when unbindBoundSessions is disabled', async () => {
+    vi.spyOn(browserLauncher, 'loadLauncherConfig').mockReturnValue({ unbindBoundSessions: false });
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockImplementationOnce(() =>
+      jsonResponse({ ok: false, errorCode: 'bound_tab_mutation_blocked', error: 'bound tab' }));
+
+    await expect(sendCommand('navigate', {
+      session: 'site:demo',
+      page: 'bound-tab-1',
+      url: 'https://example.com',
+    })).rejects.toMatchObject({
+      name: 'BrowserCommandError',
+      code: 'bound_tab_mutation_blocked',
+    } satisfies Partial<BrowserCommandError>);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not retry when session is missing', async () => {
+    vi.spyOn(browserLauncher, 'loadLauncherConfig').mockReturnValue({ unbindBoundSessions: true });
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockImplementationOnce(() =>
+      jsonResponse({ ok: false, errorCode: 'bound_tab_mutation_blocked', error: 'bound tab' }));
+
+    await expect(sendCommand('navigate', {
+      page: 'bound-tab-1',
+      url: 'https://example.com',
+    })).rejects.toMatchObject({
+      name: 'BrowserCommandError',
+      code: 'bound_tab_mutation_blocked',
+    } satisfies Partial<BrowserCommandError>);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not retry on unrelated BrowserCommandError codes', async () => {
+    vi.spyOn(browserLauncher, 'loadLauncherConfig').mockReturnValue({ unbindBoundSessions: true });
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockImplementationOnce(() =>
+      jsonResponse({ ok: false, errorCode: 'target_navigated', error: 'navigated' }));
+
+    await expect(sendCommand('navigate', {
+      session: 'site:demo',
+      page: 'bound-tab-1',
+      url: 'https://example.com',
+    })).rejects.toMatchObject({
+      name: 'BrowserCommandError',
+      code: 'target_navigated',
+    } satisfies Partial<BrowserCommandError>);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
