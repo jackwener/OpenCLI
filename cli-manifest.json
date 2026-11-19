@@ -16361,6 +16361,212 @@
     "sourceFile": "homebrew/popular.js"
   },
   {
+    "site": "hongguo",
+    "name": "detail",
+    "description": "红果短剧详情（集数 / 演员 / 评分 / 热度 / 点赞收藏 / 简介）",
+    "access": "read",
+    "domain": "hongguoduanju.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "series_id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Series id (from feed/rank/search), or a /detail?series_id= URL"
+      }
+    ],
+    "columns": [
+      "field",
+      "value"
+    ],
+    "type": "js",
+    "modulePath": "hongguo/detail.js",
+    "sourceFile": "hongguo/detail.js"
+  },
+  {
+    "site": "hongguo",
+    "name": "feed",
+    "description": "红果短剧推荐流（首页「推荐」tab）",
+    "access": "read",
+    "domain": "hongguoduanju.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 10,
+        "required": false,
+        "help": "Number of series (1-50)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "series_id",
+      "title",
+      "episodes",
+      "tags",
+      "intro",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "hongguo/feed.js",
+    "sourceFile": "hongguo/feed.js"
+  },
+  {
+    "site": "hongguo",
+    "name": "rank",
+    "description": "红果短剧榜单（热播 / 新剧 / 热搜 / 必看 / 口碑 / 追剧 / 预约 / 真人 / 漫剧 / AI 剧）",
+    "access": "read",
+    "domain": "hongguoduanju.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "type",
+        "type": "str",
+        "default": "hot",
+        "required": false,
+        "help": "Board: hot, new, hot-search, must-watch, prestige, followed, subscribe, real, comic, ai",
+        "choices": [
+          "hot",
+          "new",
+          "hot-search",
+          "must-watch",
+          "prestige",
+          "followed",
+          "subscribe",
+          "real",
+          "comic",
+          "ai"
+        ]
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of rows (1-100)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "series_id",
+      "title",
+      "metric",
+      "score",
+      "favorites",
+      "likes",
+      "episodes",
+      "tags",
+      "upcoming",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "hongguo/rank.js",
+    "sourceFile": "hongguo/rank.js"
+  },
+  {
+    "site": "hongguo",
+    "name": "reviews",
+    "description": "红果短剧评论（剧评 + 网页可看各集的评论，网页端能拿到的全部）",
+    "access": "read",
+    "domain": "hongguoduanju.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "series_id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Series id (from feed/rank/search), or a /detail?series_id= URL"
+      },
+      {
+        "name": "scope",
+        "type": "str",
+        "default": "all",
+        "required": false,
+        "help": "all, series (rated series reviews) or episodes (per-episode comments)",
+        "choices": [
+          "all",
+          "series",
+          "episodes"
+        ]
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 100,
+        "required": false,
+        "help": "Max reviews (1-200)"
+      },
+      {
+        "name": "rounds",
+        "type": "int",
+        "default": 1,
+        "required": false,
+        "help": "Fetches per episode page (1-5); comments rotate slightly, more rounds collect more"
+      }
+    ],
+    "columns": [
+      "rank",
+      "scope",
+      "episode",
+      "user",
+      "rating",
+      "likes",
+      "time",
+      "content",
+      "scope_total"
+    ],
+    "type": "js",
+    "modulePath": "hongguo/reviews.js",
+    "sourceFile": "hongguo/reviews.js"
+  },
+  {
+    "site": "hongguo",
+    "name": "search",
+    "description": "搜索红果短剧（剧名 / 演员 / 题材）",
+    "access": "read",
+    "domain": "hongguoduanju.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Search keyword"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 10,
+        "required": false,
+        "help": "Number of results (1-50)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "series_id",
+      "title",
+      "episodes",
+      "heat",
+      "favorites",
+      "likes",
+      "tags",
+      "intro",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "hongguo/search.js",
+    "sourceFile": "hongguo/search.js"
+  },
+  {
     "site": "huodongxing",
     "name": "events",
     "description": "活动行活动搜索（按标签、城市、日期、线上/线下、名称过滤）",
