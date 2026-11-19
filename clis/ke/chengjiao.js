@@ -1,5 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { cityUrl, gotoKe } from './utils.js';
+import { buildChengjiaoFilterPath } from './chengjiao-filters.js';
 
 cli({
     site: 'ke',
@@ -10,8 +11,18 @@ cli({
     strategy: Strategy.COOKIE,
     browser: true,
     args: [
-        { name: 'city', default: 'bj', help: '城市代码，如 bj(北京), sh(上海), gz(广州), sz(深圳), zs(中山)' },
-        { name: 'district', help: '区域拼音，如 chaoyang, haidian' },
+        { name: 'city', default: 'bj', help: '城市代码，如 bj(北京), sh(上海), gz(广州), sz(深圳), zs(中山), hz(杭州)' },
+        { name: 'district', help: '区域拼音，如 chaoyang, haidian, xuhui' },
+        { name: 'rooms', type: 'int', help: '几室 (1-5)' },
+        { name: 'min-area', type: 'int', help: '最小建筑面积（㎡）' },
+        { name: 'max-area', type: 'int', help: '最大建筑面积（㎡）' },
+        { name: 'orientation', choices: ['south-north', 'south', 'east', 'north', 'west'], help: '朝向：south-north(南北)/south(朝南)/east(朝东)/north(朝北)/west(朝西)' },
+        { name: 'floor', choices: ['low', 'mid', 'high'], help: '楼层：low(低)/mid(中)/high(高)' },
+        { name: 'age', choices: ['5', '10', '15', '20', '20+'], help: '楼龄：5/10/15/20 年以内，20+ 为 20 年以上' },
+        { name: 'decoration', choices: ['fine', 'simple', 'rough'], help: '装修：fine(精装)/simple(普通)/rough(毛坯)' },
+        { name: 'usage', choices: ['residential', 'commercial', 'villa', 'courtyard', 'parking', 'other'], help: '用途：residential(普通住宅)/commercial(商业类)/villa(别墅)/courtyard(四合院)/parking(车位)/other(其他)' },
+        { name: 'elevator', choices: ['yes', 'no'], help: '电梯：yes(有)/no(无)' },
+        { name: 'sort', choices: ['total-price-asc', 'total-price-desc', 'unit-price-asc', 'unit-price-desc', 'area-asc', 'area-desc'], help: '排序：total-price-asc|desc(总价)/unit-price-asc|desc(房屋单价)/area-asc|desc(面积)' },
         { name: 'limit', type: 'int', default: 20, help: '返回数量' },
     ],
     columns: ['title', 'community', 'layout', 'area', 'deal_price', 'unit_price', 'deal_date'],
@@ -25,7 +36,8 @@ cli({
             path = `/chengjiao/${kwargs.district}/`;
         }
 
-        await gotoKe(page, base + path);
+        const filters = buildChengjiaoFilterPath(kwargs);
+        await gotoKe(page, base + path + (filters ? filters + '/' : ''));
 
         const items = await page.evaluate(`(async () => {
   // chengjiao page uses .listContent li or similar structure
