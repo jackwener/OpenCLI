@@ -20,7 +20,7 @@ Options can follow command arguments:
 opencli browser open https://example.com --session research
 opencli browser state --session research
 opencli browser click --role button --name Search --session research
-opencli browser close --session research
+OPENCLI_CLOSE_OWNED_TAB=1 opencli browser close --session research
 ```
 
 Default output is one JSON value: `{ "ok": true, "data": ... }`.
@@ -54,6 +54,12 @@ the affected state before retrying a write.
 navigation but block tab creation, selection and closure. `unbind` releases the
 binding without closing the user tab. Owned sessions keep leased tabs until
 `close` or idle expiry. `--window foreground|background` controls owned windows.
+
+Finish every owned session with `OPENCLI_CLOSE_OWNED_TAB=1 opencli browser close --session <name>`.
+A plain `close` or idle expiry parks the tab in the orange `OpenCLI Browser` group for
+reuse; Chrome saves that group and keeps it on the bookmarks bar after the tab or
+window later closes, one more per container. The opt-in ungroups and removes only
+this lease's tab, so no saved group is left. Do not close owned tabs by hand.
 
 ## Network and scripts
 
