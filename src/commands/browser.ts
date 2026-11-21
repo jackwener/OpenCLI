@@ -519,7 +519,19 @@ export function registerBrowserCommands(program: Command): Command {
       const output: CommandOutputCapture = {};
       await emitHook('onBeforeExecute', context);
       try {
-        await captureCommandOutput(output, () => action(...args));
+        await captureCommandOutput(output, () => {
+          // Every `browser` subcommand talks to the extension-connected Chrome through the daemon;
+          // CDPBridge has no tab support, so refuse rather than drive a different browser than configured.
+          if (process.env.OPENCLI_CDP_ENDPOINT) {
+            emitFailure({
+              code: 'cdp_endpoint_unsupported',
+              message: 'opencli browser commands need the Browser Bridge extension and do not support OPENCLI_CDP_ENDPOINT.',
+              hint: 'Unset OPENCLI_CDP_ENDPOINT to use the Browser Bridge, or run site adapters, which honour the endpoint.',
+            });
+            return Promise.resolve();
+          }
+          return action(...args);
+        });
       } catch (error) {
         context.error = error;
         throw error;
