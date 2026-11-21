@@ -1,0 +1,71 @@
+{
+  "provenance": {
+    "capturedAt": "2026-11-22",
+    "source": "Actual Nowcoder career-tab, practice-list, and paper-list responses",
+    "sanitization": "Names and unrelated strings are redacted; business IDs are synthetic. Numeric discriminators and career/question mappings retain their observed types. Arrays are cropped and their lengths do not represent full upstream pages."
+  },
+  "tabs": [
+    {
+      "careerJobId": 11226,
+      "companyWrittenId": 1224,
+      "questionJobId": 10,
+      "tabId": 1223,
+      "tabName": "redacted"
+    },
+    {
+      "careerJobId": 11229,
+      "companyWrittenId": 1228,
+      "questionJobId": 2,
+      "tabId": 1227,
+      "tabName": "redacted"
+    },
+    {
+      "careerJobId": 11227,
+      "companyWrittenId": 1230,
+      "questionJobId": 3,
+      "tabId": 1229,
+      "tabName": "redacted"
+    }
+  ],
+  "practice": {
+    "tags": [
+      {
+        "tagId": 273590,
+        "title": "Captured category",
+        "items": [
+          {
+            "id": 1235,
+            "leftCount": 874,
+            "rcount": 0,
+            "tcount": 874,
+            "title": "Captured subject"
+          }
+        ]
+      }
+    ]
+  },
+  "papers": {
+    "records": [
+      {
+        "paperId": 1263,
+        "paperName": "Captured paper",
+        "practiceCnt": 926,
+        "questionCount": 10,
+        "companyTag": {
+          "id": 1061,
+          "name": "Captured company"
+        }
+      },
+      {
+        "paperId": 1264,
+        "paperName": "Second captured paper",
+        "practiceCnt": 988,
+        "questionCount": 14,
+        "companyTag": {
+          "id": 1061,
+          "name": "Captured company"
+        }
+      }
+    ]
+  }
+}

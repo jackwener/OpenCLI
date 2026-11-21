@@ -85,3 +85,12 @@ produce empty author columns rather than dropping the post. `rc_type`,
 discriminators used to select the parser.
 
 Pass the returned `id` or `url` to `nowcoder detail`. A content UUID is metadata and is not a valid `/discuss/` identifier; a moment's numeric `entity_id` is not accepted by the moment detail endpoint.
+
+## Feed and filter contracts
+
+- `papers` sends `jobIds` and `companyIds` as arrays. Keep using the documented
+  job tags such as `11002` or `11003` and company IDs such as `138`, `139`, or
+  `239`; the adapter also returns the paper ID.
+- `practice --job` accepts career IDs (`11226`, `11227`, `11229`, `11230`) and
+  resolves them through the current career-tab mapping before requesting the
+  practice list.

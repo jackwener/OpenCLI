@@ -25263,6 +25263,7 @@
     ],
     "columns": [
       "rank",
+      "id",
       "title",
       "company",
       "practitioners"
@@ -25298,6 +25299,8 @@
     ],
     "columns": [
       "category",
+      "tag_id",
+      "id",
       "subject",
       "total",
       "done",
@@ -25306,7 +25309,7 @@
     "type": "js",
     "modulePath": "nowcoder/practice.js",
     "sourceFile": "nowcoder/practice.js",
-    "navigateBefore": "https://www.nowcoder.com"
+    "navigateBefore": false
   },
   {
     "site": "nowcoder",
