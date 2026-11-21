@@ -7,6 +7,7 @@ import { EXIT_CODES } from '../errors.js';
 import { installCommanderNamespaceStructuredHelp } from '../help.js';
 import { findPackageRoot, getBuiltEntryCandidates } from '../package-paths.js';
 import { getRegistry } from '../registry.js';
+import { isDirectoryLike } from '../discovery.js';
 
 
 import { emitFailure, emitResult } from '../command-output.js';
@@ -24,7 +25,7 @@ function listJsFiles(dir: string): string[] {
   const files: string[] = [];
   for (const entry of entries) {
     const fullPath = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
+    if (isDirectoryLike(entry, dir)) {
       files.push(...listJsFiles(fullPath));
     } else if (entry.isFile() && entry.name.endsWith('.js')) {
       files.push(fullPath);
@@ -117,11 +118,11 @@ export function registerAdapterCommands(program: Command, BUILTIN_CLIS: string, 
       const builtinClisDir = BUILTIN_CLIS;
       try {
         const userEntries = await fs.promises.readdir(userClisDir, { withFileTypes: true });
-        const userSites = userEntries.filter(e => e.isDirectory()).map(e => e.name).sort();
+        const userSites = userEntries.filter(e => isDirectoryLike(e, userClisDir)).map(e => e.name).sort();
         let builtinSites: string[] = [];
         try {
           const builtinEntries = await fs.promises.readdir(builtinClisDir, { withFileTypes: true });
-          builtinSites = builtinEntries.filter(e => e.isDirectory()).map(e => e.name).sort();
+          builtinSites = builtinEntries.filter(e => isDirectoryLike(e, builtinClisDir)).map(e => e.name).sort();
         } catch { /* no builtin dir */ }
 
         emitResult({ overrides: userSites.map(site => ({ site, kind: builtinSites.includes(site) ? 'override' : 'custom' })), builtinSites: builtinSites.length });
