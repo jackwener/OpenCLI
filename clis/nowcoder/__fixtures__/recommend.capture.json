@@ -1,0 +1,78 @@
+{
+  "provenance": {
+    "capturedAt": "2026-11-22",
+    "source": "Actual Nowcoder recommend feed pages 1 and 2",
+    "sanitization": "All strings are redacted or synthesized; entity IDs, UUIDs, and URLs are synthetic. Content types, cursor scores, metrics, and mixed feed shapes retain their observed types. Arrays are cropped; their lengths do not represent the upstream page size of 20.",
+    "verified": "Both observed requests returned HTTP 200 with success: true and code: 0. cuid was available from the visitor identity."
+  },
+  "upstreamPageSize": 20,
+  "pages": [
+    {
+      "page": 1,
+      "records": [
+        {
+          "contentType": 74,
+          "contentId": 1001,
+          "extraInfo": { "entityId": "1001" },
+          "recommendData": { "cursorScore": 1795281555.999, "entityId": 1001, "entityType": 74 },
+          "momentData": {
+            "id": 1001,
+            "uuid": "000000000000000000000000000003eb",
+            "title": "Captured moment",
+            "content": "Captured moment body"
+          },
+          "userBrief": { "nickname": "Captured author" },
+          "frequencyData": { "likeCnt": 0, "commentCnt": 3, "viewCnt": 1059 }
+        },
+        {
+          "contentType": 993,
+          "contentId": null,
+          "extraInfo": { "entityId": "1018" },
+          "recommendData": { "cursorScore": 1795281555.997, "entityId": 1019, "entityType": 993 },
+          "recommendCreativity": {
+            "adId": 1019,
+            "title": "Captured promotion",
+            "content": "Promotion body",
+            "companyName": "Captured company",
+            "linkUrl": "https://example.com/promotion/1019"
+          },
+          "userBrief": { "nickname": "Promotion author" },
+          "frequencyData": null
+        },
+        {
+          "contentType": 250,
+          "contentId": 1022,
+          "extraInfo": { "entityId": "1026" },
+          "recommendData": { "cursorScore": 1795281555.996, "entityId": 1026, "entityType": 8 },
+          "contentData": {
+            "id": "1024",
+            "uuid": "00000000000000000000000000000401",
+            "title": "Captured content",
+            "content": "Captured content body"
+          },
+          "userBrief": { "nickname": "Content author" },
+          "frequencyData": { "likeCnt": 95, "commentCnt": 26, "viewCnt": 14324 }
+        }
+      ]
+    },
+    {
+      "page": 2,
+      "records": [
+        {
+          "contentType": 74,
+          "contentId": 1124,
+          "extraInfo": { "entityId": "1124" },
+          "recommendData": { "cursorScore": 1795281555.979, "entityId": 1124, "entityType": 74 },
+          "momentData": {
+            "id": 1124,
+            "uuid": "00000000000000000000000000000466",
+            "title": "Second page moment",
+            "content": "Second page body"
+          },
+          "userBrief": { "nickname": "Second author" },
+          "frequencyData": { "likeCnt": 0, "commentCnt": 0, "viewCnt": 20 }
+        }
+      ]
+    }
+  ]
+}

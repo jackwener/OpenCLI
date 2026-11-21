@@ -25314,11 +25314,11 @@
   {
     "site": "nowcoder",
     "name": "recommend",
-    "description": "Recommended feed",
+    "description": "Recommended feed with cursor-correct pagination",
     "access": "read",
     "domain": "www.nowcoder.com",
     "strategy": "public",
-    "browser": false,
+    "browser": true,
     "args": [
       {
         "name": "page",
@@ -25332,21 +25332,26 @@
         "type": "int",
         "default": 15,
         "required": false,
-        "help": "Number of items"
+        "help": "Number of items (1-50)"
       }
     ],
     "columns": [
       "rank",
+      "post_type",
+      "id",
       "title",
       "author",
+      "company",
+      "content",
+      "url",
       "likes",
       "comments",
-      "views",
-      "id"
+      "views"
     ],
     "type": "js",
     "modulePath": "nowcoder/recommend.js",
-    "sourceFile": "nowcoder/recommend.js"
+    "sourceFile": "nowcoder/recommend.js",
+    "navigateBefore": false
   },
   {
     "site": "nowcoder",

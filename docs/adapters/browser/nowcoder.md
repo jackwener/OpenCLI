@@ -35,6 +35,9 @@ opencli nowcoder search "bilibili" --type post --limit 5
 # Search suggestions
 opencli nowcoder suggest "java"
 
+# Browse the recommended feed by starting page
+opencli nowcoder recommend --page 2 --limit 15
+
 # Browse interview experience posts
 opencli nowcoder experience --limit 10
 
@@ -59,8 +62,10 @@ opencli nowcoder hot -v
 
 ## Prerequisites
 
-- **Public commands** (hot, trending, topics, recommend, creators, companies, jobs): No login required
+- **Public commands** (hot, trending, topics, creators, companies, jobs): No login required
 - **Cookie commands** (all others): Chrome running and **logged into** nowcoder.com, [Browser Bridge extension](/guide/browser-bridge) installed
+- `recommend` uses a public API but runs in Chrome so it can read the visitor
+  identity and replay the feed cursor correctly.
 
 ## Post identity
 
@@ -97,3 +102,9 @@ Pass the returned `id` or `url` to `nowcoder detail`. A content UUID is metadata
 - `practice --job` accepts career IDs (`11226`, `11227`, `11229`, `11230`) and
   resolves them through the current career-tab mapping before requesting the
   practice list.
+
+`recommend` fetches 20-record upstream pages with a stable visit identity. Page
+N is found by replaying pages 1 through N. From that starting page, it continues
+through later pages until `--limit` is reached or the cursor ends. Duplicate
+records are removed, while the cursor still advances from the original page
+tail.
