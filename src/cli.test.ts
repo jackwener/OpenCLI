@@ -9,6 +9,7 @@ import { cli, getRegistry, Strategy } from './registry.js';
 import { BrowserCommandError } from './browser/daemon-client.js';
 import type { IPage } from './types.js';
 import { TargetError } from './browser/target-errors.js';
+import { getTextResolvedJs } from './browser/target-resolver.js';
 import { PKG_VERSION } from './version.js';
 
 const {
@@ -460,10 +461,31 @@ describe('createProgram root help descriptions', () => {
         command: 'opencli browser get text',
         positionals: [{ name: 'target' }],
       });
+      expect(getText.command_options).toEqual(expect.arrayContaining([
+        expect.objectContaining({ name: 'raw', flags: '--raw' }),
+      ]));
       expect(data.structured_help).toMatchObject({
         formats: ['yaml', 'json'],
         usage: 'opencli browser --help -f json',
       });
+    } finally {
+      process.argv = argv;
+    }
+  });
+
+  it('exposes --raw in get text command_options for browser --help -f json', () => {
+    const argv = process.argv;
+    try {
+      const program = createProgram('', '');
+      const browser = program.commands.find(cmd => cmd.name() === 'browser');
+      expect(browser).toBeTruthy();
+
+      process.argv = ['node', 'opencli', 'browser', '--help', '-f', 'json'];
+      const data = JSON.parse(browser!.helpInformation()) as any;
+      const getText = data.commands.find((cmd: any) => cmd.name === 'get text');
+      expect(getText?.command_options).toEqual(expect.arrayContaining([
+        expect.objectContaining({ name: 'raw', flags: '--raw' }),
+      ]));
     } finally {
       process.argv = argv;
     }
@@ -2600,6 +2622,58 @@ describe('browser get text/value/attributes commands', () => {
     await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'get', 'text', '7']);
 
     expect(lastJsonLog()).toEqual({ value: 'Hello world', matches_n: 1, match_level: 'exact' });
+  });
+
+  it('passes default innerText JS (getTextResolvedJs()) to page.evaluate', async () => {
+    const evalMock = browserState.page!.evaluate as any;
+    evalMock.mockResolvedValueOnce({ ok: true, matches_n: 1, match_level: 'exact' });
+    evalMock.mockResolvedValueOnce('Rendered text');
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'get', 'text', '7']);
+
+    expect(evalMock.mock.calls[1][0]).toBe(getTextResolvedJs());
+    expect(evalMock.mock.calls[1][0]).toContain('innerText');
+    expect(lastJsonLog()).toEqual({ value: 'Rendered text', matches_n: 1, match_level: 'exact' });
+  });
+
+  it('passes raw textContent JS (getTextResolvedJs({ raw: true })) to page.evaluate when --raw is set', async () => {
+    const evalMock = browserState.page!.evaluate as any;
+    evalMock.mockResolvedValueOnce({ ok: true, matches_n: 1, match_level: 'exact' });
+    evalMock.mockResolvedValueOnce('Raw DOM text');
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'get', 'text', '7', '--raw']);
+
+    expect(evalMock.mock.calls[1][0]).toBe(getTextResolvedJs({ raw: true }));
+    expect(evalMock.mock.calls[1][0]).not.toContain('innerText');
+    expect(evalMock.mock.calls[1][0]).not.toBe(getTextResolvedJs());
+    expect(lastJsonLog()).toEqual({ value: 'Raw DOM text', matches_n: 1, match_level: 'exact' });
+  });
+
+  it('preserves empty string "" in envelope when get text evaluates to ""', async () => {
+    const evalMock = browserState.page!.evaluate as any;
+    evalMock.mockResolvedValueOnce({ ok: true, matches_n: 1, match_level: 'exact' });
+    evalMock.mockResolvedValueOnce('');
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'get', 'text', '7']);
+
+    expect(lastJsonLog()).toEqual({ value: '', matches_n: 1, match_level: 'exact' });
+  });
+
+  it('passes raw textContent JS when --raw is placed before <target>', async () => {
+    const evalMock = browserState.page!.evaluate as any;
+    evalMock.mockResolvedValueOnce({ ok: true, matches_n: 1, match_level: 'exact' });
+    evalMock.mockResolvedValueOnce('Raw DOM text');
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'get', 'text', '--raw', '7']);
+
+    expect(evalMock.mock.calls[0][0]).toContain('const ref = "7"');
+    expect(evalMock.mock.calls[1][0]).toBe(getTextResolvedJs({ raw: true }));
+    expect(evalMock.mock.calls[1][0]).not.toContain('innerText');
+    expect(lastJsonLog()).toEqual({ value: 'Raw DOM text', matches_n: 1, match_level: 'exact' });
   });
 
   it('resolves a semantic locator to a ref before get text', async () => {

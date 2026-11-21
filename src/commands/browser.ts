@@ -1163,10 +1163,11 @@ export function registerBrowserCommands(program: Command): Command {
     addSemanticLocatorOptions(get.command('text'))
       .argument('[target]', 'Numeric ref (from browser state / find), CSS selector, or omit when using --role/--name/etc.')
       .option('--nth <n>', 'Pick the nth match (0-based) when <target> is a multi-match CSS selector')
-      .description('Element text content — JSON envelope {value, matches_n}'),
+      .option('--raw', 'Return raw DOM textContent (includes <script>, <style>, hidden elements)')
+      .description('Element rendered text (use --raw for DOM textContent) — JSON envelope {value, matches_n}'),
   )
     .action(browserAction(async (page, target, opts) =>
-      runGetCommand(page, target, opts ?? {}, getTextResolvedJs(), 'text')));
+      runGetCommand(page, target, opts ?? {}, getTextResolvedJs({ raw: Boolean(opts?.raw) }), 'text')));
 
   addBrowserTabOption(
     addSemanticLocatorOptions(get.command('value'))
