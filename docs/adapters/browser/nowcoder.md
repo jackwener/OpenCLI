@@ -88,6 +88,9 @@ Pass the returned `id` or `url` to `nowcoder detail`. A content UUID is metadata
 
 ## Feed and filter contracts
 
+- `salary` keeps every API record even when the title is empty. JSON/YAML
+  output includes the complete `salaryCard` object; table-oriented columns
+  expose its useful scalar fields. Ranks are contiguous after filtering.
 - `papers` sends `jobIds` and `companyIds` as arrays. Keep using the documented
   job tags such as `11002` or `11003` and company IDs such as `138`, `139`, or
   `239`; the adapter also returns the paper ID.

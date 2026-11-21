@@ -25413,13 +25413,20 @@
     ],
     "columns": [
       "rank",
+      "id",
       "title",
       "author",
       "school",
+      "company",
+      "job",
+      "salary",
+      "city",
+      "education",
+      "work_type",
+      "content",
       "likes",
       "comments",
-      "views",
-      "id"
+      "views"
     ],
     "type": "js",
     "modulePath": "nowcoder/salary.js",
