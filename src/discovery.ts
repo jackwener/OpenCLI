@@ -169,7 +169,7 @@ async function discoverClisFromFs(dir: string): Promise<void> {
   await warnIgnoredYamlAdaptersInCliRoot(dir);
   
   const sitePromises = entries
-    .filter(entry => entry.isDirectory())
+    .filter(entry => isDirectoryLike(entry, dir))
     .map(async (entry) => {
       const site = entry.name;
       const siteDir = path.join(dir, site);
@@ -388,6 +388,21 @@ async function isCliModule(filePath: string): Promise<boolean> {
     return PLUGIN_MODULE_PATTERN.test(source);
   } catch (err) {
     log.warn(`Failed to inspect module ${filePath}: ${getErrorMessage(err)}`);
+    return false;
+  }
+}
+
+/**
+ * Dirents from readdir({ withFileTypes: true }) report junctions and directory
+ * symlinks as non-directories, which silently skips linked adapter sites.
+ * Follow the link and check the target instead.
+ */
+export function isDirectoryLike(entry: fs.Dirent, dir: string): boolean {
+  if (entry.isDirectory()) return true;
+  if (!entry.isSymbolicLink()) return false;
+  try {
+    return fs.statSync(path.join(dir, entry.name)).isDirectory();
+  } catch {
     return false;
   }
 }
