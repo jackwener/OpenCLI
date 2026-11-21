@@ -1,0 +1,73 @@
+{
+  "provenance": {
+    "capturedAt": "2026-11-22",
+    "source": "Live Taobao product page state and rendered price labels",
+    "sanitization": "Product and SKU identities and title replaced with synthetic values; only price fields and two SKU prices retained."
+  },
+  "observedLabels": [
+    "平台加补后￥8414.16起",
+    "优惠前￥9999起"
+  ],
+  "state": {
+    "componentsVO": {
+      "priceVO": {
+        "extraPrice": {
+          "priceDesc": "起",
+          "priceText": "8414.16",
+          "priceTitle": "平台加补后",
+          "priceUnit": "￥"
+        },
+        "price": {
+          "priceDesc": "起",
+          "priceText": "9999",
+          "priceTitle": "优惠前",
+          "priceUnit": "￥"
+        }
+      }
+    },
+    "item": {
+      "itemId": "123456789012",
+      "title": "Example listing"
+    },
+    "skuBase": {
+      "props": [],
+      "skus": [
+        {
+          "propPath": "",
+          "skuId": "100"
+        },
+        {
+          "propPath": "",
+          "skuId": "101"
+        }
+      ]
+    },
+    "skuCore": {
+      "sku2info": {
+        "100": {
+          "price": {
+            "priceText": "9999",
+            "priceTitle": "优惠前"
+          },
+          "quantity": 22,
+          "subPrice": {
+            "priceText": "8414.16",
+            "priceTitle": "平台加补后"
+          }
+        },
+        "101": {
+          "price": {
+            "priceText": "9999",
+            "priceTitle": "优惠前"
+          },
+          "quantity": 5,
+          "subPrice": {
+            "priceText": "8414.16",
+            "priceTitle": "平台加补后"
+          }
+        }
+      }
+    }
+  },
+  "observedDiscountText": "淘金币已抵99.99元 国家补贴1484.85元"
+}

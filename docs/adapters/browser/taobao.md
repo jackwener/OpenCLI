@@ -25,6 +25,16 @@ opencli taobao detail 827563850178
 opencli taobao add-cart 827563850178 --spec "红色 XL" --dry-run
 ```
 
+## Price fields
+
+Search returns the displayed card amount as `price_num`. `price_basis` identifies
+an explicitly labelled listing, activity, coupon, or estimated price; an
+unlabelled amount remains `displayed_card`. Raw page text stays internal.
+
+Detail keeps the listing price, coupon discount amount, coupon-adjusted price,
+and estimated payable separate. Missing amounts remain null, and no checkout
+total is inferred from a product page.
+
 ## Prerequisites
 
 - Chrome running and logged into taobao.com
