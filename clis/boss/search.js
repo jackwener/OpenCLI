@@ -51,6 +51,9 @@ const JOB_TYPE_MAP = {
     '不限': '0', '全职': '1901', '实习': '1902', '兼职': '1903',
 };
 const JOB_TYPE_CODES = new Set(Object.values(JOB_TYPE_MAP));
+const JOB_PAGE_URL = 'https://www.zhipin.com/web/geek/jobs';
+const JOB_LIST_URL = 'https://www.zhipin.com/wapi/zpgeek/search/joblist.json';
+const JOB_PAGE_SIZE = 15;
 function resolveCity(input) {
     if (!input)
         return '101010100';
@@ -91,37 +94,79 @@ function formatBossOnline(value) {
         return 'N';
     return '';
 }
-async function captureJobList(page, url) {
-    if (typeof page.startNetworkCapture !== 'function' ||
-        typeof page.readNetworkCapture !== 'function' ||
-        !await page.startNetworkCapture('joblist.json')) {
-        throw new CommandExecutionError('BOSS search requires CDP network capture');
+function buildContextUrl(search) {
+    const qs = new URLSearchParams({
+        query: search.query,
+        city: search.cityCode,
+    });
+    if (search.expVal)
+        qs.set('experience', search.expVal);
+    if (search.degreeVal)
+        qs.set('degree', search.degreeVal);
+    if (search.salaryVal)
+        qs.set('salary', search.salaryVal);
+    if (search.industryVal)
+        qs.set('industry', search.industryVal);
+    if (search.jobTypeVal)
+        qs.set('jobType', search.jobTypeVal);
+    return `${JOB_PAGE_URL}?${qs.toString()}`;
+}
+function buildJobListBody(search, pageNum) {
+    return [
+        ['page', String(pageNum)],
+        ['pageSize', String(JOB_PAGE_SIZE)],
+        ['city', search.cityCode],
+        ['query', search.query],
+        ['expectInfo', ''],
+        ['multiSubway', ''],
+        ['multiBusinessDistrict', ''],
+        ['position', ''],
+        ['jobType', search.jobTypeVal],
+        ['salary', search.salaryVal],
+        ['experience', search.expVal],
+        ['degree', search.degreeVal],
+        ['industry', search.industryVal],
+        ['scale', ''],
+        ['stage', ''],
+        ['scene', '1'],
+        ['encryptExpectId', ''],
+    ];
+}
+async function fetchJobList(page, form) {
+    const result = await page.evaluate(async ({ url, form }) => {
+        const response = await fetch(url, {
+            method: 'POST',
+            credentials: 'include',
+            cache: 'no-store',
+            headers: {
+                Accept: 'application/json, text/plain, */*',
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            body: new URLSearchParams(form).toString(),
+        });
+        return { status: response.status, text: await response.text() };
+    }, {
+        url: `${JOB_LIST_URL}?${new URLSearchParams({ _: String(Date.now()) }).toString()}`,
+        form,
+    });
+    if (!result || typeof result !== 'object' || typeof result.text !== 'string') {
+        throw new CommandExecutionError('BOSS search returned a malformed HTTP response');
     }
-    await page.readNetworkCapture();
-    for (let attempt = 0; attempt < 2; attempt++) {
-        const separator = url.includes('?') ? '&' : '?';
-        await navigateTo(page, `${url}${separator}_opencli=${Date.now()}`, 5);
-        await page.wait(1);
-        const captures = await page.readNetworkCapture();
-        for (const entry of Array.isArray(captures) ? captures : []) {
-            if (!String(entry?.url || '').includes('joblist.json') ||
-                Number(entry?.responseStatus || 0) !== 200 ||
-                typeof entry?.responsePreview !== 'string') {
-                continue;
-            }
-            let payload;
-            try {
-                payload = JSON.parse(entry.responsePreview);
-            } catch {
-                continue;
-            }
-            if (payload && typeof payload === 'object' && 'code' in payload && payload.code !== 0) {
-                assertOk(payload, 'BOSS search failed');
-            }
-            if (Array.isArray(payload?.zpData?.jobList)) return payload;
-        }
+    if (result.status !== 200) {
+        throw new CommandExecutionError(`BOSS search failed with HTTP ${result.status}`);
     }
-    throw new CommandExecutionError('BOSS search page did not expose its job-list response');
+    let payload;
+    try {
+        payload = JSON.parse(result.text);
+    } catch {
+        throw new CommandExecutionError('BOSS search returned malformed JSON');
+    }
+    assertOk(payload, 'BOSS search failed');
+    if (!payload?.zpData || !Array.isArray(payload.zpData.jobList)) {
+        throw new CommandExecutionError('BOSS search returned a malformed job list');
+    }
+    return payload;
 }
 cli({
     site: 'boss',
@@ -129,7 +174,7 @@ cli({
     access: 'read',
     description: 'BOSS直聘搜索职位（不带关键词时返回为你推荐职位）',
     domain: 'www.zhipin.com',
-    strategy: Strategy.INTERCEPT,
+    strategy: Strategy.COOKIE,
     navigateBefore: false,
     browser: true,
     defaultWindowMode: 'background',
@@ -158,30 +203,24 @@ cli({
         const jobTypeVal = resolveJobType(kwargs.jobType);
         const limit = readPositiveInteger(kwargs.limit, 'limit', 15, 100);
         let currentPage = readPositiveInteger(kwargs.page, 'page', 1);
+        const search = {
+            query,
+            cityCode,
+            expVal,
+            degreeVal,
+            salaryVal,
+            industryVal,
+            jobTypeVal,
+        };
         let allJobs = [];
         const seenIds = new Set();
+        await navigateTo(page, buildContextUrl(search), 2);
         while (allJobs.length < limit) {
             if (allJobs.length > 0) {
-                await new Promise(r => setTimeout(r, 1000 + Math.random() * 2000));
+                await page.wait(0.5);
             }
-            const qs = new URLSearchParams({
-                query,
-                city: cityCode,
-                page: String(currentPage),
-            });
-            if (expVal)
-                qs.set('experience', expVal);
-            if (degreeVal)
-                qs.set('degree', degreeVal);
-            if (salaryVal)
-                qs.set('salary', salaryVal);
-            if (industryVal)
-                qs.set('industry', industryVal);
-            if (jobTypeVal)
-                qs.set('jobType', jobTypeVal);
-            const targetUrl = `https://www.zhipin.com/web/geek/jobs?${qs.toString()}`;
-            verbose(`Capturing page ${currentPage}... (current jobs: ${allJobs.length})`);
-            const data = await captureJobList(page, targetUrl);
+            verbose(`Fetching page ${currentPage}... (current jobs: ${allJobs.length})`);
+            const data = await fetchJobList(page, buildJobListBody(search, currentPage));
             const zpData = data.zpData || {};
             const batch = zpData.jobList || [];
             if (batch.length === 0)
@@ -228,4 +267,6 @@ export const __test__ = {
     resolveMap,
     resolveJobType,
     formatBossOnline,
+    buildContextUrl,
+    buildJobListBody,
 };

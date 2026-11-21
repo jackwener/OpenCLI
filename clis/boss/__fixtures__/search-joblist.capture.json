@@ -1,0 +1,128 @@
+{
+  "provenance": {
+    "capturedAt": "2026-11-22",
+    "source": "Actual authenticated BOSS /wapi/zpgeek/search/joblist.json page-1 and page-2 responses",
+    "sanitization": "Synthetic job IDs, names, salaries, and recruiters; no credentials or live identifiers. Only three rows from each 15-row page are retained.",
+    "verified": "The existing auth probe confirmed a geek session. Pages 1 and 2 each returned HTTP 200, code 0 and 15 rows. --limit 30 returned 30 unique rows in API order; explicit --page 2 returned 15 unique rows."
+  },
+  "pages": [
+    {
+      "code": 0,
+      "zpData": {
+        "hasMore": true,
+        "jobList": [
+          {
+            "encryptJobId": "fixture-job-1",
+            "jobName": "Example job",
+            "salaryDesc": "20-30K",
+            "brandName": "Example company",
+            "cityName": "深圳",
+            "areaDistrict": "",
+            "businessDistrict": "",
+            "jobExperience": "1-3年",
+            "jobDegree": "本科",
+            "skills": [
+              "Example skill"
+            ],
+            "bossName": "Example recruiter",
+            "bossTitle": "HR",
+            "bossOnline": false
+          },
+          {
+            "encryptJobId": "fixture-job-2",
+            "jobName": "Example job",
+            "salaryDesc": "20-30K",
+            "brandName": "Example company",
+            "cityName": "深圳",
+            "areaDistrict": "",
+            "businessDistrict": "",
+            "jobExperience": "5-10年",
+            "jobDegree": "大专",
+            "skills": [
+              "Example skill"
+            ],
+            "bossName": "Example recruiter",
+            "bossTitle": "HR",
+            "bossOnline": false
+          },
+          {
+            "encryptJobId": "fixture-job-3",
+            "jobName": "Example job",
+            "salaryDesc": "20-30K",
+            "brandName": "Example company",
+            "cityName": "深圳",
+            "areaDistrict": "",
+            "businessDistrict": "",
+            "jobExperience": "1年以内",
+            "jobDegree": "本科",
+            "skills": [
+              "Example skill"
+            ],
+            "bossName": "Example recruiter",
+            "bossTitle": "HR",
+            "bossOnline": true
+          }
+        ]
+      }
+    },
+    {
+      "code": 0,
+      "zpData": {
+        "hasMore": true,
+        "jobList": [
+          {
+            "encryptJobId": "fixture-job-4",
+            "jobName": "Example job",
+            "salaryDesc": "20-30K",
+            "brandName": "Example company",
+            "cityName": "深圳",
+            "areaDistrict": "",
+            "businessDistrict": "",
+            "jobExperience": "3-5年",
+            "jobDegree": "本科",
+            "skills": [
+              "Example skill"
+            ],
+            "bossName": "Example recruiter",
+            "bossTitle": "HR",
+            "bossOnline": true
+          },
+          {
+            "encryptJobId": "fixture-job-5",
+            "jobName": "Example job",
+            "salaryDesc": "20-30K",
+            "brandName": "Example company",
+            "cityName": "深圳",
+            "areaDistrict": "",
+            "businessDistrict": "",
+            "jobExperience": "5-10年",
+            "jobDegree": "大专",
+            "skills": [
+              "Example skill"
+            ],
+            "bossName": "Example recruiter",
+            "bossTitle": "HR",
+            "bossOnline": false
+          },
+          {
+            "encryptJobId": "fixture-job-6",
+            "jobName": "Example job",
+            "salaryDesc": "20-30K",
+            "brandName": "Example company",
+            "cityName": "深圳",
+            "areaDistrict": "",
+            "businessDistrict": "",
+            "jobExperience": "经验不限",
+            "jobDegree": "本科",
+            "skills": [
+              "Example skill"
+            ],
+            "bossName": "Example recruiter",
+            "bossTitle": "HR",
+            "bossOnline": false
+          }
+        ]
+      }
+    }
+  ]
+}
