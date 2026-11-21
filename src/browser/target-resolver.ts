@@ -638,14 +638,23 @@ export function scrollResolvedJs(opts: { skipScroll?: boolean } = {}): string {
 }
 
 /**
- * Generate JS to get text content of resolved element.
+ * Generate JS to get text of resolved element.
+ * Returns trimmed `innerText` by default (falling back to `textContent` only
+ * when `innerText` is nullish, e.g. non-HTMLElements like `<svg>`). On
+ * rendered elements, `innerText` excludes `<script>`, `<style>`, `<noscript>`,
+ * and `[hidden]` descendants (per WHATWG `innerText`, directly targeting a
+ * non-rendered node returns its descendant `textContent`). Pass `{ raw: true }`
+ * to return trimmed DOM `textContent`.
  */
-export function getTextResolvedJs(): string {
+export function getTextResolvedJs(opts: { raw?: boolean } = {}): string {
+  const expr = opts.raw
+    ? 'el.textContent?.trim() ?? null'
+    : '(el.innerText ?? el.textContent)?.trim() ?? null';
   return `
     (() => {
       const el = window.__resolved;
       if (!el) throw new Error('No resolved element');
-      return el.textContent?.trim() ?? null;
+      return ${expr};
     })()
   `;
 }

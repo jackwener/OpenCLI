@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { boundingRectResolvedJs } from './target-resolver.js';
+import { boundingRectResolvedJs, getTextResolvedJs } from './target-resolver.js';
 
 /**
  * Build a fake element usable by the generated boundingRectResolvedJs. Rects are
@@ -209,5 +209,74 @@ describe('boundingRectResolvedJs runtime behavior', () => {
     expect(out.retargeted).toBe(true);
     expect(out.hit).toBe('target');
     expect(out.x).toBe(100); expect(out.y).toBe(50);
+  });
+});
+
+type FakeTextNode = { innerText?: string | null; textContent?: string | null } | null | undefined;
+
+/** Run the generated getTextResolvedJs against a fake window. */
+function runText(resolved: FakeTextNode, opts?: { raw?: boolean }): string | null {
+  const fakeWindow: { __resolved?: FakeTextNode } = resolved !== undefined ? { __resolved: resolved } : {};
+  const js = getTextResolvedJs(opts);
+  const evaluate = new Function('window', 'return (' + js + ')') as (win: { __resolved?: FakeTextNode }) => string | null;
+  return evaluate(fakeWindow);
+}
+
+describe('getTextResolvedJs runtime behavior', () => {
+  it('returns trimmed innerText in default mode and ignores textContent leaks', () => {
+    const el = {
+      innerText: '  Visible Heading  \n',
+      textContent: '  Visible Heading  {"__NEXT_DATA__":true}  hidden marker  ',
+    };
+    expect(runText(el)).toBe('Visible Heading');
+    expect(runText(el, { raw: false })).toBe('Visible Heading');
+  });
+
+  it('returns "" (not textContent) when innerText is "" (guards against || bug)', () => {
+    const el = {
+      innerText: '',
+      textContent: '<script>window.__secret = "leak";</script>',
+    };
+    expect(runText(el)).toBe('');
+  });
+
+  it('trims whitespace-only innerText to "" without falling back to textContent', () => {
+    const el = {
+      innerText: '  \n  ',
+      textContent: '<script>window.__secret = "leak";</script>',
+    };
+    expect(runText(el)).toBe('');
+  });
+
+  it('falls back to trimmed textContent when innerText is undefined (non-HTMLElement like <svg>)', () => {
+    const svg = {
+      innerText: undefined,
+      textContent: '  Chart Label  ',
+    };
+    expect(runText(svg)).toBe('Chart Label');
+  });
+
+  it('returns null when both innerText and textContent are nullish', () => {
+    expect(runText({ innerText: undefined, textContent: null })).toBeNull();
+    expect(runText({ innerText: null, textContent: undefined })).toBeNull();
+    expect(runText({})).toBeNull();
+  });
+
+  it('returns trimmed textContent with { raw: true } even when innerText is present, and null when textContent is nullish', () => {
+    const el = {
+      innerText: 'Visible only',
+      textContent: '  Visible only\n<script>raw payload</script>  ',
+    };
+    expect(runText(el, { raw: true })).toBe('Visible only\n<script>raw payload</script>');
+    expect(runText({ innerText: 'Visible', textContent: '' }, { raw: true })).toBe('');
+    expect(runText({ innerText: 'Visible', textContent: '  \n  ' }, { raw: true })).toBe('');
+    expect(runText({ innerText: 'Visible', textContent: null }, { raw: true })).toBeNull();
+    expect(runText({ innerText: 'Visible', textContent: undefined }, { raw: true })).toBeNull();
+  });
+
+  it('throws "No resolved element" when window.__resolved is missing', () => {
+    expect(() => runText(undefined)).toThrow('No resolved element');
+    expect(() => runText(null)).toThrow('No resolved element');
+    expect(() => runText(undefined, { raw: true })).toThrow('No resolved element');
   });
 });
