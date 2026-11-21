@@ -1204,6 +1204,31 @@ describe('browser tab targeting commands', () => {
     expect(process.exitCode).toBeDefined();
   });
 
+  describe('with OPENCLI_CDP_ENDPOINT set', () => {
+    beforeEach(() => {
+      vi.stubEnv('OPENCLI_CDP_ENDPOINT', 'http://127.0.0.1:9333');
+    });
+
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
+    it.each([
+      ['page commands', ['--session', 'test', 'state']],
+      ['session commands', ['--session', 'test', 'unbind']],
+      ['native chrome commands', ['chrome', 'describe']],
+    ])('refuses %s instead of driving the extension-connected Chrome', async (_label, argv) => {
+      const program = createProgram('', '');
+
+      await program.parseAsync(['node', 'opencli', 'browser', ...argv]);
+
+      expect(mockBrowserConnect).not.toHaveBeenCalled();
+      expect(mockSendCommand).not.toHaveBeenCalled();
+      expect(lastJsonLog().error).toMatchObject({ code: 'cdp_endpoint_unsupported' });
+      expect(process.exitCode).toBeDefined();
+    });
+  });
+
   it('accepts JavaScript dialogs through the browser dialog command', async () => {
     const program = createProgram('', '');
 
