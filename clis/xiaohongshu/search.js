@@ -343,7 +343,8 @@ export function parseLimit(raw) {
 }
 
 function resolveSearchFilters(kwargs) {
-    return SEARCH_FILTERS.map((definition) => {
+    const optionSources = kwargs.__opencliOptionSources ?? {};
+    return SEARCH_FILTERS.flatMap((definition) => {
         const value = kwargs[definition.arg] ?? definition.defaultValue;
         const option = typeof value === 'string' ? definition.options[value] : undefined;
         if (!option) {
@@ -351,7 +352,10 @@ function resolveSearchFilters(kwargs) {
                 `--${definition.arg} must be one of: ${Object.keys(definition.options).join(', ')}, got ${JSON.stringify(value)}`,
             );
         }
-        return {
+        if (optionSources[definition.arg] !== 'cli' && value === definition.defaultValue) {
+            return [];
+        }
+        return [{
             group: definition.group,
             option,
             capability: value === definition.defaultValue
@@ -361,7 +365,7 @@ function resolveSearchFilters(kwargs) {
                     : definition.arg === 'scope'
                         ? 'account'
                         : '',
-        };
+        }];
     });
 }
 
@@ -518,7 +522,9 @@ function buildApplySearchFiltersJs(requestedFilters) {
             const currentTriggers = triggers();
             if (currentTriggers.length > 1) return { status: 'layout', detail: 'ambiguous_filter_trigger' };
             if (!clicked && currentTriggers.length === 1) {
-              currentTriggers[0].click();
+              const label = currentTriggers[0].querySelector(':scope > span, :scope > .filter-icon');
+              if (!label || !visible(label)) return { status: 'layout', detail: 'filter_trigger_target_not_found' };
+              label.click();
               clicked = true;
             }
             await sleep(100);
@@ -954,7 +960,9 @@ async function collectSearchHarvest(page, limit, requestedFilters) {
     if (waitResult !== 'content') {
         throw new CommandExecutionError('Unexpected Xiaohongshu search wait payload shape.');
     }
-    requireFilterApplication(await page.evaluate(buildApplySearchFiltersJs(requestedFilters)));
+    if (requestedFilters.length > 0) {
+        requireFilterApplication(await page.evaluate(buildApplySearchFiltersJs(requestedFilters)));
+    }
     const harvestOptions = harvestOptionsForLimit(limit);
     const harvest = requireHarvestPayload(await page.evaluate(buildScrollHarvestJs('www.xiaohongshu.com', limit, harvestOptions)), 'www.xiaohongshu.com');
     if (harvest.diag.securityBlock) {

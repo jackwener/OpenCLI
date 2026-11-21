@@ -198,13 +198,23 @@ function createFilterBehaviorPage(options = {}) {
         panelRenders++;
         markVisible(panel);
     };
-    trigger.addEventListener('click', () => {
+    const triggerLabel = trigger.querySelector('span');
+    if (!options.hiddenTriggerLabel) markVisible(triggerLabel);
+    triggerLabel.addEventListener('click', () => {
         const panel = document.querySelector('.filter-panel');
         if (panel) panel.remove();
         else renderPanel();
     });
 
     const page = createPageMock([]);
+    page.goto.mockImplementation(async () => {
+        if (options.resetOnGoto !== false) {
+            for (const [group, choices] of FILTER_FIXTURE) {
+                state[group] = choices[0];
+            }
+            document.querySelector('.filter-panel')?.remove();
+        }
+    });
     page.evaluate.mockImplementation(async (script) => {
         const source = String(script);
         if (source.includes('search-icon')) return { status: 'ok' };
@@ -863,7 +873,7 @@ describe('xiaohongshu search', () => {
         ]);
         await expect(cmd.func(page, { query: '测试等待', limit: 5 })).rejects.toMatchObject({ code: 'EMPTY_RESULT' });
         expect(page.goto).toHaveBeenCalledTimes(1);
-        expect(page.evaluate).toHaveBeenCalledTimes(4);
+        expect(page.evaluate).toHaveBeenCalledTimes(3);
         expect(page.newTab).not.toHaveBeenCalled();
     });
     it('maps an ordinary hydration timeout to TimeoutError without replacing the tab', async () => {
@@ -901,7 +911,7 @@ describe('xiaohongshu search', () => {
         expect(page.newTab.mock.invocationCallOrder[0]).toBeLessThan(page.setActivePage.mock.invocationCallOrder[0]);
         expect(page.setActivePage.mock.invocationCallOrder[0]).toBeLessThan(page.closeTab.mock.invocationCallOrder[0]);
         expect(page.closeTab.mock.invocationCallOrder[0]).toBeLessThan(page.evaluate.mock.invocationCallOrder[4]);
-        expect(page.evaluate.mock.calls.filter(([script]) => String(script).includes('const requestedFilters ='))).toHaveLength(2);
+        expect(page.evaluate.mock.calls.filter(([script]) => String(script).includes('const requestedFilters ='))).toHaveLength(0);
         expect(page.getActivePage()).toBe('page-new');
     });
     it('fails execution after one fresh target also renders with the proven collapsed signature', async () => {
@@ -985,6 +995,54 @@ describe('xiaohongshu search', () => {
 });
 
 describe('xiaohongshu search filter behavior', () => {
+    it('does not open the filter panel when no non-default filter is requested', async () => {
+        vi.useFakeTimers();
+        try {
+            const page = createFilterBehaviorPage();
+            await runFilterCommand(page, {});
+            expect(page.panelRenderCount()).toBe(0);
+            expect(page.filterClicks).toEqual([]);
+            expect(page.filterState).toEqual(Object.fromEntries(
+                FILTER_FIXTURE.map(([group, choices]) => [group, choices[0]]),
+            ));
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('applies an explicitly supplied default filter from its CLI source', async () => {
+        vi.useFakeTimers();
+        try {
+            const page = createFilterBehaviorPage({
+                initial: { '排序依据': '最新' },
+                resetOnGoto: false,
+            });
+            const result = await runFilterCommand(page, {
+                sort: 'comprehensive',
+                __opencliOptionSources: { sort: 'cli' },
+            });
+            expect(result[0].title).toBe('综合');
+            expect(page.filterState['排序依据']).toBe('综合');
+            expect(page.filterClicks).toEqual(['排序依据/综合']);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('fails closed when the filter trigger has no visible label target', async () => {
+        vi.useFakeTimers();
+        try {
+            const page = createFilterBehaviorPage({ hiddenTriggerLabel: true });
+            await expect(runFilterCommand(page, { sort: 'latest' })).rejects.toMatchObject({
+                code: 'COMMAND_EXEC',
+                message: expect.stringContaining('filter_trigger_target_not_found'),
+            });
+            expect(page.panelRenderCount()).toBe(0);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
     it('ignores hidden overlapping clones for default and explicit filters without clicking them', async () => {
         vi.useFakeTimers();
         try {
@@ -1027,7 +1085,10 @@ describe('xiaohongshu search filter behavior', () => {
     it('does not toggle an already-active chip and accepts settled rows with the same first href', async () => {
         vi.useFakeTimers();
         try {
-            const page = createFilterBehaviorPage({ initial: { '排序依据': '最新' } });
+            const page = createFilterBehaviorPage({
+                initial: { '排序依据': '最新' },
+                resetOnGoto: false,
+            });
             const result = await runFilterCommand(page, { sort: 'latest' });
             expect(result[0].title).toBe('最新');
             expect(page.filterClicks).toEqual([]);
