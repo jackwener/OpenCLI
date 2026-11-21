@@ -35,6 +35,14 @@ function recordKey(record) {
     return typeof entityId === 'string' || typeof entityId === 'number' ? String(entityId) : '';
 }
 
+function contentPostId(post, fallback) {
+    for (const value of [post?.id, fallback]) {
+        if (typeof value === 'string' && /^[1-9]\d*$/.test(value.trim())) return value.trim();
+        if (typeof value === 'number' && Number.isSafeInteger(value) && value > 0) return String(value);
+    }
+    return '';
+}
+
 function mapRecord(record, index) {
     const moment = record?.momentData;
     const longContent = record?.longContentData;
@@ -42,17 +50,18 @@ function mapRecord(record, index) {
     const promotion = record?.recommendCreativity;
 
     if (record?.contentType === 250 && content && typeof content === 'object') {
+        const id = contentPostId(content, record.contentId);
         return {
             rank: index + 1,
             post_type: 'content',
-            id: String(content.uuid || record.contentId || ''),
+            id,
             title: text(content.title) || '(untitled)',
             author: text(record.userBrief?.nickname),
             likes: metric(record.frequencyData?.likeCnt),
             comments: metric(record.frequencyData?.commentCnt),
             views: metric(record.frequencyData?.viewCnt),
             content: text(content.content),
-            url: content.id ? `https://www.nowcoder.com/discuss/${content.id}` : '',
+            url: id ? `https://www.nowcoder.com/discuss/${id}` : '',
         };
     }
     if (record?.contentType === 74 && moment && typeof moment === 'object') {
@@ -86,17 +95,18 @@ function mapRecord(record, index) {
         };
     }
     if (longContent && typeof longContent === 'object') {
+        const id = contentPostId(longContent, record.contentId);
         return {
             rank: index + 1,
             post_type: 'content',
-            id: String(longContent.uuid || record.contentId || ''),
+            id,
             title: text(longContent.title) || '(untitled)',
             author: text(record.userBrief?.nickname),
             likes: metric(record.frequencyData?.likeCnt),
             comments: metric(record.frequencyData?.commentCnt),
             views: metric(record.frequencyData?.viewCnt),
             content: text(longContent.content),
-            url: longContent.id ? `https://www.nowcoder.com/discuss/${longContent.id}` : '',
+            url: id ? `https://www.nowcoder.com/discuss/${id}` : '',
         };
     }
     return null;

@@ -107,4 +107,5 @@ Pass the returned `id` or `url` to `nowcoder detail`. A content UUID is metadata
 N is found by replaying pages 1 through N. From that starting page, it continues
 through later pages until `--limit` is reached or the cursor ends. Duplicate
 records are removed, while the cursor still advances from the original page
-tail.
+tail. Content and long-content rows use their numeric detail ID when present;
+moments keep their UUID.

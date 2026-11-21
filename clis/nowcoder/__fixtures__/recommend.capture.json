@@ -52,6 +52,20 @@
           },
           "userBrief": { "nickname": "Content author" },
           "frequencyData": { "likeCnt": 95, "commentCnt": 26, "viewCnt": 14324 }
+        },
+        {
+          "contentType": 250,
+          "contentId": 1032,
+          "extraInfo": { "entityId": "1036" },
+          "recommendData": { "cursorScore": 1795281555.995, "entityId": 1036, "entityType": 8 },
+          "longContentData": {
+            "id": "1034",
+            "uuid": "0000000000000000000000000000040b",
+            "title": "Captured long content",
+            "content": "Captured long content body"
+          },
+          "userBrief": { "nickname": "Long content author" },
+          "frequencyData": { "likeCnt": 56, "commentCnt": 12, "viewCnt": 4960 }
         }
       ]
     },

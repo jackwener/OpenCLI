@@ -206,6 +206,71 @@ describe('nowcoder recommend cursor pagination', () => {
         ]);
     });
 
+    it('prefers distinct numeric content and long-content IDs for detail round trips', async () => {
+        const page = pageWith([
+            envelope([
+                {
+                    contentType: 250,
+                    contentId: 1009,
+                    extraInfo: { entityId: '1009' },
+                    recommendData: { cursorScore: 20 },
+                    contentData: {
+                        id: 912885704667,
+                        uuid: '00000000000000000000000000000001',
+                        title: 'Numeric content',
+                        content: 'Content body',
+                    },
+                    userBrief: { nickname: 'Content author' },
+                    frequencyData: { likeCnt: 1, commentCnt: 2, viewCnt: 3 },
+                },
+                {
+                    contentType: 250,
+                    contentId: 1010,
+                    extraInfo: { entityId: '1010' },
+                    recommendData: { cursorScore: 19 },
+                    longContentData: {
+                        id: '912885704668',
+                        uuid: '00000000000000000000000000000002',
+                        title: 'Numeric long content',
+                        content: 'Long content body',
+                    },
+                    userBrief: { nickname: 'Long content author' },
+                    frequencyData: { likeCnt: 1, commentCnt: 2, viewCnt: 3 },
+                },
+            ]),
+        ]);
+
+        const rows = await recommend.func(page, { page: 1, limit: 2 });
+
+        expect(rows.map(row => row.id)).toEqual(['912885704667', '912885704668']);
+        expect(rows.map(row => row.url)).toEqual([
+            'https://www.nowcoder.com/discuss/912885704667',
+            'https://www.nowcoder.com/discuss/912885704668',
+        ]);
+        expect(rows[0].id).not.toBe('00000000000000000000000000000001');
+        expect(rows[1].id).not.toBe('00000000000000000000000000000002');
+    });
+
+    it('uses an outer numeric content ID before a UUID and leaves unknown IDs empty', async () => {
+        const page = pageWith([envelope([
+            {
+                contentType: 250, contentId: '123456789012',
+                extraInfo: { entityId: 'first' }, recommendData: { cursorScore: 2 },
+                contentData: { uuid: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', title: 'Outer ID' },
+            },
+            {
+                contentType: 250,
+                extraInfo: { entityId: 'second' }, recommendData: { cursorScore: 1 },
+                contentData: { uuid: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', title: 'Unknown ID' },
+            },
+        ])]);
+        const rows = await recommend.func(page, { page: 1, limit: 2 });
+        expect(rows.map(({ id, url }) => ({ id, url }))).toEqual([
+            { id: '123456789012', url: 'https://www.nowcoder.com/discuss/123456789012' },
+            { id: '', url: '' },
+        ]);
+    });
+
     it('validates page and limit before browser work', () => {
         expect(() => recommend.validateArgs({ page: 0, limit: 15 })).toThrow(ArgumentError);
         expect(() => recommend.validateArgs({ page: 1, limit: 0 })).toThrow(ArgumentError);
