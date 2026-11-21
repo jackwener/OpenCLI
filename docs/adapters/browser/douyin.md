@@ -54,6 +54,11 @@ opencli douyin publish ./video.mp4 \
   --title "春游 vlog" \
   --schedule 1775617200
 
+# 也支持基于当前时间的偏移秒（例为执行命令1天后）
+opencli douyin publish ./video.mp4 \
+  --title "春游 vlog" \
+  --schedule 86400
+
 # 更新与删除
 opencli douyin update 1234567890 --caption "更新后的文案"
 opencli douyin update 1234567890 --reschedule "2026-04-09T20:00:00+09:00"
@@ -71,7 +76,7 @@ opencli douyin profile -f json
 
 ## Notes
 
-- `publish` requires `--schedule` to be at least 2 hours later and no more than 14 days later
+- `publish` requires `--schedule` to be at least 2 hours later and no more than 14 days later. If `--schedule` is not given in command line, it is given a default value 7500, 2 hours and 5 miniutes later. 5 minutes is for uploading progress.
 - `draft` and `publish` upload the video through Douyin/ByteDance browser-authenticated APIs, so cookies in the active browser session must be valid
 - `hashtag suggest` expects a valid `cover`/`cover_uri` value produced during the publish pipeline; for normal manual use, `hashtag search` and `hashtag hot` are usually more convenient
 

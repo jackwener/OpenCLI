@@ -94,7 +94,7 @@ cli({
     args: [
         { name: 'video', required: true, positional: true, help: '视频文件路径' },
         { name: 'title', required: true, help: '视频标题（≤30字）' },
-        { name: 'schedule', required: true, help: '定时发布时间（ISO8601 或 Unix 秒，2h ~ 14天后）' },
+        { name: 'schedule', default: '7500', help: '定时发布时间（ISO8601 或 Unix 秒，或 N 秒后。 2h ~ 14天后）' },
         { name: 'caption', default: '', help: '正文内容（≤1000字，支持 #话题）' },
         { name: 'cover', default: '', help: '封面图片路径（不提供时使用视频截帧）' },
         { name: 'visibility', default: 'public', choices: ['public', 'friends', 'private'] },
