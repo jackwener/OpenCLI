@@ -25080,7 +25080,10 @@
       "comments",
       "views",
       "time",
-      "location"
+      "location",
+      "content_type",
+      "entity_type",
+      "is_anonymous"
     ],
     "type": "js",
     "modulePath": "nowcoder/detail.js",
@@ -25467,7 +25470,12 @@
       "likes",
       "comments",
       "views",
-      "time"
+      "time",
+      "company",
+      "rc_type",
+      "content_type",
+      "entity_type",
+      "is_anonymous"
     ],
     "type": "js",
     "modulePath": "nowcoder/search.js",

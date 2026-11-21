@@ -13,7 +13,7 @@
 | `opencli nowcoder creators` | Top content creators leaderboard |
 | `opencli nowcoder companies` | Hot companies for interview prep |
 | `opencli nowcoder jobs` | Career category listing |
-| `opencli nowcoder search <query>` | Search content and moment posts (type: post/all; default: post) |
+| `opencli nowcoder search <query>` | Search posts, moments, and `--type all` job cards |
 | `opencli nowcoder suggest <query>` | Search suggestions |
 | `opencli nowcoder experience` | Interview experience posts |
 | `opencli nowcoder referral` | Internal referral posts |
@@ -64,9 +64,24 @@ opencli nowcoder hot -v
 
 ## Post identity
 
-Nowcoder post feeds contain two distinct entities. `search` and `experience` identify them from the service's `contentType` discriminator and return `post_type`, a round-trippable `id`, `uuid`, `entity_id`, canonical `url`, stable author fields, and the entity's creation time.
+Search responses have two representations: direct rows for `--type post`, and
+`rc_type`-wrapped rows for `--type all`. The adapter normalizes both without
+cross-converting unsupported result types.
 
-- `content` uses a numeric `id`, `/discuss/<id>`, the content-data detail endpoint, and `createTime`.
-- `moment` uses its 32-character UUID as `id`, `/feed/main/detail/<uuid>`, the moment-data detail endpoint, and `createdAt`.
+- `post_type: content` covers content entity types 8 and 73 (regular posts and
+  blog-style articles). It uses a numeric `id`, `/discuss/<id>`, the
+  content-data detail endpoint, and `createTime`.
+- `post_type: moment` uses its 32-character UUID as `id`,
+  `/feed/main/detail/<uuid>`, the moment-data detail endpoint, and `createdAt`.
+- `post_type: job` represents a job card from an `rc_type: 213` group. Job ID,
+  title, company, and timestamp are preserved; content-only fields stay empty.
+- Company results (`rc_type: 205`) are reported as skipped in verbose mode and
+  are not converted into posts.
+
+Anonymous moments use the presentation identity from `userBrief`, which can
+legitimately differ from the underlying moment user ID. Missing author fields
+produce empty author columns rather than dropping the post. `rc_type`,
+`content_type`, `entity_type`, and `is_anonymous` preserve the source
+discriminators used to select the parser.
 
 Pass the returned `id` or `url` to `nowcoder detail`. A content UUID is metadata and is not a valid `/discuss/` identifier; a moment's numeric `entity_id` is not accepted by the moment detail endpoint.

@@ -17,7 +17,7 @@ cli({
     args: [
         { name: 'id', positional: true, required: true, help: 'Numeric content ID, moment UUID, or canonical URL' },
     ],
-    columns: ['post_type', 'id', 'uuid', 'entity_id', 'url', 'title', 'author', 'author_id', 'author_url', 'school', 'content', 'likes', 'comments', 'views', 'time', 'location'],
+    columns: ['post_type', 'id', 'uuid', 'entity_id', 'url', 'title', 'author', 'author_id', 'author_url', 'school', 'content', 'likes', 'comments', 'views', 'time', 'location', 'content_type', 'entity_type', 'is_anonymous'],
     func: async (page, args) => {
         const target = parseNowcoderPostTarget(args.id);
         const endpoint = target.post_type === 'content' ? 'content-data' : 'moment-data';
