@@ -2,10 +2,8 @@
  * Upwork job search.
  *
  * Drives the public `/nx/search/jobs/?q=` page through a real browser
- * session. The full search payload is embedded in `window.__NUXT__.state.
- * jobsSearch.{jobs, paging}` after Nuxt SSR — we read straight from that
- * global rather than DOM-scraping cards, because Upwork's card classes
- * change frequently while the state shape has been stable.
+ * Reads Nuxt search state when available and falls back to rendered job
+ * cards when Upwork changes the state shape.
  */
 
 import { cli, Strategy } from '@jackwener/opencli/registry';
@@ -60,11 +58,12 @@ cli({
         try {
             payload = unwrapBrowserResult(await page.evaluate(`(async () => {
                 const haveState = () => !!(window.__NUXT__ && window.__NUXT__.state && window.__NUXT__.state.jobsSearch);
-                let ready = haveState();
+                const cards = () => Array.from(document.querySelectorAll('article')).filter(a => a.querySelector('h2 a[href*="/jobs/"]'));
+                let ready = haveState() || cards().length > 0;
                 for (let i = 0; i < 30; i++) {
                     if (ready) break;
                     await new Promise(r => setTimeout(r, 500));
-                    ready = haveState();
+                    ready = haveState() || cards().length > 0;
                 }
                 const onLogin = /\\/(ab\\/account-security\\/login|nx\\/login)/.test(location.pathname);
                 const challenge = (document.title || '').toLowerCase().includes('just a moment') || !!document.querySelector('[id^="cf-"]');
@@ -77,6 +76,24 @@ cli({
                     jobs: state ? state.jobs : undefined,
                     paging: state && state.paging ? state.paging : null,
                     status: state ? state.status : null,
+                    cards: state && Array.isArray(state.jobs) ? null : cards().map(a => {
+                        const link = a.querySelector('h2 a[href*="/jobs/"]');
+                        const id = link?.href.match(/~0[12]\\d{15,21}/)?.[0] || '';
+                        const info = a.querySelector('[data-test="JobInfo"]')?.innerText || '';
+                        const client = a.querySelector('[data-test="JobInfoClient"]')?.innerText || '';
+                        return {
+                            id, title: link?.innerText?.trim() || '',
+                            type: /Fixed price/i.test(info) ? 'fixed' : /Hourly/i.test(info) ? 'hourly' : '',
+                            budget: (info.match(/\\$[\\d,.]+(?:\\s*-\\s*\\$[\\d,.]+)?/) || [])[0] || '',
+                            experienceLevel: (info.match(/Entry Level|Intermediate|Expert/i) || [])[0]?.toLowerCase() || '',
+                            proposalsTier: (a.querySelector('[data-test="proposals-tier"]')?.innerText || '').replace(/^Proposals:\\s*/i, '').trim(),
+                            skills: Array.from(a.querySelectorAll('[data-test="token"]')).map(t => t.innerText.trim()).filter(Boolean).join(', '),
+                            clientCountry: (client.match(/(?:Location\\s+)([^\\n]+)/i) || [])[1] || '',
+                            clientRating: null,
+                            publishedOn: '', // Rendered cards show relative time; detail provides the timestamp.
+                            url: id ? 'https://www.upwork.com/jobs/' + id : '',
+                        };
+                    }),
                 };
             })()`));
         }
@@ -91,10 +108,19 @@ cli({
             throw new CommandExecutionError('Upwork served a Cloudflare challenge page', 'Open https://www.upwork.com in the connected browser and clear the challenge, then retry.');
         }
         if (!payload?.ready) {
-            throw new CommandExecutionError('Upwork search state (window.__NUXT__.state.jobsSearch) was not present within 15s', 'The page may not have finished hydrating, or the SSR state shape may have changed.');
+            throw new CommandExecutionError('Upwork search results were not present within 15s', 'Check the logged-in browser search page and retry.');
         }
         if (!isPlainObject(payload)) {
             throw new CommandExecutionError('Upwork search returned an unexpected Browser Bridge payload shape');
+        }
+        if (Array.isArray(payload.cards)) {
+            const cards = payload.cards.slice(0, perPage);
+            if (cards.length === 0) throw new EmptyResultError('upwork search', `No Upwork jobs matched "${query}"`);
+            const offset = (pageNum - 1) * perPage;
+            return cards.map((card, index) => {
+                if (!/^~0[12]\d{15,21}$/.test(card.id)) throw new CommandExecutionError(`Upwork result at rank ${offset + index + 1} has no valid job id.`);
+                return { rank: offset + index + 1, ...card };
+            });
         }
         if (!payload.jobsPresent || !Array.isArray(payload.jobs)) {
             throw new CommandExecutionError('Upwork search state had an unexpected jobs shape; expected window.__NUXT__.state.jobsSearch.jobs to be an array.');
