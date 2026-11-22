@@ -4,10 +4,13 @@
 
 import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
 import * as fs from 'node:fs';
+import fsDefault from 'node:fs';
+import { syncBuiltinESMExports } from 'node:module';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createDirLinkSync } from '../tests/helpers/fs-links.js';
+import { PluginError } from './errors.js';
 import type { LockEntry } from './plugin.js';
 
 const testIsolation = await vi.hoisted(async () => {
@@ -95,6 +98,25 @@ function isWithin(root: string, candidate: string): boolean {
     || (relative !== '..'
       && !relative.startsWith(`..${path.sep}`)
       && !path.isAbsolute(relative));
+}
+
+function mockLstatErrorForPath(target: string, code: string) {
+  const originalLstatSync = fsDefault.lstatSync;
+  fsDefault.lstatSync = ((p: fs.PathLike, options?: fs.StatSyncOptions) => {
+    if (path.resolve(String(p)) === path.resolve(target)) {
+      throw Object.assign(new Error(`${code}: mocked lstat failure`), { code, syscall: 'lstat' });
+    }
+    return originalLstatSync(p, options);
+  }) as typeof fsDefault.lstatSync;
+  syncBuiltinESMExports();
+
+  let restored = false;
+  return () => {
+    if (restored) return;
+    restored = true;
+    fsDefault.lstatSync = originalLstatSync;
+    syncBuiltinESMExports();
+  };
 }
 
 const isolatedRoot = path.resolve(testIsolation.isolatedRoot);
@@ -562,9 +584,11 @@ describe('listPlugins', () => {
 
 describe('uninstallPlugin', () => {
   const testDir = path.join(PLUGINS_DIR, '__test-uninstall__');
+  let danglingRoot: string | undefined;
 
   afterEach(() => {
     try { fs.rmSync(testDir, { recursive: true }); } catch {}
+    if (danglingRoot) fs.rmSync(danglingRoot, { recursive: true, force: true });
   });
 
   it('removes plugin directory', () => {
@@ -589,6 +613,77 @@ describe('uninstallPlugin', () => {
 
     uninstallPlugin('__test-uninstall__');
     expect(_readLockFile()['__test-uninstall__']).toBeUndefined();
+  });
+
+  it('removes a dangling link and lock entry without deleting the moved target', () => {
+    const pluginName = '__test-uninstall-dangling__';
+    const linkPath = path.join(PLUGINS_DIR, pluginName);
+    danglingRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-dangling-uninstall-'));
+    const sourceDir = path.join(danglingRoot, 'source');
+    const movedDir = path.join(danglingRoot, 'moved-source');
+    fs.mkdirSync(sourceDir);
+    fs.writeFileSync(path.join(sourceDir, 'sentinel.txt'), 'keep me');
+    fs.mkdirSync(PLUGINS_DIR, { recursive: true });
+    createDirLinkSync(sourceDir, linkPath);
+    fs.renameSync(sourceDir, movedDir);
+
+    const lock = _readLockFile();
+    lock[pluginName] = {
+      source: { kind: 'local', path: sourceDir },
+      commitHash: 'local',
+      installedAt: '2025-01-01T00:00:00.000Z',
+    };
+    _writeLockFile(lock);
+
+    expect(fs.existsSync(linkPath)).toBe(false);
+    expect(fs.lstatSync(linkPath).isSymbolicLink()).toBe(true);
+
+    uninstallPlugin(pluginName);
+
+    expect(() => fs.lstatSync(linkPath)).toThrow();
+    expect(_readLockFile()[pluginName]).toBeUndefined();
+    expect(fs.readFileSync(path.join(movedDir, 'sentinel.txt'), 'utf-8')).toBe('keep me');
+  });
+
+  it('propagates access errors without modifying the link or lock entry', () => {
+    const pluginName = '__test-uninstall-access-error__';
+    const linkPath = path.join(PLUGINS_DIR, pluginName);
+    danglingRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-uninstall-access-error-'));
+    const sourceDir = path.join(danglingRoot, 'source');
+    fs.mkdirSync(sourceDir);
+    fs.mkdirSync(PLUGINS_DIR, { recursive: true });
+    createDirLinkSync(sourceDir, linkPath);
+
+    const lockEntry: LockEntry = {
+      source: { kind: 'local', path: sourceDir },
+      commitHash: 'local',
+      installedAt: '2025-01-01T00:00:00.000Z',
+    };
+    const lock = _readLockFile();
+    lock[pluginName] = lockEntry;
+    _writeLockFile(lock);
+    const restoreLstat = mockLstatErrorForPath(linkPath, 'EACCES');
+
+    try {
+      let error: unknown;
+      try {
+        uninstallPlugin(pluginName);
+      } catch (caught) {
+        error = caught;
+      } finally {
+        restoreLstat();
+      }
+
+      expect((error as NodeJS.ErrnoException).code).toBe('EACCES');
+      expect(fs.lstatSync(linkPath).isSymbolicLink()).toBe(true);
+      expect(_readLockFile()[pluginName]).toEqual(lockEntry);
+    } finally {
+      restoreLstat();
+      try { fs.unlinkSync(linkPath); } catch {}
+      const finalLock = _readLockFile();
+      delete finalLock[pluginName];
+      _writeLockFile(finalLock);
+    }
   });
 
   it('throws for non-existent plugin', () => {
@@ -638,6 +733,93 @@ describe('updatePlugin', () => {
     const finalLock = _readLockFile();
     delete finalLock['__test-local-update__'];
     _writeLockFile(finalLock);
+  });
+
+  it('keeps a dangling local link and metadata when its source is missing', () => {
+    const pluginName = '__test-local-update-missing__';
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-local-update-missing-'));
+    const sourceDir = path.join(root, 'source');
+    const movedDir = path.join(root, 'moved-source');
+    const linkPath = path.join(PLUGINS_DIR, pluginName);
+    const lockEntry: LockEntry = {
+      source: { kind: 'local', path: sourceDir },
+      commitHash: 'local',
+      installedAt: '2025-01-01T00:00:00.000Z',
+      updatedAt: '2025-02-01T00:00:00.000Z',
+    };
+
+    fs.mkdirSync(sourceDir);
+    fs.writeFileSync(path.join(sourceDir, 'sentinel.txt'), 'keep me');
+    fs.mkdirSync(PLUGINS_DIR, { recursive: true });
+    createDirLinkSync(sourceDir, linkPath);
+    const lock = _readLockFile();
+    lock[pluginName] = lockEntry;
+    _writeLockFile(lock);
+    fs.renameSync(sourceDir, movedDir);
+
+    try {
+      let error: unknown;
+      try {
+        updatePlugin(pluginName);
+      } catch (caught) {
+        error = caught;
+      }
+
+      expect(error).toBeInstanceOf(PluginError);
+      expect((error as PluginError).message).toContain(sourceDir);
+      expect((error as PluginError).hint).toMatch(new RegExp(`uninstall ${pluginName}.*reinstall`, 'i'));
+      expect(fs.lstatSync(linkPath).isSymbolicLink()).toBe(true);
+      expect(_readLockFile()[pluginName]).toEqual(lockEntry);
+      expect(fs.readFileSync(path.join(movedDir, 'sentinel.txt'), 'utf-8')).toBe('keep me');
+    } finally {
+      try { fs.unlinkSync(linkPath); } catch {}
+      fs.rmSync(root, { recursive: true, force: true });
+      const finalLock = _readLockFile();
+      delete finalLock[pluginName];
+      _writeLockFile(finalLock);
+    }
+  });
+
+  it('propagates update access errors without modifying the link or metadata', () => {
+    const pluginName = '__test-local-update-access-error__';
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-local-update-access-error-'));
+    const sourceDir = path.join(root, 'source');
+    const linkPath = path.join(PLUGINS_DIR, pluginName);
+    const lockEntry: LockEntry = {
+      source: { kind: 'local', path: sourceDir },
+      commitHash: 'local',
+      installedAt: '2025-01-01T00:00:00.000Z',
+    };
+
+    fs.mkdirSync(sourceDir);
+    fs.mkdirSync(PLUGINS_DIR, { recursive: true });
+    createDirLinkSync(sourceDir, linkPath);
+    const lock = _readLockFile();
+    lock[pluginName] = lockEntry;
+    _writeLockFile(lock);
+    const restoreLstat = mockLstatErrorForPath(linkPath, 'EPERM');
+
+    try {
+      let error: unknown;
+      try {
+        updatePlugin(pluginName);
+      } catch (caught) {
+        error = caught;
+      } finally {
+        restoreLstat();
+      }
+
+      expect((error as NodeJS.ErrnoException).code).toBe('EPERM');
+      expect(fs.lstatSync(linkPath).isSymbolicLink()).toBe(true);
+      expect(_readLockFile()[pluginName]).toEqual(lockEntry);
+    } finally {
+      restoreLstat();
+      try { fs.unlinkSync(linkPath); } catch {}
+      fs.rmSync(root, { recursive: true, force: true });
+      const finalLock = _readLockFile();
+      delete finalLock[pluginName];
+      _writeLockFile(finalLock);
+    }
   });
 });
 
@@ -1055,6 +1237,27 @@ describe('installLocalPlugin', () => {
   it('throws for non-existent path', () => {
     expect(() => _installLocalPlugin('/does/not/exist', 'x')).toThrow('does not exist');
   });
+
+  it('reports an existing dangling entry instead of attempting to replace it', () => {
+    const linkPath = path.join(PLUGINS_DIR, pluginName);
+    const danglingTarget = path.join(tmpDir, 'dangling-target');
+    fs.mkdirSync(danglingTarget);
+    fs.mkdirSync(PLUGINS_DIR, { recursive: true });
+    createDirLinkSync(danglingTarget, linkPath);
+    fs.rmSync(danglingTarget, { recursive: true, force: true });
+
+    let error: unknown;
+    try {
+      _installLocalPlugin(tmpDir, pluginName);
+    } catch (caught) {
+      error = caught;
+    }
+
+    expect(error).toBeInstanceOf(PluginError);
+    expect((error as PluginError).message).toContain('already installed');
+    expect((error as PluginError).hint).toContain('opencli plugin uninstall');
+    expect(fs.lstatSync(linkPath).isSymbolicLink()).toBe(true);
+  });
 });
 
 describe('isLocalPluginSource', () => {
@@ -1433,6 +1636,66 @@ describe('updatePlugin transactional staging', () => {
       kind: 'monorepo',
       subPath: 'packages/moved-alpha',
     });
+  });
+
+  it('repairs a dangling monorepo link through the staged update flow', () => {
+    const oldSubDir = path.join(monorepoRepoDir, 'packages', 'old-alpha');
+    const movedRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-dangling-mono-update-'));
+    const movedSubDir = path.join(movedRoot, 'old-alpha');
+    fs.mkdirSync(oldSubDir, { recursive: true });
+    fs.writeFileSync(path.join(oldSubDir, 'sentinel.txt'), 'keep me');
+    fs.mkdirSync(PLUGINS_DIR, { recursive: true });
+    createDirLinkSync(oldSubDir, monorepoLink);
+    fs.renameSync(oldSubDir, movedSubDir);
+
+    const lock = _readLockFile();
+    lock[monorepoPluginName] = {
+      source: {
+        kind: 'monorepo',
+        url: 'https://github.com/user/opencli-plugins-__test-transactional-mono-update__.git',
+        repoName: monorepoName,
+        subPath: 'packages/old-alpha',
+      },
+      commitHash: 'oldmonooldmonooldmonooldmonooldmonoold',
+      installedAt: '2025-01-01T00:00:00.000Z',
+    };
+    _writeLockFile(lock);
+
+    mockExecFileSync.mockImplementation((cmd, args) => {
+      if (cmd === 'git' && Array.isArray(args) && args[0] === 'clone') {
+        const cloneDir = String(args[4]);
+        const movedDir = path.join(cloneDir, 'packages', 'moved-alpha');
+        fs.mkdirSync(movedDir, { recursive: true });
+        fs.writeFileSync(path.join(cloneDir, 'opencli-plugin.json'), JSON.stringify({
+          plugins: {
+            [monorepoPluginName]: { path: 'packages/moved-alpha' },
+          },
+        }));
+        fs.writeFileSync(path.join(movedDir, 'hello.js'), 'cli({ site: "test", name: "hello", access: "read" })');
+        return '';
+      }
+      if (cmd === 'git' && Array.isArray(args) && args[0] === 'rev-parse' && args[1] === 'HEAD') {
+        return '1234567890abcdef1234567890abcdef12345678\n';
+      }
+      return '';
+    });
+
+    try {
+      expect(fs.existsSync(monorepoLink)).toBe(false);
+      expect(fs.lstatSync(monorepoLink).isSymbolicLink()).toBe(true);
+
+      updatePlugin(monorepoPluginName);
+
+      const expectedTarget = path.join(monorepoRepoDir, 'packages', 'moved-alpha');
+      expect(fs.realpathSync(monorepoLink)).toBe(fs.realpathSync(expectedTarget));
+      expect(_readLockFile()[monorepoPluginName]?.source).toMatchObject({
+        kind: 'monorepo',
+        subPath: 'packages/moved-alpha',
+      });
+      expect(fs.readFileSync(path.join(movedSubDir, 'sentinel.txt'), 'utf-8')).toBe('keep me');
+    } finally {
+      fs.rmSync(movedRoot, { recursive: true, force: true });
+    }
   });
 
   it('rejects monorepo updates whose manifest path escapes the repo root', () => {
