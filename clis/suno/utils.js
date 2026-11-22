@@ -17,6 +17,7 @@
  */
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import * as os from 'node:os';
 import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError, TimeoutError } from '@jackwener/opencli/errors';
 
 export const SUNO_DOMAIN = 'suno.com';
@@ -49,9 +50,9 @@ export function parseFormats(value) {
 
 export function resolveSunoOutputDir(value) {
     const raw = String(value || '').trim();
-    if (!raw) return path.join(process.env.HOME || '~', 'Music', 'suno');
-    if (raw === '~') return process.env.HOME || '~';
-    if (raw.startsWith('~/')) return path.join(process.env.HOME || '~', raw.slice(2));
+    if (!raw) return path.join(os.homedir(), 'Music', 'suno');
+    if (raw === '~') return os.homedir();
+    if (raw.startsWith('~/')) return path.join(os.homedir(), raw.slice(2));
     return path.resolve(raw);
 }
 
