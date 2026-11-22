@@ -103,6 +103,7 @@ describe('twitter reply command', () => {
                 image: imagePath,
             },
         ]);
+        fs.rmSync(tempDir, { recursive: true, force: true });
     });
     it('downloads a remote image before uploading when --image-url is provided', async () => {
         const cmd = getRegistry().get('twitter/reply');
@@ -134,7 +135,8 @@ describe('twitter reply command', () => {
         const uploadedPath = setFileInput.mock.calls[0][0][0];
         // Tmp dir is created by utils.downloadRemoteImage with the
         // 'opencli-twitter-' prefix; final extension comes from Content-Type.
-        expect(uploadedPath).toMatch(/opencli-twitter-.*\/image\.png$/);
+        expect(path.basename(path.dirname(uploadedPath))).toMatch(/^opencli-twitter-/);
+        expect(path.basename(uploadedPath)).toBe('image.png');
         // Per-call tmp dir is removed in the adapter's finally block, so the
         // downloaded file no longer exists once the command returns.
         expect(fs.existsSync(uploadedPath)).toBe(false);
@@ -328,7 +330,7 @@ describe('twitter reply command', () => {
         await expect(cmd.func(page, {
             url: 'https://x.com/_kop6/status/2040254679301718161?s=20',
             text: 'nope',
-            image: '/tmp/a.png',
+            image: path.join(os.tmpdir(), `opencli-twitter-missing-${process.pid}.png`),
             'image-url': 'https://example.com/a.png',
         })).rejects.toThrow(CommandExecutionError);
     });
@@ -350,7 +352,7 @@ describe('twitter reply command', () => {
 
 describe('twitter image helpers (utils.js)', () => {
     it('rejects invalid image paths early', () => {
-        expect(() => utilsTest.resolveImagePath('/tmp/does-not-exist.png'))
+        expect(() => utilsTest.resolveImagePath(path.join(os.tmpdir(), `opencli-twitter-does-not-exist-${process.pid}.png`)))
             .toThrow(ArgumentError);
     });
     it('prefers content-type when resolving remote image extensions', () => {

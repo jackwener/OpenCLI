@@ -1,9 +1,15 @@
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
 import { __test__ } from './bookmarks.js';
 
 const { parseBookmarks, extractBookmarkTweet } = __test__;
+
+function tempFilePath(prefix, extension) {
+    return path.join(os.tmpdir(), `${prefix}-${process.pid}-${Date.now()}.${extension}`);
+}
 
 describe('twitter bookmarks parser', () => {
     it('extracts a baseline tweet with no media (has_media false, media_urls empty)', () => {
@@ -259,8 +265,8 @@ function bookmarksPayload(withBottomCursor = false) {
 describe('twitter bookmarks command', () => {
     it('keeps resume state and reports complete=false when --max-pages stops early', async () => {
         const command = getRegistry().get('twitter/bookmarks');
-        const resumeFile = `/tmp/opencli-bookmarks-resume-${process.pid}-${Date.now()}.json`;
-        const outputFile = `/tmp/opencli-bookmarks-out-${process.pid}-${Date.now()}.jsonl`;
+        const resumeFile = tempFilePath('opencli-bookmarks-resume', 'json');
+        const outputFile = tempFilePath('opencli-bookmarks-out', 'jsonl');
         const page = {
             getCookies: vi.fn(async () => [{ name: 'ct0', value: 'token' }]),
             evaluate: vi.fn(async (script) => {
@@ -307,8 +313,8 @@ describe('twitter bookmarks command', () => {
 
     it('removes resume file only after the bookmarks timeline is exhausted', async () => {
         const command = getRegistry().get('twitter/bookmarks');
-        const resumeFile = `/tmp/opencli-bookmarks-resume-done-${process.pid}-${Date.now()}.json`;
-        const outputFile = `/tmp/opencli-bookmarks-out-done-${process.pid}-${Date.now()}.jsonl`;
+        const resumeFile = tempFilePath('opencli-bookmarks-resume-done', 'json');
+        const outputFile = tempFilePath('opencli-bookmarks-out-done', 'jsonl');
         const page = {
             getCookies: vi.fn(async () => [{ name: 'ct0', value: 'token' }]),
             evaluate: vi.fn(async (script) => {
@@ -346,8 +352,8 @@ describe('twitter bookmarks command', () => {
 
     it('treats empty bookmarks page with repeated cursor as timeline exhaustion', async () => {
         const command = getRegistry().get('twitter/bookmarks');
-        const resumeFile = `/tmp/opencli-bookmarks-resume-rep-${process.pid}-${Date.now()}.json`;
-        const outputFile = `/tmp/opencli-bookmarks-out-rep-${process.pid}-${Date.now()}.jsonl`;
+        const resumeFile = tempFilePath('opencli-bookmarks-resume-rep', 'json');
+        const outputFile = tempFilePath('opencli-bookmarks-out-rep', 'jsonl');
         fs.writeFileSync(resumeFile, JSON.stringify({
             cursor: 'END_CURSOR',
             count: 5,
@@ -430,14 +436,16 @@ describe('twitter bookmarks archive safety', () => {
     it('rejects --resume-file without --all before touching the browser', async () => {
         const command = getRegistry().get('twitter/bookmarks');
         const page = { getCookies: vi.fn(), evaluate: vi.fn() };
-        await expect(command.func(page, { 'resume-file': '/tmp/resume.json' }))
+        await expect(command.func(page, {
+            'resume-file': tempFilePath('opencli-bookmarks-invalid-resume', 'json'),
+        }))
             .rejects.toThrow(/--resume-file requires --all/);
         expect(page.getCookies).not.toHaveBeenCalled();
     });
 
     it('refuses to overwrite an existing output file without matching resume state', async () => {
         const command = getRegistry().get('twitter/bookmarks');
-        const outputFile = `/tmp/opencli-bookmarks-existing-${process.pid}-${Date.now()}.jsonl`;
+        const outputFile = tempFilePath('opencli-bookmarks-existing', 'jsonl');
         const resumeFile = `${outputFile}.resume.json`;
         fs.writeFileSync(outputFile, 'user-owned\n');
         try {
@@ -455,7 +463,9 @@ describe('twitter bookmarks archive safety', () => {
     });
 
     it('rejects cross-source and cross-output resume state', () => {
-        const resumeFile = `/tmp/opencli-bookmarks-mismatch-${process.pid}-${Date.now()}.json`;
+        const resumeFile = tempFilePath('opencli-bookmarks-mismatch', 'json');
+        const otherOutputFile = tempFilePath('opencli-bookmarks-other-output', 'jsonl');
+        const wantedOutputFile = tempFilePath('opencli-bookmarks-wanted-output', 'jsonl');
         try {
             fs.writeFileSync(resumeFile, JSON.stringify({
                 cursor: 'NEXT',
@@ -474,11 +484,11 @@ describe('twitter bookmarks archive safety', () => {
                 count: 0,
                 complete: false,
                 source: 'bookmarks',
-                outputFile: '/tmp/other.jsonl',
+                outputFile: otherOutputFile,
             }));
             expect(() => __test__.readResumeFile(resumeFile, {
                 source: 'bookmarks',
-                outputFile: '/tmp/wanted.jsonl',
+                outputFile: wantedOutputFile,
             })).toThrow(/output mismatch/);
         }
         finally {
@@ -488,7 +498,7 @@ describe('twitter bookmarks archive safety', () => {
 
     it('rejects output files whose JSONL record count differs from resume state', async () => {
         const command = getRegistry().get('twitter/bookmarks');
-        const outputFile = `/tmp/opencli-bookmarks-count-mismatch-${process.pid}-${Date.now()}.jsonl`;
+        const outputFile = tempFilePath('opencli-bookmarks-count-mismatch', 'jsonl');
         const resumeFile = `${outputFile}.resume.json`;
         fs.writeFileSync(outputFile, '{"id":"1"}\n{"id":"2"}\n');
         fs.writeFileSync(resumeFile, JSON.stringify({
@@ -513,7 +523,7 @@ describe('twitter bookmarks archive safety', () => {
 
     it('throws for an incomplete in-memory --all run while retaining resume state', async () => {
         const command = getRegistry().get('twitter/bookmarks');
-        const resumeFile = `/tmp/opencli-bookmarks-memory-${process.pid}-${Date.now()}.json`;
+        const resumeFile = tempFilePath('opencli-bookmarks-memory', 'json');
         try {
             await expect(command.func(pageFor(bookmarksPayload(true)), {
                 all: true,

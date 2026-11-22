@@ -127,7 +127,8 @@ describe('twitter quote command', () => {
         expect(fetchMock).toHaveBeenCalledWith('https://example.com/banner');
         expect(setFileInput).toHaveBeenCalledTimes(1);
         const uploadedPath = setFileInput.mock.calls[0][0][0];
-        expect(uploadedPath).toMatch(/opencli-twitter-.*\/image\.png$/);
+        expect(path.basename(path.dirname(uploadedPath))).toMatch(/^opencli-twitter-/);
+        expect(path.basename(uploadedPath)).toBe('image.png');
         // Per-call tmp dir is removed in the adapter's finally block.
         expect(fs.existsSync(uploadedPath)).toBe(false);
         expect(result).toEqual([
@@ -147,7 +148,7 @@ describe('twitter quote command', () => {
         await expect(cmd.func(page, {
             url: 'https://x.com/alice/status/2040254679301718161',
             text: 'nope',
-            image: '/tmp/a.png',
+            image: path.join(os.tmpdir(), `opencli-twitter-missing-${process.pid}.png`),
             'image-url': 'https://example.com/a.png',
         })).rejects.toThrow(CommandExecutionError);
     });

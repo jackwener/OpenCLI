@@ -1,3 +1,4 @@
+import os from 'node:os';
 import path from 'node:path';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
@@ -35,8 +36,8 @@ await import('./download.js');
 
 let cmd;
 
-function toPosixPath(value) {
-    return value.replaceAll(path.sep, '/');
+function createTempOutputDir(label) {
+    return path.join(os.tmpdir(), `${label}-${process.pid}-${Date.now()}`);
 }
 
 beforeAll(() => {
@@ -67,19 +68,21 @@ describe('xiaoyuzhou download', () => {
             },
         });
         mockHttpDownload.mockResolvedValue({ success: true, size: 1234 });
+        const outputDir = createTempOutputDir('opencli-xiaoyuzhou-audio');
 
         const result = await cmd.func({
             id: 'ep123',
-            output: '/tmp/xiaoyuzhou-test',
+            output: outputDir,
         });
 
         expect(mockRequestJson).toHaveBeenCalledWith('/v1/episode/get', {
             query: { eid: 'ep123' },
             credentials: {},
         });
-        expect(toPosixPath(mockMkdirSync.mock.calls[0][0])).toBe('/tmp/xiaoyuzhou-test/ep123');
+        const expectedFilePath = path.join(outputDir, 'ep123', 'ep123_Hello_World.mp3');
+        expect(mockMkdirSync).toHaveBeenCalledWith(path.join(outputDir, 'ep123'), { recursive: true });
         expect(mockMkdirSync.mock.calls[0][1]).toEqual({ recursive: true });
-        expect(mockHttpDownload).toHaveBeenCalledWith('https://media.xyzcdn.net/audio/hello-world.mp3?sign=abc', expect.stringContaining('/tmp/xiaoyuzhou-test/ep123/ep123_Hello_World.mp3'), {
+        expect(mockHttpDownload).toHaveBeenCalledWith('https://media.xyzcdn.net/audio/hello-world.mp3?sign=abc', expectedFilePath, {
             timeout: 60000,
         });
         expect(result).toEqual([{
@@ -87,7 +90,7 @@ describe('xiaoyuzhou download', () => {
                 podcast: 'OpenCLI FM',
                 status: 'success',
                 size: '1234 B',
-                file: '/tmp/xiaoyuzhou-test/ep123/ep123_Hello_World.mp3',
+                file: expectedFilePath,
             }]);
     });
 
@@ -105,14 +108,16 @@ describe('xiaoyuzhou download', () => {
             },
         });
         mockHttpDownload.mockResolvedValue({ success: true, size: 2048 });
+        const outputDir = createTempOutputDir('opencli-xiaoyuzhou-lossless');
 
         const result = await cmd.func({
             id: 'ep456',
-            output: '/tmp/xiaoyuzhou-test',
+            output: outputDir,
         });
 
-        expect(mockHttpDownload.mock.calls[0][1]).toContain('ep456_Lossless_Episode.m4a');
-        expect(result[0].file).toBe('/tmp/xiaoyuzhou-test/ep456/ep456_Lossless_Episode.m4a');
+        const expectedFilePath = path.join(outputDir, 'ep456', 'ep456_Lossless_Episode.m4a');
+        expect(mockHttpDownload.mock.calls[0][1]).toBe(expectedFilePath);
+        expect(result[0].file).toBe(expectedFilePath);
     });
 
     it('throws when media.source.url is missing', async () => {
@@ -125,7 +130,7 @@ describe('xiaoyuzhou download', () => {
             },
         });
 
-        await expect(cmd.func({ id: 'ep789', output: '/tmp/xiaoyuzhou-test' })).rejects.toMatchObject({
+        await expect(cmd.func({ id: 'ep789', output: createTempOutputDir('opencli-xiaoyuzhou-missing') })).rejects.toMatchObject({
             code: 'PARSE_ERROR',
             message: 'Audio URL not found in episode payload',
             hint: 'Episode payload does not expose media.source.url',

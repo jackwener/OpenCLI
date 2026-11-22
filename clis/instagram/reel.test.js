@@ -102,8 +102,18 @@ describe('instagram reel registration', () => {
             },
         ]);
     });
-    it('copies query-style local video filenames to a safe temp upload path before setFileInput', async () => {
-        const videoPath = createTempVideo('demo.mp4?sign=abc&t=123video.MP4');
+    it.each([
+        'demo 视频-sign=abc&t=123video.MP4',
+        ...(process.platform === 'win32' ? [] : ['demo.mp4?sign=abc&t=123video.MP4']),
+    ])('copies unsafe local video filename %s to a safe temp upload path before setFileInput', async (filename) => {
+        const sourceBytes = Buffer.from('query-like video');
+        const videoPath = createTempVideo(filename, sourceBytes);
+        const setFileInput = vi.fn(async ([uploadPath]) => {
+            expect(uploadPath).not.toBe(videoPath);
+            expect(path.dirname(uploadPath)).toBe(os.tmpdir());
+            expect(path.basename(uploadPath)).toMatch(/^opencli-instagram-video-real\.mp4$/i);
+            expect(fs.readFileSync(uploadPath)).toEqual(sourceBytes);
+        });
         const page = createPageMock([
             { ok: false },
             { ok: true },
@@ -118,14 +128,13 @@ describe('instagram reel registration', () => {
             { state: 'composer' },
             { ok: true, label: 'Share' },
             { ok: true, url: 'https://www.instagram.com/reel/REELSAFE123/' },
-        ]);
+        ], { setFileInput });
         const cmd = getRegistry().get('instagram/reel');
         await cmd.func(page, { video: videoPath });
         const uploadPaths = page.setFileInput.mock.calls[0]?.[0] ?? [];
         expect(uploadPaths).toHaveLength(1);
-        expect(uploadPaths[0]).not.toBe(videoPath);
-        expect(String(uploadPaths[0])).toContain('opencli-instagram-video-real');
-        expect(String(uploadPaths[0]).toLowerCase()).toContain('.mp4');
+        expect(fs.existsSync(uploadPaths[0])).toBe(false);
+        expect(fs.existsSync(videoPath)).toBe(true);
     });
     it('uploads a reel video with caption and shares it', async () => {
         const videoPath = createTempVideo('captioned.mp4');

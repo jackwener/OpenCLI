@@ -1,8 +1,14 @@
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
 
 import { __test__ } from './likes.js';
+
+function tempFilePath(prefix, extension) {
+    return path.join(os.tmpdir(), `${prefix}-${process.pid}-${Date.now()}.${extension}`);
+}
 
 function likesPayload() {
     return {
@@ -147,14 +153,17 @@ describe('twitter likes archive safety', () => {
     it('rejects --resume-file without --all before touching the browser', async () => {
         const command = getRegistry().get('twitter/likes');
         const page = { getCookies: vi.fn(), evaluate: vi.fn() };
-        await expect(command.func(page, { username: 'viewer', 'resume-file': '/tmp/resume.json' }))
+        await expect(command.func(page, {
+            username: 'viewer',
+            'resume-file': tempFilePath('opencli-likes-invalid-resume', 'json'),
+        }))
             .rejects.toThrow(/--resume-file requires --all/);
         expect(page.getCookies).not.toHaveBeenCalled();
     });
 
     it('refuses to overwrite an existing output file without matching resume state', async () => {
         const command = getRegistry().get('twitter/likes');
-        const outputFile = `/tmp/opencli-likes-existing-${process.pid}-${Date.now()}.jsonl`;
+        const outputFile = tempFilePath('opencli-likes-existing', 'jsonl');
         const resumeFile = `${outputFile}.resume.json`;
         fs.writeFileSync(outputFile, 'user-owned\n');
         try {
@@ -173,7 +182,7 @@ describe('twitter likes archive safety', () => {
     });
 
     it('rejects cross-source and malformed resume state instead of silently restarting', () => {
-        const resumeFile = `/tmp/opencli-likes-mismatch-${process.pid}-${Date.now()}.json`;
+        const resumeFile = tempFilePath('opencli-likes-mismatch', 'json');
         try {
             fs.writeFileSync(resumeFile, JSON.stringify({
                 cursor: 'NEXT',
@@ -199,7 +208,7 @@ describe('twitter likes archive safety', () => {
 
     it('rejects output files whose JSONL record count differs from resume state', async () => {
         const command = getRegistry().get('twitter/likes');
-        const outputFile = `/tmp/opencli-likes-count-mismatch-${process.pid}-${Date.now()}.jsonl`;
+        const outputFile = tempFilePath('opencli-likes-count-mismatch', 'jsonl');
         const resumeFile = `${outputFile}.resume.json`;
         fs.writeFileSync(outputFile, '{"id":"1"}\n{"id":"2"}\n');
         fs.writeFileSync(resumeFile, JSON.stringify({
@@ -226,7 +235,7 @@ describe('twitter likes archive safety', () => {
 
     it('throws for an incomplete in-memory --all run while retaining resume state', async () => {
         const command = getRegistry().get('twitter/likes');
-        const resumeFile = `/tmp/opencli-likes-memory-${process.pid}-${Date.now()}.json`;
+        const resumeFile = tempFilePath('opencli-likes-memory', 'json');
         const payload = likesPayload();
         payload.data.user.result.timeline_v2.timeline.instructions[0].entries.push({
             entryId: 'cursor-bottom-1',
@@ -261,8 +270,8 @@ describe('twitter likes archive safety', () => {
 describe('twitter likes command', () => {
     it('keeps resume state and reports complete=false when --max-pages stops early', async () => {
         const command = getRegistry().get('twitter/likes');
-        const resumeFile = `/tmp/opencli-likes-resume-${process.pid}-${Date.now()}.json`;
-        const outputFile = `/tmp/opencli-likes-out-${process.pid}-${Date.now()}.jsonl`;
+        const resumeFile = tempFilePath('opencli-likes-resume', 'json');
+        const outputFile = tempFilePath('opencli-likes-out', 'jsonl');
         const page = {
             goto: vi.fn().mockResolvedValue(undefined),
             wait: vi.fn().mockResolvedValue(undefined),
@@ -331,8 +340,8 @@ describe('twitter likes command', () => {
 
     it('removes resume file only after the likes timeline is exhausted', async () => {
         const command = getRegistry().get('twitter/likes');
-        const resumeFile = `/tmp/opencli-likes-resume-done-${process.pid}-${Date.now()}.json`;
-        const outputFile = `/tmp/opencli-likes-out-done-${process.pid}-${Date.now()}.jsonl`;
+        const resumeFile = tempFilePath('opencli-likes-resume-done', 'json');
+        const outputFile = tempFilePath('opencli-likes-out-done', 'jsonl');
         const page = {
             goto: vi.fn().mockResolvedValue(undefined),
             wait: vi.fn().mockResolvedValue(undefined),
