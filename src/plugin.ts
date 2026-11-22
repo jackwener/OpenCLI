@@ -265,8 +265,10 @@ function pathExistsSync(p: string): boolean {
   try {
     fs.lstatSync(p);
     return true;
-  } catch {
-    return false;
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === 'ENOENT' || code === 'ENOTDIR') return false;
+    throw err;
   }
 }
 
@@ -800,7 +802,7 @@ function installLocalPlugin(localPath: string, name: string): string {
   const pluginName = manifest?.name ?? name;
   const targetDir = managedPluginPath(PLUGINS_DIR, pluginName);
 
-  if (fs.existsSync(targetDir)) {
+  if (pathExistsSync(targetDir)) {
     throw new PluginError(`Plugin "${pluginName}" is already installed at ${targetDir}`, 'Use "opencli plugin uninstall" first, or pick a different name.');
   }
 
@@ -835,7 +837,20 @@ function updateLocalPlugin(
   lock: Record<string, LockEntry>,
   lockEntry?: LockEntry,
 ): void {
-  const pluginDir = fs.realpathSync(targetDir);
+  let pluginDir: string;
+  try {
+    pluginDir = fs.realpathSync(targetDir);
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code !== 'ENOENT' && code !== 'ENOTDIR') {
+      throw err;
+    }
+    const sourcePath = lockEntry?.source.kind === 'local' ? lockEntry.source.path : targetDir;
+    throw new PluginError(
+      `Local plugin "${name}" source is missing: ${sourcePath}`,
+      `Restore the source directory, or run "opencli plugin uninstall ${name}" and reinstall the plugin.`,
+    );
+  }
 
   const validation = validatePluginStructure(pluginDir);
   if (!validation.valid) {
@@ -1064,7 +1079,7 @@ function updateStandaloneLockEntry(
  */
 export function uninstallPlugin(name: string): void {
   const targetDir = managedPluginPath(PLUGINS_DIR, name);
-  if (!fs.existsSync(targetDir)) {
+  if (!pathExistsSync(targetDir)) {
     throw new Error(`Plugin "${name}" is not installed.`);
   }
 
@@ -1118,7 +1133,7 @@ function isSymlinkSync(p: string): boolean {
  */
 export function updatePlugin(name: string): void {
   const targetDir = managedPluginPath(PLUGINS_DIR, name);
-  if (!fs.existsSync(targetDir)) {
+  if (!pathExistsSync(targetDir)) {
     throw new Error(`Plugin "${name}" is not installed.`);
   }
 

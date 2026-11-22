@@ -1,7 +1,7 @@
 import dns from 'node:dns';
 import { createServer, type Server } from 'node:http';
 import { createServer as createTcpServer, type AddressInfo } from 'node:net';
-import type { Dispatcher } from 'undici';
+import { fetch as undiciFetch, type Dispatcher } from 'undici';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { fetchWithNodeNetwork, getNetworkDispatcher } from './node-network.js';
 
@@ -38,10 +38,7 @@ function configure(env: NodeJS.ProcessEnv): void {
   lookups.length = 0;
 }
 
-async function probe(url: string, env: NodeJS.ProcessEnv, expected: 'first' | 'second' | 'direct'): Promise<void> {
-  configure(env);
-  dispatchers.add(getNetworkDispatcher());
-  await expect(fetchWithNodeNetwork(url, { signal: AbortSignal.timeout(2000) })).rejects.toThrow();
+function assertRoute(url: string, expected: 'first' | 'second' | 'direct'): void {
   const target = new URL(url);
   if (expected === 'direct') {
     expect(connections).toEqual([]);
@@ -50,6 +47,33 @@ async function probe(url: string, env: NodeJS.ProcessEnv, expected: 'first' | 's
     expect(connections).toEqual([`${expected}:${target.hostname}:${target.port || (target.protocol === 'https:' ? '443' : '80')}`]);
     expect(lookups).toEqual([]);
   }
+}
+
+async function probeWithProcessEnv(
+  url: string,
+  env: NodeJS.ProcessEnv,
+  expected: 'first' | 'second' | 'direct',
+): Promise<void> {
+  configure(env);
+  dispatchers.add(getNetworkDispatcher());
+  await expect(fetchWithNodeNetwork(url, { signal: AbortSignal.timeout(2000) })).rejects.toThrow();
+  assertRoute(url, expected);
+}
+
+async function probeWithInjectedEnv(
+  url: string,
+  env: NodeJS.ProcessEnv,
+  expected: 'first' | 'second' | 'direct',
+): Promise<void> {
+  connections.length = 0;
+  lookups.length = 0;
+  const dispatcher = getNetworkDispatcher(env);
+  dispatchers.add(dispatcher);
+  await expect(undiciFetch(url, {
+    dispatcher,
+    signal: AbortSignal.timeout(2000),
+  })).rejects.toThrow();
+  assertRoute(url, expected);
 }
 
 beforeAll(async () => {
@@ -80,11 +104,11 @@ afterAll(async () => {
 
 describe('production node network routing', () => {
   it('uses protocol-specific proxies and HTTP/ALL_PROXY fallbacks', async () => {
-    await probe('http://api.opencli.test', { HTTP_PROXY: first, HTTPS_PROXY: second }, 'first');
-    await probe('https://api.opencli.test', { HTTP_PROXY: first, HTTPS_PROXY: second }, 'second');
-    await probe('https://api.opencli.test', { HTTP_PROXY: first }, 'first');
+    await probeWithProcessEnv('http://api.opencli.test', { HTTP_PROXY: first, HTTPS_PROXY: second }, 'first');
+    await probeWithProcessEnv('https://api.opencli.test', { HTTP_PROXY: first, HTTPS_PROXY: second }, 'second');
+    await probeWithProcessEnv('https://api.opencli.test', { HTTP_PROXY: first }, 'first');
     for (const protocol of ['http', 'https']) {
-      await probe(`${protocol}://api.opencli.test`, { ALL_PROXY: second }, 'second');
+      await probeWithProcessEnv(`${protocol}://api.opencli.test`, { ALL_PROXY: second }, 'second');
     }
   });
 
@@ -100,19 +124,36 @@ describe('production node network routing', () => {
 
   it('honors NO_PROXY domains, default ports and global wildcard in actual requests', async () => {
     for (const entry of ['api.opencli.test', '.opencli.test', '*.opencli.test', 'api.opencli.test:443', '*']) {
-      await probe('https://api.opencli.test', { HTTPS_PROXY: first, NO_PROXY: entry }, 'direct');
+      await probeWithProcessEnv('https://api.opencli.test', { HTTPS_PROXY: first, NO_PROXY: entry }, 'direct');
     }
-    await probe('http://api.opencli.test', { HTTP_PROXY: first, NO_PROXY: 'api.opencli.test:80' }, 'direct');
+    await probeWithProcessEnv('http://api.opencli.test', { HTTP_PROXY: first, NO_PROXY: 'api.opencli.test:80' }, 'direct');
     for (const entry of ['api.opencli.test:80', 'other.opencli.test', 'notopencli.test']) {
-      await probe('https://api.opencli.test', { HTTPS_PROXY: first, NO_PROXY: entry }, 'first');
+      await probeWithProcessEnv('https://api.opencli.test', { HTTPS_PROXY: first, NO_PROXY: entry }, 'first');
     }
   });
 
-  it('prefers lowercase variables and refreshes dispatchers when the environment changes', async () => {
-    await probe('https://api.opencli.test', { https_proxy: second, HTTPS_PROXY: first }, 'second');
-    await probe('https://api.opencli.test', { https_proxy: first, HTTPS_PROXY: second }, 'first');
-    await probe('https://api.opencli.test', { HTTPS_PROXY: first, no_proxy: 'api.opencli.test', NO_PROXY: 'other.opencli.test' }, 'direct');
-    await probe('http://api.opencli.test', {}, 'direct');
+  it('prefers lowercase injected variables in actual proxy requests', async () => {
+    await probeWithInjectedEnv('https://api.opencli.test', {
+      https_proxy: second,
+      HTTPS_PROXY: first,
+    }, 'second');
+    await probeWithInjectedEnv('https://api.opencli.test', {
+      https_proxy: first,
+      HTTPS_PROXY: second,
+    }, 'first');
+    await probeWithInjectedEnv('https://api.opencli.test', {
+      HTTPS_PROXY: first,
+      no_proxy: 'api.opencli.test',
+      NO_PROXY: 'other.opencli.test',
+    }, 'direct');
+  });
+
+  it('refreshes dispatchers for ProcessEnv changes and handles direct routes', async () => {
+    const url = 'https://api.opencli.test';
+    await probeWithProcessEnv(url, { HTTPS_PROXY: first }, 'first');
+    await probeWithProcessEnv(url, { HTTPS_PROXY: second }, 'second');
+    await probeWithProcessEnv(url, { HTTPS_PROXY: first, NO_PROXY: 'api.opencli.test' }, 'direct');
+    await probeWithProcessEnv('http://api.opencli.test', {}, 'direct');
   });
 
   it('routes ALL_PROXY through an actual SOCKS5 handshake', async () => {

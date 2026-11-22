@@ -1,6 +1,6 @@
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 import {
     DEFAULT_FORMATS,
@@ -62,8 +62,22 @@ describe('suno utils — resolveSunoOutputDir', () => {
         expect(resolveSunoOutputDir('~/Music/test')).toBe(path.join(os.homedir(), 'Music', 'test'));
     });
 
+    it('uses the OS home directory when HOME is unset', () => {
+        vi.stubEnv('HOME', undefined);
+        try {
+            const home = os.homedir();
+            expect(path.isAbsolute(home)).toBe(true);
+            expect(resolveSunoOutputDir()).toBe(path.join(home, 'Music', 'suno'));
+            expect(resolveSunoOutputDir('~')).toBe(home);
+            expect(resolveSunoOutputDir('~/Music/test')).toBe(path.join(home, 'Music', 'test'));
+        } finally {
+            vi.unstubAllEnvs();
+        }
+    });
+
     it('absolute paths are returned as-is (resolved)', () => {
-        expect(resolveSunoOutputDir('/tmp/suno')).toBe('/tmp/suno');
+        const absoluteOutputDir = path.resolve(os.tmpdir(), 'suno');
+        expect(resolveSunoOutputDir(absoluteOutputDir)).toBe(absoluteOutputDir);
     });
 });
 

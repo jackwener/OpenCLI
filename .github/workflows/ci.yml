@@ -98,6 +98,31 @@ jobs:
         if: runner.os != 'Linux'
         run: npx vitest run --project unit --shard=${{ matrix.shard }}/2
 
+  # Focused Windows coverage runs on PRs as well as scheduled/manual runs.
+  windows-compat:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Windows filesystem and network compatibility tests
+        env:
+          HOME: ${{ runner.temp }}/opencli-windows-test-home
+          USERPROFILE: ${{ runner.temp }}/opencli-windows-test-home
+          TEMP: ${{ runner.temp }}/opencli-windows-test-temp
+          TMP: ${{ runner.temp }}/opencli-windows-test-temp
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path $env:USERPROFILE, $env:TEMP | Out-Null
+          npx vitest run --project unit --project adapter src/node-network.test.ts src/plugin.test.ts clis/suno/utils.test.js clis/xiaoyuzhou/auth.test.js clis/xiaoyuzhou/download.test.js clis/twitter/quote.test.js clis/twitter/reply.test.js clis/twitter/likes.test.js clis/twitter/bookmarks.test.js clis/instagram/download.test.js clis/instagram/reel.test.js clis/pixiv/novel-download.test.js
+
   # ── Bun compatibility check ──
   bun-test:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
