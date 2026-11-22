@@ -1,0 +1,164 @@
+{
+  "provenance": {
+    "capturedAt": "2026-11-22",
+    "source": "Actual Nowcoder search and content-data/moment-data detail responses",
+    "sanitization": "All strings were redacted or synthesized; IDs and URLs are synthetic. Numeric discriminators, entity types, timestamps, and metrics retain their observed types. Arrays are cropped and their lengths do not represent full upstream pages.",
+    "verified": "The observed search, --type all, content detail, and moment detail responses returned HTTP 200 with success: true and code: 0."
+  },
+  "searchAll": {
+    "records": [
+      {
+        "data": {
+          "contentType": 250,
+          "contentId": "1338",
+          "contentData": {
+            "id": "1338",
+            "uuid": "0000000000000000000000000000053c",
+            "authorId": "1339",
+            "entityId": 1336,
+            "entityType": 8,
+            "title": "Captured content",
+            "content": "Captured body",
+            "createTime": 1795228545000,
+            "isAnonymousFlag": false
+          },
+          "frequencyData": {
+            "likeCnt": 1,
+            "commentCnt": 0,
+            "viewCnt": 211
+          },
+          "userBrief": {
+            "userId": 1339,
+            "nickname": "Captured author",
+            "educationInfo": "Example university"
+          }
+        },
+        "entityDataId": 1336,
+        "rc_type": 207
+      },
+      {
+        "data": {
+          "contentType": 74,
+          "contentId": "1266",
+          "momentData": {
+            "id": 1266,
+            "uuid": "000000000000000000000000000004f6",
+            "userId": 1269,
+            "title": "Captured moment",
+            "content": "Captured moment body",
+            "createdAt": 1795006156000,
+            "isAnonymousFlag": false
+          },
+          "frequencyData": {
+            "likeCnt": 1,
+            "commentCnt": 7,
+            "viewCnt": 788
+          },
+          "userBrief": {
+            "userId": 1269,
+            "nickname": "Moment author",
+            "educationInfo": null
+          }
+        },
+        "entityDataId": 1266,
+        "rc_type": 201
+      },
+      {
+        "data": [
+          {
+            "data": {
+              "id": 1275,
+              "jobName": "Captured job",
+              "companyId": 1277,
+              "recommendInternCompany": {
+                "companyId": 1277,
+                "companyName": "Captured company"
+              },
+              "updateTime": 1795280795000,
+              "refreshTime": 1795259737000,
+              "createTime": 1757064266000
+            },
+            "entityDataId": 1275,
+            "rc_type": 1001
+          }
+        ],
+        "entityDataId": 1275,
+        "rc_type": 213
+      }
+    ]
+  },
+  "searchPost": {
+    "records": [
+      {
+        "contentType": 74,
+        "entityDataId": 1009,
+        "momentData": {
+          "id": 1290,
+          "uuid": "0000000000000000000000000000050d",
+          "userId": 1292,
+          "title": "Captured direct post",
+          "content": "Direct post body",
+          "createdAt": 1794885674000,
+          "isAnonymousFlag": false
+        },
+        "rc_type": 0,
+        "frequencyData": {
+          "likeCnt": 4,
+          "commentCnt": 3,
+          "viewCnt": 994
+        },
+        "userBrief": {
+          "userId": 1292,
+          "nickname": "Direct author",
+          "educationInfo": "Example university"
+        }
+      }
+    ]
+  },
+  "details": {
+    "content": {
+      "authorId": 1023,
+      "createTime": 1794995365000,
+      "entityId": 1026,
+      "entityType": 8,
+      "frequencyData": {
+        "likeCnt": 95,
+        "commentCnt": 26,
+        "viewCnt": 14324
+      },
+      "id": "1024",
+      "ip4": "Example location",
+      "isAnonymousFlag": false,
+      "richText": "Captured <strong>detail</strong> body",
+      "title": "Captured detail",
+      "userBrief": {
+        "userId": 1023,
+        "nickname": "Detail author",
+        "educationInfo": "Example university"
+      },
+      "uuid": "00000000000000000000000000000401"
+    },
+    "moment": {
+      "content": "Captured moment detail body",
+      "createdAt": 1794202525000,
+      "entityId": 1001,
+      "entityType": 74,
+      "frequencyData": {
+        "likeCnt": 0,
+        "commentCnt": 3,
+        "viewCnt": 1059
+      },
+      "id": 1001,
+      "ip4": "Example location",
+      "isAnonymousFlag": false,
+      "title": "Captured moment detail",
+      "userBrief": {
+        "userId": 1002,
+        "nickname": "Moment detail author",
+        "educationInfo": null
+      },
+      "userId": 1002,
+      "uuid": "000000000000000000000000000003eb"
+    }
+  }
+}

@@ -1,0 +1,117 @@
+{
+  "provenance": {
+    "capturedAt": "2026-11-22",
+    "source": "Actual Nowcoder salary-tab response",
+    "sanitization": "All strings are redacted or synthetic; IDs and UUIDs are synthetic. Types, anonymous flags, metrics, and salary-card field names retain their observed shape. Arrays are cropped and their lengths do not represent the full upstream page."
+  },
+  "records": [
+    {
+      "momentData": {
+        "id": 1376,
+        "uuid": "00000000000000000000000000000562",
+        "userId": 1377,
+        "title": "Captured salary title",
+        "content": "Captured salary body",
+        "createdAt": 1795226925000,
+        "isAnonymousFlag": false
+      },
+      "contentId": "1376",
+      "frequencyData": {
+        "likeCnt": 0,
+        "commentCnt": 0,
+        "viewCnt": 109
+      },
+      "userBrief": {
+        "nickname": "Captured author",
+        "educationInfo": null
+      },
+      "salaryCard": {
+        "city": "Example city",
+        "company": "Example company",
+        "eduLevel": "Example degree",
+        "job": "Example job",
+        "salary": "20x14",
+        "workTime": "2027",
+        "workType": "Campus"
+      }
+    },
+    {
+      "momentData": {
+        "id": 1382,
+        "uuid": "00000000000000000000000000000567",
+        "userId": 1120,
+        "title": "",
+        "content": "Captured blank-title body",
+        "createdAt": 1795175940000,
+        "isAnonymousFlag": true
+      },
+      "contentId": "1382",
+      "frequencyData": {
+        "likeCnt": 0,
+        "commentCnt": 0,
+        "viewCnt": 72
+      },
+      "userBrief": {
+        "nickname": "Captured anonymous author",
+        "educationInfo": null
+      },
+      "salaryCard": {
+        "city": "Second city",
+        "company": "Second company",
+        "eduLevel": "Second degree",
+        "job": "Second job",
+        "salary": "18x15",
+        "workTime": null,
+        "workType": null
+      }
+    },
+    {
+      "momentData": {
+        "id": 1385,
+        "uuid": "0000000000000000000000000000056a",
+        "userId": 1387,
+        "title": "",
+        "content": "",
+        "createdAt": 1795167758000,
+        "isAnonymousFlag": true
+      },
+      "contentId": "1385",
+      "frequencyData": {
+        "likeCnt": 0,
+        "commentCnt": 0,
+        "viewCnt": 93
+      },
+      "userBrief": {
+        "nickname": "Another captured author",
+        "educationInfo": null
+      },
+      "salaryCard": {
+        "city": "Third city",
+        "company": "Third company",
+        "eduLevel": "Third degree",
+        "job": "Third job",
+        "salary": "16x14",
+        "workTime": "2028",
+        "workType": "Social"
+      }
+    },
+    {
+      "longContentData": {
+        "id": "1340",
+        "uuid": "0000000000000000000000000000053e",
+        "title": "Captured long content",
+        "content": "Long content body",
+        "createTime": 1795000000000
+      },
+      "frequencyData": {
+        "likeCnt": 1,
+        "commentCnt": 2,
+        "viewCnt": 3
+      },
+      "userBrief": {
+        "nickname": "Long content author",
+        "educationInfo": null
+      }
+    }
+  ]
+}

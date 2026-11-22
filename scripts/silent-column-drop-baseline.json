@@ -552,6 +552,13 @@
     ]
   },
   {
+    "command": "nowcoder/salary",
+    "file": "clis/nowcoder/salary.js",
+    "missing": [
+      "salaryCard"
+    ]
+  },
+  {
     "command": "paperreview/review",
     "file": "clis/paperreview/review.js",
     "missing": [

@@ -4990,7 +4990,7 @@
     "description": "BOSS直聘搜索职位（不带关键词时返回为你推荐职位）",
     "access": "read",
     "domain": "www.zhipin.com",
-    "strategy": "intercept",
+    "strategy": "cookie",
     "browser": true,
     "args": [
       {
@@ -25080,7 +25080,10 @@
       "comments",
       "views",
       "time",
-      "location"
+      "location",
+      "content_type",
+      "entity_type",
+      "is_anonymous"
     ],
     "type": "js",
     "modulePath": "nowcoder/detail.js",
@@ -25260,6 +25263,7 @@
     ],
     "columns": [
       "rank",
+      "id",
       "title",
       "company",
       "practitioners"
@@ -25295,6 +25299,8 @@
     ],
     "columns": [
       "category",
+      "tag_id",
+      "id",
       "subject",
       "total",
       "done",
@@ -25303,16 +25309,16 @@
     "type": "js",
     "modulePath": "nowcoder/practice.js",
     "sourceFile": "nowcoder/practice.js",
-    "navigateBefore": "https://www.nowcoder.com"
+    "navigateBefore": false
   },
   {
     "site": "nowcoder",
     "name": "recommend",
-    "description": "Recommended feed",
+    "description": "Recommended feed with cursor-correct pagination",
     "access": "read",
     "domain": "www.nowcoder.com",
     "strategy": "public",
-    "browser": false,
+    "browser": true,
     "args": [
       {
         "name": "page",
@@ -25326,21 +25332,26 @@
         "type": "int",
         "default": 15,
         "required": false,
-        "help": "Number of items"
+        "help": "Number of items (1-50)"
       }
     ],
     "columns": [
       "rank",
+      "post_type",
+      "id",
       "title",
       "author",
+      "company",
+      "content",
+      "url",
       "likes",
       "comments",
-      "views",
-      "id"
+      "views"
     ],
     "type": "js",
     "modulePath": "nowcoder/recommend.js",
-    "sourceFile": "nowcoder/recommend.js"
+    "sourceFile": "nowcoder/recommend.js",
+    "navigateBefore": false
   },
   {
     "site": "nowcoder",
@@ -25407,13 +25418,20 @@
     ],
     "columns": [
       "rank",
+      "id",
       "title",
       "author",
       "school",
+      "company",
+      "job",
+      "salary",
+      "city",
+      "education",
+      "work_type",
+      "content",
       "likes",
       "comments",
-      "views",
-      "id"
+      "views"
     ],
     "type": "js",
     "modulePath": "nowcoder/salary.js",
@@ -25467,7 +25485,12 @@
       "likes",
       "comments",
       "views",
-      "time"
+      "time",
+      "company",
+      "rc_type",
+      "content_type",
+      "entity_type",
+      "is_anonymous"
     ],
     "type": "js",
     "modulePath": "nowcoder/search.js",
