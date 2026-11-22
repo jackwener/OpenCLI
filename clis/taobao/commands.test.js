@@ -18,6 +18,16 @@ describe('taobao command safety', () => {
         expect(page.goto).not.toHaveBeenCalled();
         expect(page.evaluate).not.toHaveBeenCalled();
     });
+    it('stops cart before scraping when a security challenge is present', async () => {
+        const page = createPageMock();
+        page.evaluate.mockImplementation(async script => {
+            if (typeof script === 'function') return { kind: 'none' };
+            if (String(script).startsWith('location.href =')) return undefined;
+            return 'blocked';
+        });
+        await expect(getRegistry().get('taobao/cart').func(page, {})).rejects.toMatchObject({ code: 'SECURITY_BLOCK' });
+        expect(page.autoScroll).not.toHaveBeenCalled();
+    });
     it('supports dry-run for add-cart without clicking add-to-cart', async () => {
         const page = createPageMock();
         page.evaluate.mockResolvedValueOnce(undefined).mockResolvedValueOnce('ok');

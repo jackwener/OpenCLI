@@ -1,6 +1,7 @@
 import { AuthRequiredError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { clampInt } from '../_shared/common.js';
+import { assertTaobaoPageUsable } from './page-state.js';
 cli({
     site: 'taobao',
     name: 'cart',
@@ -19,6 +20,7 @@ cli({
         await page.wait(2);
         await page.evaluate(`location.href = 'https://cart.taobao.com/cart.htm'`);
         await page.wait(6);
+        await assertTaobaoPageUsable(page);
         await page.autoScroll({ times: 3, delayMs: 1500 });
         const data = await page.evaluate(`
       (async () => {

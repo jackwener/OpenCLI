@@ -2452,6 +2452,7 @@ const CDP_ALLOWLIST = /* @__PURE__ */ new Set([
   "Page.captureScreenshot",
   "Page.getFrameTree",
   "Page.handleJavaScriptDialog",
+  "Page.bringToFront",
   // Runtime.enable needed for CDP attach setup (Runtime.evaluate goes through 'exec' action)
   "Runtime.enable",
   // Emulation (used by screenshot full-page)

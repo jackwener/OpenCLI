@@ -2,6 +2,7 @@ import { assertTaobaoPageUsable } from './page-state.js';
 import { AuthRequiredError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { clampInt, requireNonEmptyQuery } from '../_shared/common.js';
+import { normalizeTaobaoSearchPrice } from './price.js';
 cli({
     site: 'taobao',
     name: 'search',
@@ -14,7 +15,23 @@ cli({
         { name: 'sort', default: 'default', choices: ['default', 'sale', 'price'], help: '排序 (default/sale销量/price价格)' },
         { name: 'limit', type: 'int', default: 10, help: '返回结果数量 (max 40)' },
     ],
-    columns: ['rank', 'title', 'price', 'sales', 'shop', 'location', 'item_id', 'url'],
+    columns: [
+        'rank',
+        'title',
+        'price',
+        'price_num',
+        'listing_price',
+        'activity_price',
+        'coupon_price',
+        'estimated_payable',
+        'price_basis',
+        'price_source',
+        'sales',
+        'shop',
+        'location',
+        'item_id',
+        'url',
+    ],
     navigateBefore: false,
     func: async (page, kwargs) => {
         const limit = clampInt(kwargs.limit, 10, 1, 40);
@@ -56,6 +73,10 @@ cli({
           if (intEl) {
             price = '¥' + normalize(intEl.textContent) + (floatEl ? normalize(floatEl.textContent) : '');
           }
+          const priceRoot = intEl?.closest('[class*="price"]') || intEl?.parentElement || card;
+          const priceContext = normalize(
+            (priceRoot.parentElement || priceRoot).innerText || priceRoot.textContent || ''
+          ).slice(0, 220);
 
           const salesEl = card.querySelector('[class*="realSales--"]');
           const sales = salesEl ? normalize(salesEl.textContent) : '';
@@ -78,7 +99,7 @@ cli({
           results.push({
             rank: results.length + 1,
             title: title.slice(0, 80),
-            price,
+            priceRaw: { display: price, context: priceContext },
             sales,
             shop,
             location,
@@ -94,6 +115,11 @@ cli({
         if (data?.error === 'auth-required') {
             throw new AuthRequiredError('taobao search requires a logged-in Taobao session');
         }
-        return Array.isArray(data?.results) ? data.results : [];
+        const rows = Array.isArray(data?.results) ? data.results : [];
+        return rows.map(({ priceRaw, ...row }) => ({
+            ...row,
+            price: priceRaw.display,
+            ...normalizeTaobaoSearchPrice(priceRaw.display, priceRaw.context),
+        }));
     },
 });
