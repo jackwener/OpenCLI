@@ -4,6 +4,7 @@ import * as path from 'node:path';
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { createDirLinkSync } from '../../tests/helpers/fs-links.js';
 import { createPageMock } from '../test-utils.js';
 import './novel-download.js';
 
@@ -50,7 +51,7 @@ describe('pixiv novel-download', () => {
     const actual = path.join(tempRoot, 'actual');
     const linked = path.join(tempRoot, 'linked');
     fs.mkdirSync(actual);
-    fs.symlinkSync(actual, linked, 'dir');
+    createDirLinkSync(actual, linked);
     const page = createPageMock([]);
     await expect(cmd.func(page, { 'novel-id': '10588915', output: linked, execute: true })).rejects.toThrow(ArgumentError);
     expect(page.goto).not.toHaveBeenCalled();

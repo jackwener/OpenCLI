@@ -2,14 +2,58 @@
  * Tests for plugin management: install, uninstall, list, and lock file support.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { PLUGINS_DIR } from './discovery.js';
+import { createDirLinkSync } from '../tests/helpers/fs-links.js';
 import type { LockEntry } from './plugin.js';
-import * as pluginModule from './plugin.js';
+
+const testIsolation = await vi.hoisted(async () => {
+  const fs = await import('node:fs');
+  const os = await import('node:os');
+  const path = await import('node:path');
+  const previousHome = process.env.HOME;
+  const previousUserProfile = process.env.USERPROFILE;
+  const tempDirectory = os.tmpdir();
+  const isolatedRoot = fs.mkdtempSync(path.join(tempDirectory, 'opencli-plugin-test-'));
+  const fakeHome = path.join(isolatedRoot, 'home');
+
+  fs.mkdirSync(fakeHome, { recursive: true });
+  process.env.HOME = fakeHome;
+  process.env.USERPROFILE = fakeHome;
+
+  return { tempDirectory, isolatedRoot, fakeHome, previousHome, previousUserProfile };
+});
+
+afterAll(() => {
+  try {
+    const tempDirectory = path.resolve(testIsolation.tempDirectory);
+    const isolatedRoot = path.resolve(testIsolation.isolatedRoot);
+    const relative = path.relative(tempDirectory, isolatedRoot);
+    const isOwnedChild = relative !== ''
+      && relative !== '..'
+      && !relative.startsWith(`..${path.sep}`)
+      && !path.isAbsolute(relative);
+
+    if (!isOwnedChild) {
+      throw new Error(`Refusing to remove isolation path outside ${tempDirectory}: ${isolatedRoot}`);
+    }
+
+    fs.rmSync(isolatedRoot, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
+  } finally {
+    if (testIsolation.previousHome === undefined) delete process.env.HOME;
+    else process.env.HOME = testIsolation.previousHome;
+    if (testIsolation.previousUserProfile === undefined) delete process.env.USERPROFILE;
+    else process.env.USERPROFILE = testIsolation.previousUserProfile;
+  }
+});
+
+const [{ PLUGINS_DIR }, pluginModule] = await Promise.all([
+  import('./discovery.js'),
+  import('./plugin.js'),
+]);
 
 const { mockExecFileSync, mockExecSync } = vi.hoisted(() => ({
   mockExecFileSync: vi.fn(),
@@ -44,6 +88,24 @@ const {
   _toStoredPluginSource,
   _toLocalPluginSource,
 } = pluginModule;
+
+function isWithin(root: string, candidate: string): boolean {
+  const relative = path.relative(path.resolve(root), path.resolve(candidate));
+  return relative === ''
+    || (relative !== '..'
+      && !relative.startsWith(`..${path.sep}`)
+      && !path.isAbsolute(relative));
+}
+
+const isolatedRoot = path.resolve(testIsolation.isolatedRoot);
+if (path.resolve(os.homedir()) !== path.resolve(testIsolation.fakeHome)) {
+  throw new Error(`os.homedir() escaped test isolation: ${os.homedir()}`);
+}
+if (!isWithin(isolatedRoot, PLUGINS_DIR)
+  || !isWithin(isolatedRoot, getLockFilePath())
+  || !isWithin(isolatedRoot, _getMonoreposDir())) {
+  throw new Error('Plugin paths escaped test isolation');
+}
 
 describe('parseSource', () => {
   it('parses github:user/repo format', () => {
@@ -477,7 +539,7 @@ describe('listPlugins', () => {
     fs.writeFileSync(path.join(localTarget, 'hello.js'), 'cli({ site: "test", name: "hello", access: "read" })');
     try { fs.unlinkSync(linkPath); } catch {}
     try { fs.rmSync(linkPath, { recursive: true, force: true }); } catch {}
-    fs.symlinkSync(localTarget, linkPath, 'dir');
+    createDirLinkSync(localTarget, linkPath);
 
     const lock = _readLockFile();
     lock['__test-list-plugin__'] = {
@@ -545,7 +607,7 @@ describe('updatePlugin', () => {
 
     fs.mkdirSync(PLUGINS_DIR, { recursive: true });
     fs.writeFileSync(path.join(localTarget, 'hello.js'), 'cli({ site: "test", name: "hello", access: "read" })');
-    fs.symlinkSync(localTarget, linkPath, 'dir');
+    createDirLinkSync(localTarget, linkPath);
 
     const lock = _readLockFile();
     lock['__test-local-update__'] = {
@@ -821,7 +883,7 @@ describe('isSymlinkSync', () => {
     const target = path.join(tmpDir, 'target');
     const link = path.join(tmpDir, 'link');
     fs.mkdirSync(target);
-    fs.symlinkSync(target, link, 'dir');
+    createDirLinkSync(target, link);
     expect(_isSymlinkSync(link)).toBe(true);
   });
 
@@ -845,7 +907,7 @@ describe('monorepo uninstall with symlink', () => {
     fs.writeFileSync(path.join(subDir, 'cmd.js'), 'cli({ site: "test", name: "cmd", access: "read" })');
 
     fs.mkdirSync(PLUGINS_DIR, { recursive: true });
-    fs.symlinkSync(subDir, pluginDir, 'dir');
+    createDirLinkSync(subDir, pluginDir);
 
     const lock = _readLockFile();
     lock['__test-mono-sub__'] = {
@@ -915,7 +977,7 @@ describe('listPlugins with monorepo metadata', () => {
 
     fs.mkdirSync(PLUGINS_DIR, { recursive: true });
     try { fs.unlinkSync(testLink); } catch {}
-    fs.symlinkSync(testSymlinkTarget, testLink, 'dir');
+    createDirLinkSync(testSymlinkTarget, testLink);
 
     const lock = _readLockFile();
     lock['__test-mono-list__'] = {
@@ -1276,7 +1338,7 @@ describe('updatePlugin transactional staging', () => {
     fs.mkdirSync(subDir, { recursive: true });
     fs.writeFileSync(path.join(subDir, 'old.js'), 'cli({ site: "old", name: "old", access: "read" })');
     fs.mkdirSync(PLUGINS_DIR, { recursive: true });
-    fs.symlinkSync(subDir, monorepoLink, 'dir');
+    createDirLinkSync(subDir, monorepoLink);
 
     const lock = _readLockFile();
     lock[monorepoPluginName] = {
@@ -1329,7 +1391,7 @@ describe('updatePlugin transactional staging', () => {
     fs.mkdirSync(oldSubDir, { recursive: true });
     fs.writeFileSync(path.join(oldSubDir, 'old.js'), 'cli({ site: "old", name: "old", access: "read" })');
     fs.mkdirSync(PLUGINS_DIR, { recursive: true });
-    fs.symlinkSync(oldSubDir, monorepoLink, 'dir');
+    createDirLinkSync(oldSubDir, monorepoLink);
 
     const lock = _readLockFile();
     lock[monorepoPluginName] = {
@@ -1378,7 +1440,7 @@ describe('updatePlugin transactional staging', () => {
     fs.mkdirSync(oldSubDir, { recursive: true });
     fs.writeFileSync(path.join(oldSubDir, 'old.js'), 'cli({ site: "old", name: "old", access: "read" })');
     fs.mkdirSync(PLUGINS_DIR, { recursive: true });
-    fs.symlinkSync(oldSubDir, monorepoLink, 'dir');
+    createDirLinkSync(oldSubDir, monorepoLink);
 
     const lock = _readLockFile();
     lock[monorepoPluginName] = {
