@@ -65,6 +65,7 @@ function harvestPayload(rows, diag = {}) {
     return {
         rows,
         diag: {
+            usable: rows.filter((row) => row?.title).length,
             securityBlock: false,
             stopReason: 'target',
             scrollHeight: 2818,
@@ -174,7 +175,8 @@ function createFilterBehaviorPage(options = {}) {
                         }
                         if (options.inactive === `${groupLabel}/${choice}`) return;
                         state[groupLabel] = choice;
-                        renderPanel();
+                        if (options.closeOnSelection) panel.remove();
+                        else renderPanel();
                         const loading = document.createElement('div');
                         loading.className = 'filter-loading';
                         loading.setAttribute('aria-busy', 'true');
@@ -904,6 +906,25 @@ describe('xiaohongshu search', () => {
         expect(page.evaluate.mock.calls.filter(([script]) => String(script).includes('const requestedFilters ='))).toHaveLength(2);
         expect(page.getActivePage()).toBe('page-new');
     });
+    it('keeps a collapsed tab when its harvested notes already satisfy the limit', async () => {
+        const cmd = getRegistry().get('xiaohongshu/search');
+        const row = {
+            title: 'Already available',
+            author: 'UserA',
+            likes: '10',
+            url: 'https://www.xiaohongshu.com/search_result/68e90be80000000004022e66',
+            author_url: '',
+        };
+        const page = createPageMock([
+            'content',
+            harvestPayload([row], { cardCount: 22, feedClientHeight: 0, distinctCardTops: 1 }),
+        ]);
+
+        await expect(cmd.func(page, { query: '塌陷结果', limit: 1 })).resolves.toEqual([
+            expect.objectContaining({ rank: 1, ...row }),
+        ]);
+        expect(page.newTab).not.toHaveBeenCalled();
+    });
     it('fails execution after one fresh target also renders with the proven collapsed signature', async () => {
         const cmd = getRegistry().get('xiaohongshu/search');
         const collapsed = harvestPayload([], { cardCount: 22, feedClientHeight: 0, distinctCardTops: 1 });
@@ -1105,13 +1126,14 @@ describe('xiaohongshu search filter behavior', () => {
         }
     });
 
-    it('applies requested filters in the AI-chat result layout', async () => {
+    it('applies multiple filters when the AI-chat panel closes after each selection', async () => {
         vi.useFakeTimers();
         try {
-            const page = createFilterBehaviorPage({ layout: 'ai-chat' });
-            await runFilterCommand(page, { sort: 'latest' });
+            const page = createFilterBehaviorPage({ layout: 'ai-chat', closeOnSelection: true });
+            await runFilterCommand(page, { sort: 'latest', 'note-type': 'video' });
             expect(page.filterState['排序依据']).toBe('最新');
-            expect(page.filterClicks).toEqual(['排序依据/最新']);
+            expect(page.filterState['笔记类型']).toBe('视频');
+            expect(page.filterClicks).toEqual(['排序依据/最新', '笔记类型/视频']);
         }
         finally {
             vi.useRealTimers();

@@ -77,8 +77,13 @@ const SEARCH_FILTERS = [
     },
 ];
 
-function isCollapsedRender(diag) {
-    return diag.cardCount > 1 &&
+// A collapsed masonry (feed height 0, every card on one row; seen on the
+// /search_result_ai layout in throttled tabs) only matters when scrolling is
+// still needed. Cards stay in the DOM, so if the harvest already reached the
+// requested limit the rows are complete and recovery would discard them.
+function isCollapsedRender(diag, limit = Infinity) {
+    return diag.usable < limit &&
+        diag.cardCount > 1 &&
         diag.feedClientHeight === 0 &&
         diag.distinctCardTops === 1;
 }
@@ -526,6 +531,16 @@ function buildApplySearchFiltersJs(requestedFilters) {
           return { status: 'layout', detail: 'filter_panel_not_found' };
         };
 
+        // The AI search page (/search_result_ai, .filter.ai-chat-filter) closes the
+        // filter panel after each chip click, so verification must reopen it.
+        const reopenedPanel = async () => {
+          const currentPanels = panels();
+          if (currentPanels.length === 1) return currentPanels[0];
+          if (currentPanels.length > 1) return null;
+          const opened = await openPanel();
+          return opened.status === 'ok' ? opened.panel : null;
+        };
+
         const findOption = (panel, request) => {
           const groups = visibleMatches(panel, '.filters').filter((group) => {
             const label = Array.from(group.children).find((child) => child.tagName === 'SPAN');
@@ -581,9 +596,9 @@ function buildApplySearchFiltersJs(requestedFilters) {
           while (Date.now() - clickedAt < 2500) {
             if (authBlocked()) return { status: 'auth', detail: 'login_wall' };
             if (locationBlocked()) return { status: 'location', detail: 'geolocation_denied' };
-            const currentPanels = panels();
-            if (currentPanels.length === 1) {
-              found = findOption(currentPanels[0], request);
+            const panel = Date.now() - clickedAt >= 300 ? await reopenedPanel() : (panels().length === 1 ? panels()[0] : null);
+            if (panel) {
+              found = findOption(panel, request);
               if (found.status === 'ok' && isActive(found.option)) {
                 becameActive = true;
                 break;
@@ -615,8 +630,8 @@ function buildApplySearchFiltersJs(requestedFilters) {
           if (stableSamples < 3) {
             return { status: 'timeout', detail: request.group + '/' + request.option };
           }
-          const finalPanels = panels();
-          const finalFound = finalPanels.length === 1 ? findOption(finalPanels[0], request) : null;
+          const finalPanel = await reopenedPanel();
+          const finalFound = finalPanel ? findOption(finalPanel, request) : null;
           if (!finalFound || finalFound.status !== 'ok' || !isActive(finalFound.option)) {
             return { status: 'inactive', detail: request.group + '/' + request.option };
           }
@@ -1084,11 +1099,11 @@ export const command = cli({
             const requestedFilters = resolveSearchFilters(kwargs);
             await openSearchResults(page, kwargs.query);
             let harvest = await collectSearchHarvest(page, limit, requestedFilters);
-            if (isCollapsedRender(harvest.diag)) {
+            if (isCollapsedRender(harvest.diag, limit)) {
                 await replaceCollapsedTab(page, EXPLORE_URL);
                 await openSearchResults(page, kwargs.query);
                 harvest = await collectSearchHarvest(page, limit, requestedFilters);
-                if (isCollapsedRender(harvest.diag)) {
+                if (isCollapsedRender(harvest.diag, limit)) {
                     throw new CommandExecutionError(
                         'Xiaohongshu search masonry remained collapsed after one fresh-tab recovery.',
                         'Retry later or use a different logged-in browser session.',
