@@ -1,0 +1,90 @@
+{
+ "error_code": "OK",
+ "request_id": "52a64bb6-cd1d-4977-8465-da8df6423e84",
+ "session_id": "97c8e5494e53963956f990d85a661e9e7d1db9b1a2282640",
+ "has_more": true,
+ "items": [
+  {
+   "entry_id": "ffffffffffffffffffffffffffffffffffffffffffffffff",
+   "detail": {
+    "series_id": "7702401334808431678",
+    "series_name": "落魄老头亮出身份，都吓傻了",
+    "series_cover": "https://p3-novel.byteimg.com/novel-pic/3c01b99a9f12f74495de1274fe5ebe6e~tplv-shrink:640:0.image",
+    "series_intro": "昌达集团创始人陆万山隐退三年，伪装成普通老头回到儿子陆峥家中。女婿家长辈高志远嫌他朴素寒酸，百般轻视，让他住杂物间。陆万山暗中观察儿子的品性，孙女陆小满是他的精神慰藉。后续遭遇商业对手葛长海恶意构陷打压，陆万山亮出真实身份，查清全部阴谋。历经风波，家人解开隔阂，陆万山看淡名利，开小饭馆，一家人回归温暖平凡的生活。",
+    "tags": [
+     "总裁",
+     "都市",
+     "豪门"
+    ],
+    "episode_right_text": "全80集",
+    "episode_cnt": 80,
+    "vid_list": [
+     "7702402919525518398",
+     "7702403001519967294",
+     "7702402894804323390"
+    ],
+    "pay_type": 0,
+    "accessible_episode_cnt": 5,
+    "record_number": ""
+   },
+   "recommend_group_id": "7702402919525518398",
+   "genre": 205
+  },
+  {
+   "entry_id": "6af0386c6ac00c3e6af03a021f004c199bb95b2b33e84f69",
+   "detail": {
+    "series_id": "7705721000729513022",
+    "series_name": "一颗龙珠，换你一世安稳（全文完结）",
+    "series_cover": "https://p3-novel.byteimg.com/novel-pic/5b8a2d41e5dc9a3ecb9cfb965fba9436~tplv-shrink:640:0.image",
+    "series_intro": "前世烂赌成性的陆长海，重活一世，发现祖传石珠竟能看透浑水、让死鱼复活。妻女断粮，他徒手掏出巨蟹，卖鱼挣钱，却发现妻子连他递来的钱都不敢接。从泥滩到远洋，他赚得万贯家财，只为换回妻女的信任，守住一个完整的家。",
+    "tags": [
+     "脑洞",
+     "重生",
+     "逆袭",
+     "年代",
+     "乡村"
+    ],
+    "episode_right_text": "全340集",
+    "episode_cnt": 340,
+    "vid_list": [
+     "7705722743215377433",
+     "7705722569126595609",
+     "7705722798206897177"
+    ],
+    "pay_type": 0,
+    "accessible_episode_cnt": 5,
+    "record_number": ""
+   },
+   "recommend_group_id": "7705722743215377433",
+   "genre": 205
+  },
+  {
+   "entry_id": "6af19acc65c04c186af19cb171804c199bb94e0020a1dedc",
+   "detail": {
+    "series_id": "7706110640078736408",
+    "series_name": "搭讪之王",
+    "series_cover": "https://p3-novel.byteimg.com/novel-pic/78d71b2f81ce8551f289edce170ea167~tplv-shrink:640:0.image",
+    "series_intro": "大二学生陈北认清错误的恋爱关系后，意外获得搭讪奖励系统，真诚社交就能获得奖励。他不再盲目卑微讨好他人，努力提升自我，全方位锻炼体魄、精进个人能力。面对校园里形形色色的人和复杂的情感纠葛，陈北守住本心，尊重每一位异性，保持清醒的交友边界。他凭借收获的资源自主创业，脚踏实地打拼事业。在与同学、伙伴的相处中不断成长蜕变，拒绝恋爱脑，专注自我提升，走出属于自己的精彩大学生活。",
+    "tags": [
+     "脑洞",
+     "系统",
+     "都市",
+     "校园"
+    ],
+    "episode_right_text": "全320集",
+    "episode_cnt": 320,
+    "vid_list": [
+     "7706112726304558105",
+     "7706112723335007257",
+     "7706112299437657113"
+    ],
+    "pay_type": 0,
+    "accessible_episode_cnt": 5,
+    "record_number": ""
+   },
+   "recommend_group_id": "7706112723335007257",
+   "genre": 205
+  }
+ ],
+ "identity_version": "51f144ec7bee4157348a2634c7046e5276cfb85e6995dc9991000182f1427456"
+}
