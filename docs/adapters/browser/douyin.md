@@ -7,6 +7,8 @@
 | Command | Description |
 |---------|-------------|
 | `opencli douyin detail <target>` | 单条视频或图文详情（ID、HTTPS 视频链接或分享短链） |
+| `opencli douyin mix <target>` | 合集（如短剧分集）里的全部视频，按集数排序 |
+| `opencli douyin comments <target>` | 单条视频的全部评论，按游标翻到底，可选带回复 |
 | `opencli douyin profile` | 获取账号信息 |
 | `opencli douyin videos` | 获取作品列表 |
 | `opencli douyin drafts` | 获取草稿列表 |
@@ -78,3 +80,30 @@ opencli douyin profile -f json
 ## Public content details
 
 `opencli douyin detail <target> -f json` uses your browser session on `www.douyin.com`. It returns the caption, author and sec_uid, engagement counts, UTC creation time, duration, music, media URLs and image list. The target accepts a 16–20 digit ID, a Douyin video URL, or an HTTPS `v.douyin.com` share URL. Short links follow at most six redirects within known Douyin domains. Deleted, restricted, mismatched and failed API responses produce explicit errors. Media URLs may expire.
+
+## Mixes and full comment threads
+
+`mix` and `comments` read public content through your logged-in browser session on `www.douyin.com` (the site's own page JS signs the requests).
+
+```bash
+# Every video of a mix (e.g. a short drama published one episode per video)
+opencli douyin mix 7697274036942571554 --limit 200
+opencli douyin mix https://www.douyin.com/collection/7697274036942571554
+opencli douyin mix https://www.douyin.com/video/7697274002573872394   # any video inside the mix
+
+# All comments of one video, then with replies
+opencli douyin comments 7697274002573872394 --limit 2000 -f json
+opencli douyin comments 7697274002573872394 --limit 2000 --replies -f json
+```
+
+| Command | Columns |
+|---------|---------|
+| `mix` | `episode, aweme_id, desc, duration_s, digg, comment, collect, share, created, author, mix_id, mix_name, url` |
+| `comments` | `rank, cid, parent_cid, user, text, likes, replies, time, ip_label, aweme_id` |
+
+- `mix` takes a mix id, a `www.douyin.com/collection/<mix_id>` URL, or a video URL / share link of any video in the mix. A bare number is read as a mix id (mix ids and video ids look alike), so pass a video as a URL.
+- `comments` pages with the site's cursor, 50 per request with a 0.5 s pause, until the list ends or `--limit` (max 20000, replies included) is reached. `--replies` adds one request per page of replies under each comment that has any; replies follow their parent, with `parent_cid` set and `replies` null.
+- The comment count Douyin shows includes folded and deleted comments the web does not serve, so a complete crawl lands below it: one video showing 1,376 gave 987 top-level comments + 201 replies = 1,188 with `--replies`, in 98 s (2026-11-23).
+- Both commands take `--timeout` (seconds for the whole crawl; `comments` 600, `mix` 300). Raise it for threads with many thousands of comments.
+- `time` / `created` are China time (`YYYY-MM-DD HH:mm:ss`).
+- Long crawls run on your account; Douyin may answer heavy use with a login or captcha prompt, which surfaces as an auth error.
