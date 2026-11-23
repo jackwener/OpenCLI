@@ -16509,6 +16509,13 @@
         "default": 1,
         "required": false,
         "help": "Fetches per episode page (1-5); comments rotate slightly, more rounds collect more"
+      },
+      {
+        "name": "all-episodes",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Also read episodes 2+ (/player/<id>/<vid>, disallowed by the site's robots.txt); default is episode 1 only"
       }
     ],
     "columns": [

@@ -398,18 +398,21 @@ describe('hongguo reviews', () => {
         return data;
     }
 
-    /** detail + episode 1 (distinct comments) + episode 2 (fixture) + episode 3 served as the episode-1 fallback. */
+    /**
+     * detail + episode 1 at /player/<sid> (distinct comments) + episode 2 (fixture)
+     * + episode 3 served as the episode-1 fallback.
+     */
     function siteMock(detail = DETAIL) {
         return vi.fn().mockImplementation(async (url) => {
             if (url.includes('/detail?')) return htmlResponse(ssrPage(detail));
-            if (url.endsWith(`/${VIDS[0]}`)) return htmlResponse(ssrPage(playerFor(VIDS[0], 'ep1')));
+            if (url.endsWith(`/player/${SID}`)) return htmlResponse(ssrPage(playerFor(VIDS[0], 'ep1')));
             if (url.endsWith(`/${VIDS[1]}`)) return htmlResponse(ssrPage(PLAYER));
             if (url.endsWith(`/${VIDS[2]}`)) return htmlResponse(ssrPage(playerFor(VIDS[0], 'ep1')));
             throw new Error(`unexpected url ${url}`);
         });
     }
 
-    it('collects series reviews then each web episode, dropping fallback pages', async () => {
+    it('by default reads only robots-allowed pages: series reviews + episode 1 at /player/<sid>', async () => {
         const fetchMock = siteMock();
         vi.stubGlobal('fetch', fetchMock);
 
@@ -417,7 +420,24 @@ describe('hongguo reviews', () => {
 
         expect(fetchMock.mock.calls.map((c) => c[0])).toEqual([
             `https://hongguoduanju.com/detail?series_id=${SID}`,
-            `https://hongguoduanju.com/player/${SID}/${VIDS[0]}`,
+            `https://hongguoduanju.com/player/${SID}`,
+        ]);
+        expect(fetchMock.mock.calls.some((c) => /\/player\/[^/]+\/[^/]+$/.test(c[0]))).toBe(false);
+        expect(rows.map((r) => [r.scope, r.episode])).toEqual([
+            ['series', null], ['series', null], ['series', null],
+            ['episode', 1], ['episode', 1], ['episode', 1],
+        ]);
+    });
+
+    it('--all-episodes also reads /player/<sid>/<vid> for episodes 2+, dropping fallback pages', async () => {
+        const fetchMock = siteMock();
+        vi.stubGlobal('fetch', fetchMock);
+
+        const rows = await cmd('reviews').func({ series_id: SID, 'all-episodes': true });
+
+        expect(fetchMock.mock.calls.map((c) => c[0])).toEqual([
+            `https://hongguoduanju.com/detail?series_id=${SID}`,
+            `https://hongguoduanju.com/player/${SID}`,
             `https://hongguoduanju.com/player/${SID}/${VIDS[1]}`,
             `https://hongguoduanju.com/player/${SID}/${VIDS[2]}`,
         ]);
@@ -460,7 +480,7 @@ describe('hongguo reviews', () => {
 
         fetchMock = siteMock();
         vi.stubGlobal('fetch', fetchMock);
-        const episodes = await cmd('reviews').func({ series_id: SID, scope: 'episodes' });
+        const episodes = await cmd('reviews').func({ series_id: SID, scope: 'episodes', 'all-episodes': true });
         expect(episodes.every((r) => r.scope === 'episode')).toBe(true);
         expect(episodes).toHaveLength(6);
     });
@@ -468,7 +488,7 @@ describe('hongguo reviews', () => {
     it('stops fetching episodes once the limit is reached', async () => {
         const fetchMock = siteMock();
         vi.stubGlobal('fetch', fetchMock);
-        const rows = await cmd('reviews').func({ series_id: SID, limit: 4 });
+        const rows = await cmd('reviews').func({ series_id: SID, limit: 4, 'all-episodes': true });
         expect(rows).toHaveLength(4);
         expect(fetchMock).toHaveBeenCalledTimes(2);
     });
@@ -476,11 +496,11 @@ describe('hongguo reviews', () => {
     it('de-duplicates a comment the site repeats on another episode', async () => {
         const fetchMock = vi.fn().mockImplementation(async (url) => {
             if (url.includes('/detail?')) return htmlResponse(ssrPage(DETAIL));
-            const vid = url.split('/').pop();
-            return htmlResponse(ssrPage(playerFor(vid)));
+            const last = url.split('/').pop();
+            return htmlResponse(ssrPage(playerFor(last === SID ? VIDS[0] : last)));
         });
         vi.stubGlobal('fetch', fetchMock);
-        const rows = await cmd('reviews').func({ series_id: SID, scope: 'episodes' });
+        const rows = await cmd('reviews').func({ series_id: SID, scope: 'episodes', 'all-episodes': true });
         expect(rows).toHaveLength(3);
         expect(rows.every((r) => r.episode === 1)).toBe(true);
     });
@@ -489,8 +509,7 @@ describe('hongguo reviews', () => {
         let call = 0;
         const fetchMock = vi.fn().mockImplementation(async (url) => {
             if (url.includes('/detail?')) return htmlResponse(ssrPage(DETAIL));
-            const vid = url.split('/').pop();
-            if (vid !== VIDS[0]) return htmlResponse(ssrPage(playerFor(VIDS[0])));
+            if (!url.endsWith(`/player/${SID}`)) return htmlResponse(ssrPage(playerFor(VIDS[0])));
             const data = playerFor(VIDS[0]);
             const list = data.loaderData[PLAYER_KEY].episodeSocialInfo.reviews.reviews;
             list[0] = { ...list[0], user_name: `rotated${call}`, content: `rotated comment ${call}` };
@@ -499,12 +518,12 @@ describe('hongguo reviews', () => {
         });
         vi.stubGlobal('fetch', fetchMock);
 
-        const rows = await cmd('reviews').func({ series_id: SID, scope: 'episodes', rounds: 3 });
+        const rows = await cmd('reviews').func({ series_id: SID, scope: 'episodes', rounds: 3, 'all-episodes': true });
 
         // 3 rounds of episode 1 (2 stable + 1 rotated each → 2 + 3), then episode 2 is a fallback page and stops after one fetch.
         expect(rows.map((r) => r.user)).toEqual(['rotated0', '用户5', '用户6', 'rotated1', 'rotated2']);
         expect(fetchMock.mock.calls.map((c) => c[0].split('/').pop())).toEqual([
-            `detail?series_id=${SID}`, VIDS[0], VIDS[0], VIDS[0], VIDS[1], VIDS[2],
+            `detail?series_id=${SID}`, SID, SID, SID, VIDS[1], VIDS[2],
         ]);
     });
 
@@ -513,7 +532,7 @@ describe('hongguo reviews', () => {
         paid.loaderData.detail_page.seriesDetail.pay_type = 1;
         const fetchMock = siteMock(paid);
         vi.stubGlobal('fetch', fetchMock);
-        const rows = await cmd('reviews').func({ series_id: SID, scope: 'episodes' });
+        const rows = await cmd('reviews').func({ series_id: SID, scope: 'episodes', 'all-episodes': true });
         expect(rows).toHaveLength(6);
         expect(fetchMock).toHaveBeenCalledTimes(4);
     });

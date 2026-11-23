@@ -4,12 +4,14 @@
  * The web has no paginated comment API; it SSRs two fixed slices:
  * - series reviews (with a 1-10 rating): `detail_page.seriesSocialInfo.reviews`,
  *   9 rows on /detail?series_id=<id>;
- * - episode comments: `episodeSocialInfo.reviews`, 15 rows per episode on
- *   /player/<id>/<vid>, only for the web-playable episodes
- *   (vid_list[0 .. accessible_episode_cnt), usually 5). `pay_type` is ignored:
- *   the site marks no series as paid. Past that range the
- *   server silently serves episode 1 again, so a page whose `vid` does not
- *   echo the requested one is discarded rather than mislabelled.
+ * - episode comments: `episodeSocialInfo.reviews`, 15 rows per episode.
+ *   Episode 1 is /player/<id>. Episodes 2+ live at /player/<id>/<vid>, which
+ *   the site's robots.txt disallows (any two-segment /player path), so they are
+ *   only read with `--all-episodes`. Either way only the web-playable
+ *   episodes exist (vid_list[0 .. accessible_episode_cnt), usually 5).
+ *   `pay_type` is ignored: the site marks no series as paid. Past that range
+ *   the server silently serves episode 1 again, so a page whose `vid` does
+ *   not echo the requested one is discarded rather than mislabelled.
  * The 15 episode comments rotate a little between requests (30 episodes
  * measured: +8.9% unique after five fetches, +6.0% after three; series reviews
  * did not change; numbers in docs/adapters/browser/hongguo.md), so `--rounds N`
@@ -70,6 +72,7 @@ cli({
         { name: 'scope', default: 'all', choices: SCOPES, help: 'all, series (rated series reviews) or episodes (per-episode comments)' },
         { name: 'limit', type: 'int', default: 100, help: 'Max reviews (1-200)' },
         { name: 'rounds', type: 'int', default: 1, help: 'Fetches per episode page (1-5); comments rotate slightly, more rounds collect more' },
+        { name: 'all-episodes', type: 'bool', default: false, help: 'Also read episodes 2+ (/player/<id>/<vid>, disallowed by the site\'s robots.txt); default is episode 1 only' },
     ],
     columns: REVIEWS_COLUMNS,
     func: async (args) => {
@@ -102,9 +105,11 @@ cli({
         }
         if (scope !== 'series') {
             const vids = webEpisodeVids(detail.seriesDetail);
-            for (let i = 0; i < vids.length && rows.length < limit; i++) {
+            const episodeCount = args['all-episodes'] === true ? vids.length : Math.min(vids.length, 1);
+            for (let i = 0; i < episodeCount && rows.length < limit; i++) {
+                const path = i === 0 ? `/player/${seriesId}` : `/player/${seriesId}/${vids[i]}`;
                 for (let round = 0; round < rounds && rows.length < limit; round++) {
-                    const loaderData = await hgFetchLoaderData(`/player/${seriesId}/${vids[i]}`, `reviews ${seriesId} episode ${i + 1}`);
+                    const loaderData = await hgFetchLoaderData(path, `reviews ${seriesId} episode ${i + 1}`);
                     const page = findLoaderEntry(loaderData, (v) => v.seriesDetail);
                     if (String(page?.vid ?? '') !== String(vids[i])) break;
                     add(parseReviewList(page.episodeSocialInfo?.reviews, { scope: 'episode', episode: i + 1 }));
