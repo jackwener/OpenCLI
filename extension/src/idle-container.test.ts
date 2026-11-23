@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { consumeIdlePlaceholder, findIdleInteractiveGroup, idlePlaceholderUrl, parkIdleInteractiveTab } from './idle-container';
+import { consumeIdlePlaceholder, findIdleInteractiveGroup, idlePlaceholderUrl, parkIdleInteractiveTab, reclaimIdlePages } from './idle-container';
 const KEY = 'opencli_idle_interactive_v1';
 const token = '00000000-0000-4000-8000-000000000001';
 const marker = `chrome-extension://opencli/idle.html#${token}`;
@@ -18,7 +18,10 @@ beforeEach(() => {
       set: vi.fn(async (items: any) => Object.assign(storage, items)),
       remove: vi.fn(async (key: string) => { delete storage[key]; }),
     } },
-    tabs: { query: vi.fn(async ({ windowId }: any) => tabs.filter(t => windowId === undefined || t.windowId === windowId)) },
+    tabs: {
+      query: vi.fn(async ({ windowId }: any) => tabs.filter(t => windowId === undefined || t.windowId === windowId)),
+      remove: vi.fn(async () => {}),
+    },
     windows: { get: vi.fn(async () => window) },
     tabGroups: { TAB_GROUP_ID_NONE: -1, get: vi.fn(async () => ({ id: 400, windowId: 7, title: 'Renamed', color: 'blue' })) },
   };
@@ -77,5 +80,46 @@ describe('idle container ownership', () => {
   it('propagates storage failures instead of inventing ownership', async () => {
     chromeMock.storage.local.get.mockRejectedValue(new Error('storage unavailable'));
     await expect(findIdleInteractiveGroup(new Set())).rejects.toThrow('storage unavailable');
+  });
+});
+describe('reclaiming orphaned idle pages', () => {
+  const idle = 'chrome-extension://opencli/idle.html';
+  const removed = () => chromeMock.tabs.remove.mock.calls.map((call: any[]) => call[0]).sort();
+  it('closes idle pages nothing will reuse and leaves every other tab alone', async () => {
+    tabs.push(
+      { id: 81, windowId: 8, url: idle },                                            // unmarked placeholder
+      { id: 82, windowId: 9, url: `${idle}#00000000-0000-4000-8000-000000000002` }, // stale marker
+      { id: 83, windowId: 10, url: 'about:blank' },                                  // not provably ours
+      { id: 84, windowId: 10, url: 'https://user.example' },
+      { id: 85, windowId: 11, url: 'chrome-extension://other/idle.html' },
+      { id: 86, windowId: 12, url: idle, pendingUrl: 'https://user.example' },
+      { id: 87, windowId: 13, url: idle },                                           // live container
+      { id: 88, windowId: 14, url: idle },                                           // held by a lease
+      { id: 89, windowId: 15, url: idle, incognito: true },
+    );
+    await expect(reclaimIdlePages(new Set([13]), new Set([88]))).resolves.toBe(2);
+    expect(removed()).toEqual([81, 82]);
+  });
+  it('keeps the sole marked window a restart can adopt', async () => {
+    await expect(reclaimIdlePages(new Set(), new Set())).resolves.toBe(0);
+    expect(chromeMock.tabs.remove).not.toHaveBeenCalled();
+  });
+  it('closes a marker it cannot adopt without touching the tabs beside it', async () => {
+    tabs.push({ id: 71, windowId: 7, groupId: -1, url: 'https://user.example' });
+    await expect(reclaimIdlePages(new Set(), new Set())).resolves.toBe(1);
+    expect(removed()).toEqual([70]);
+  });
+  it('counts only the pages it actually closed', async () => {
+    tabs.push({ id: 81, windowId: 8, url: idle }, { id: 82, windowId: 9, url: idle });
+    chromeMock.tabs.remove.mockImplementation(async (id: number) => {
+      if (id === 82) throw new Error('No tab with id: 82.');                       // closed meanwhile
+    });
+    await expect(reclaimIdlePages(new Set(), new Set())).resolves.toBe(1);
+  });
+  it('closes nothing when its ownership evidence cannot be read', async () => {
+    tabs.push({ id: 81, windowId: 8, url: idle });
+    chromeMock.storage.local.get.mockRejectedValue(new Error('storage unavailable'));
+    await expect(reclaimIdlePages(new Set(), new Set())).rejects.toThrow('storage unavailable');
+    expect(chromeMock.tabs.remove).not.toHaveBeenCalled();
   });
 });

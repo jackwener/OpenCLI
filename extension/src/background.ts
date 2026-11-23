@@ -10,7 +10,7 @@ declare const __OPENCLI_COMPAT_RANGE__: string;
 import { callChrome, describeChrome, ChromeApiError } from './chrome-api';
 import type { Command, Result } from './protocol';
 import { DAEMON_HOST, DAEMON_PORT, DAEMON_WS_URL, DAEMON_PING_URL } from './protocol';
-import { findIdleInteractiveGroup, idlePlaceholderUrl, parkIdleInteractiveTab, consumeIdlePlaceholder } from './idle-container';
+import { findIdleInteractiveGroup, idlePageUrl, isIdlePage, parkIdleInteractiveTab, consumeIdlePlaceholder, reclaimIdlePages } from './idle-container';
 import * as executor from './cdp';
 import * as identity from './identity';
 import { executeWithJournal } from './journal';
@@ -1025,6 +1025,10 @@ async function ensureOwnedContainerWindowUnlocked(
   }
 
   const startUrl = (initialUrl && isSafeNavigationUrl(initialUrl)) ? initialUrl : BLANK_PAGE;
+  // OpenCLI owns no usable window for this role, so placeholders it parked before
+  // a browser restart or extension update are orphans; close them rather than
+  // leave them beside the replacement.
+  await reclaimOrphanIdlePages();
 
   // Note: Do NOT set `state` parameter here. Chrome 146+ rejects 'normal' as an invalid
   // state value for windows.create(). The window defaults to 'normal' state anyway.
@@ -1070,15 +1074,27 @@ async function ensureOwnedContainerWindowUnlocked(
   return { windowId: group?.windowId ?? container.windowId, initialTabId };
 }
 
+async function reclaimOrphanIdlePages(): Promise<void> {
+  try {
+    const live = new Set(Object.values(ownedContainers).flatMap(c => c.windowId === null ? [] : [c.windowId]));
+    const reserved = new Set([...automationSessions.values()]
+      .flatMap(session => session.preferredTabId === null ? [] : [session.preferredTabId]));
+    const closed = await reclaimIdlePages(live, reserved);
+    if (closed > 0) console.log(`[opencli] Closed ${closed} orphaned idle placeholder(s)`);
+  } catch (err) {
+    // Cleanup must never block opening the window a command needs.
+    console.warn(`[opencli] Idle placeholder cleanup failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
 async function findReusableOwnedContainerTab(windowId: number, ownedGroupId?: number | null): Promise<number | undefined> {
-  const idleUrl = await idlePlaceholderUrl();
   const tabs = await chrome.tabs.query({ windowId });
   // Group members and non-http placeholders stay eligible. Without a group
   // signal, only non-http placeholders can be reused.
   const reusable = tabs.find(tab =>
     tab.id !== undefined &&
     initialTabIsAvailable(tab.id) &&
-    (isDebuggableUrl(tab.url) || (idleUrl !== null && tab.url === idleUrl && !tab.pendingUrl)) &&
+    (isDebuggableUrl(tab.url) || (isIdlePage(tab.url) && !tab.pendingUrl)) &&
     (
       ownedGroupId === undefined ||
       (ownedGroupId !== null && tab.groupId === ownedGroupId) ||
@@ -1603,7 +1619,13 @@ async function resolveTab(tabId: number | undefined, leaseKey: string, initialUr
   const group = existingSession?.owned ? await ensureOwnedContainerGroup(role, windowId, []) : null;
   const scopedWindowId = group?.windowId ?? windowId;
   const reusableTabId = await findReusableOwnedContainerTab(scopedWindowId, existingSession?.owned ? (group?.id ?? null) : undefined);
-  if (reusableTabId !== undefined) return { tabId: reusableTabId, tab: await chrome.tabs.get(reusableTabId) };
+  if (reusableTabId !== undefined) {
+    const tab = await chrome.tabs.get(reusableTabId);
+    if (!isIdlePage(tab.url)) return { tabId: reusableTabId, tab };
+    // An idle page is an extension page, not a debuggable target.
+    await consumeIdlePlaceholder(tab);
+    return { tabId: reusableTabId, tab: await chrome.tabs.update(reusableTabId, { url: BLANK_PAGE }) };
+  }
 
   // No debuggable tab — another extension may have hijacked the tab URL.
   // Only recycle arbitrary tabs for legacy unscoped sessions. Owned sessions
@@ -2230,9 +2252,11 @@ async function releaseLease(leaseKey: string, reason: string = 'released'): Prom
       } else {
         try {
           const role = getOwnedWindowRole(leaseKey);
+          // Recoverable when it is the only tab of an interactive window; any
+          // other placeholder is still the idle page, so it can be reclaimed.
           const idleUrl = role === 'interactive'
             ? await parkIdleInteractiveTab(tabId, session.windowId) : null;
-          const tab = await chrome.tabs.update(tabId, { url: idleUrl ?? BLANK_PAGE, active: true });
+          const tab = await chrome.tabs.update(tabId, { url: idleUrl ?? idlePageUrl(), active: true });
           const group = await ensureOwnedContainerGroup(getOwnedWindowRole(leaseKey), session.windowId, [tab.id ?? tabId]);
           if (group) session.windowId = group.windowId;
           console.log(`[opencli] Released owned tab lease ${tabId} as reusable placeholder (session=${session.session}, surface=${session.surface}, ${reason})`);
@@ -2334,6 +2358,9 @@ async function reconcileTargetLeaseRegistry(): Promise<void> {
   } catch (err) {
     console.warn(`[opencli] Startup interactive group convergence failed: ${err instanceof Error ? err.message : String(err)}`);
   }
+  // Placeholders restored after a browser restart or extension update that no
+  // container kept are closed now, not only when the next command opens a window.
+  await reclaimOrphanIdlePages();
 
   await persistRuntimeState();
 }

@@ -28,6 +28,16 @@ const leaseKey = (surface: 'browser' | 'adapter', session: string): string =>
   `${surface}\u0000${encodeURIComponent(session)}`;
 const browserKey = (session: string): string => leaseKey('browser', session);
 const adapterKey = (session: string): string => leaseKey('adapter', session);
+// The unmarked idle page a released lease parks on (the mock's extension origin).
+const IDLE_PAGE = 'chrome-extension://opencli/idle.html';
+// tabs.remove as Chrome does it: the tab leaves the inventory, and an emptied group with it.
+const removeLikeChrome = (tabs: MockTab[], groups: MockTabGroup[]) => vi.fn(async (tabId: number) => {
+  const index = tabs.findIndex((tab) => tab.id === tabId);
+  if (index < 0) throw new Error(`No tab with id: ${tabId}.`);
+  const [tab] = tabs.splice(index, 1);
+  const group = groups.findIndex((entry) => entry.id === tab.groupId);
+  if (group >= 0 && !tabs.some((entry) => entry.groupId === tab.groupId)) groups.splice(group, 1);
+});
 
 class MockWebSocket {
   static OPEN = 1;
@@ -741,6 +751,65 @@ describe('background tab isolation', () => {
     await mod.__test__.reconcileTargetLeaseRegistry();
     expect(await mod.__test__.resolveTabId(undefined, browserKey('again'), 'https://target.example')).toBe(70);
     expect(chrome.windows.create).not.toHaveBeenCalled();
+    expect(chrome.tabs.remove).not.toHaveBeenCalled();
+  });
+
+  it('parks a lease in a mixed window on the idle page and closes only that page after a restart (#2202)', async () => {
+    const { chrome, tabs, groups } = createChromeMock();
+    tabs.push({ id: 70, windowId: 7, url: 'https://automation.example', active: true, status: 'complete', groupId: 400 });
+    tabs.push({ id: 71, windowId: 7, url: 'https://user.example/added-later', active: false, status: 'complete', groupId: -1 });
+    groups.push({ id: 400, windowId: 7, title: 'OpenCLI Browser', color: 'orange', collapsed: false });
+    chrome.tabs.remove = removeLikeChrome(tabs, groups);
+    vi.stubGlobal('chrome', chrome);
+    let mod = await import('./background');
+    await mod.__test__.reconcileTargetLeaseRegistry();
+    mod.__test__.setSession(browserKey('owned'), { windowId: 7, owned: true, preferredTabId: 70 });
+    await mod.__test__.handleCommand({ id: 'close', action: 'close-window', session: 'owned', surface: 'browser' });
+    // Not recoverable (the window holds a user tab), but still recognisably OpenCLI's.
+    expect(tabs.find(tab => tab.id === 70)?.url).toBe(IDLE_PAGE);
+    expect((await chrome.storage.local.get('opencli_idle_interactive_v1')).opencli_idle_interactive_v1).toBeUndefined();
+
+    // A worker reload keeps the registry, and the live container keeps its placeholder.
+    vi.resetModules();
+    mod = await import('./background');
+    await mod.__test__.reconcileTargetLeaseRegistry();
+    expect(chrome.tabs.remove).not.toHaveBeenCalled();
+
+    // A browser restart clears it: the placeholder is an orphan, the user's tab stays.
+    await chrome.storage.session.set({ opencli_target_lease_registry_v2: undefined });
+    vi.resetModules();
+    mod = await import('./background');
+    await mod.__test__.reconcileTargetLeaseRegistry();
+    expect(chrome.tabs.remove).toHaveBeenCalledTimes(1);
+    expect(tabs.find(tab => tab.id === 70)).toBeUndefined();
+    expect(tabs.find(tab => tab.id === 71)).toMatchObject({ windowId: 7, url: 'https://user.example/added-later' });
+    expect(groups.find(group => group.id === 400)).toBeUndefined();
+  });
+
+  it('closes an adapter placeholder orphaned by a restart before opening a replacement window (#2202)', async () => {
+    const { chrome, tabs, groups } = createChromeMock();
+    chrome.tabs.remove = removeLikeChrome(tabs, groups);
+    vi.stubGlobal('chrome', chrome);
+    let mod = await import('./background');
+    await mod.__test__.resolveTabId(undefined, adapterKey('first'));
+    const onAlarmListener = chrome.alarms.onAlarm.addListener.mock.calls[0][0];
+    await onAlarmListener({ name: `opencli:lease-idle:${encodeURIComponent(adapterKey('first'))}` });
+    expect(tabs[0].url).toBe(IDLE_PAGE);
+
+    await chrome.storage.session.set({ opencli_target_lease_registry_v2: undefined });
+    vi.resetModules();
+    mod = await import('./background');
+    await mod.__test__.reconcileTargetLeaseRegistry();
+    expect(tabs.map(tab => tab.id)).toEqual([2, 3]);
+
+    // Recovery can run before the browser has restored every window; opening the
+    // replacement reclaims a placeholder that appeared after it.
+    tabs.push({ id: 90, windowId: 9, url: IDLE_PAGE, active: true, status: 'complete', groupId: -1 });
+    chrome.windows.create.mockClear();
+    await mod.__test__.resolveTabId(undefined, adapterKey('next'), 'https://next.example');
+    expect(tabs.find(tab => tab.id === 90)).toBeUndefined();
+    expect(tabs.filter(tab => tab.url === IDLE_PAGE)).toEqual([]);
+    expect(chrome.windows.create).toHaveBeenCalledTimes(1);
   });
 
   it('propagates owned group recovery errors instead of creating a replacement window', async () => {
@@ -954,7 +1023,7 @@ describe('background tab isolation', () => {
       data: { closed: 'target-1' },
     });
     expect(chrome.tabs.remove).toHaveBeenCalledWith(1);
-    expect(chrome.tabs.update).not.toHaveBeenCalledWith(10, { url: 'about:blank', active: true });
+    expect(chrome.tabs.update).not.toHaveBeenCalledWith(10, { url: IDLE_PAGE, active: true });
     expect(mod.__test__.getSession(adapterKey('twitter'))?.preferredTabId).toBe(10);
   });
 
@@ -975,7 +1044,7 @@ describe('background tab isolation', () => {
 
     expect(result).toEqual(expect.objectContaining({ id: 'reject-close', ok: false }));
     expect(chrome.tabs.remove).not.toHaveBeenCalled();
-    expect(chrome.tabs.update).not.toHaveBeenCalledWith(1, { url: 'about:blank', active: true });
+    expect(chrome.tabs.update).not.toHaveBeenCalledWith(1, { url: IDLE_PAGE, active: true });
     expect(mod.__test__.getSession(adapterKey('twitter'))?.preferredTabId).toBe(1);
   });
 
@@ -992,7 +1061,7 @@ describe('background tab isolation', () => {
     );
 
     expect(result).toEqual({ id: 'implicit-close', ok: true, data: { closed: 'target-1' } });
-    expect(chrome.tabs.update).toHaveBeenCalledWith(1, { url: 'about:blank', active: true });
+    expect(chrome.tabs.update).toHaveBeenCalledWith(1, { url: IDLE_PAGE, active: true });
     expect(mod.__test__.getSession(adapterKey('twitter'))).toBeNull();
   });
 
@@ -1438,7 +1507,7 @@ describe('background tab isolation', () => {
     const closeSecond = await mod.__test__.handleCommand({ id: 'close-second', action: 'close-window', session: 'second', surface: 'adapter' });
     expect(closeSecond).toEqual(expect.objectContaining({ ok: true }));
     expect(chrome.tabs.remove).toHaveBeenCalledWith(10);
-    expect(chrome.tabs.update).not.toHaveBeenCalledWith(10, { url: 'about:blank', active: true });
+    expect(chrome.tabs.update).not.toHaveBeenCalledWith(10, { url: IDLE_PAGE, active: true });
     expect(chrome.windows.remove).not.toHaveBeenCalled();
     expect(mod.__test__.getSession(adapterKey('first'))).not.toBeNull();
     expect(mod.__test__.getSession(adapterKey('second'))).toBeNull();
@@ -1511,7 +1580,7 @@ describe('background tab isolation', () => {
     });
     expect(result).toMatchObject({ ok: true, data: { tabCleanup: 'closed-owned-tab' } });
     expect(chrome.tabs.remove).toHaveBeenCalledExactlyOnceWith(tabId);
-    expect(chrome.tabs.update).not.toHaveBeenCalledWith(tabId, { url: 'about:blank', active: true });
+    expect(chrome.tabs.update).not.toHaveBeenCalledWith(tabId, { url: IDLE_PAGE, active: true });
     expect(mod.__test__.getSession(adapterKey('once'))).toBeNull();
   });
 
@@ -1634,7 +1703,7 @@ describe('background tab isolation', () => {
       ok: true,
       data: { closed: 'target-1' },
     }));
-    expect(chrome.tabs.update).toHaveBeenCalledWith(1, { url: 'about:blank', active: true });
+    expect(chrome.tabs.update).toHaveBeenCalledWith(1, { url: IDLE_PAGE, active: true });
     expect(chrome.windows.remove).not.toHaveBeenCalled();
     expect(mod.__test__.getSession(adapterKey('twitter'))).toBeNull();
   });
@@ -1799,7 +1868,7 @@ describe('background tab isolation', () => {
     const onAlarmListener = chrome.alarms.onAlarm.addListener.mock.calls[0][0];
     await onAlarmListener({ name: `opencli:lease-idle:${encodeURIComponent(adapterKey('first'))}` });
 
-    expect(tabs[0].url).toBe('about:blank');
+    expect(tabs[0].url).toBe(IDLE_PAGE);
     expect(chrome.windows.remove).not.toHaveBeenCalled();
     chrome.windows.create.mockClear();
 
@@ -2585,7 +2654,7 @@ describe('background tab isolation', () => {
     expect(finalRegistry.ownedContainers.interactive.groupId).toBeUndefined();
     expect(mod.__test__.getInteractiveContainer().groupId).toBe(200);
     // The lease was released down the proper owned-placeholder path, not wiped.
-    expect(chrome.tabs.update).toHaveBeenCalledWith(1, { url: 'about:blank', active: true });
+    expect(chrome.tabs.update).toHaveBeenCalledWith(1, { url: IDLE_PAGE, active: true });
     expect(mod.__test__.getSession(adapterKey('twitter'))).toBeNull();
   });
 
