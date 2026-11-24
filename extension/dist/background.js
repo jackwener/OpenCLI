@@ -2701,9 +2701,24 @@ async function handleBind(cmd, leaseKey) {
   if (existing?.owned) {
     await releaseLease(leaseKey, "rebind");
   }
-  const activeTabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-  const fallbackTabs = await chrome.tabs.query({ lastFocusedWindow: true });
-  const boundTab = activeTabs.find((tab) => isDebuggableUrl(tab.url)) ?? fallbackTabs.find((tab) => isDebuggableUrl(tab.url));
+  let boundTab;
+  if (cmd.page || cmd.url) {
+    const named = cmd.page ? [await chrome.tabs.get(await resolveTabId$1(cmd.page))] : (await chrome.tabs.query({})).filter((tab) => isTargetUrl(tab.url, cmd.url));
+    if (named.length !== 1 || !isDebuggableUrl(named[0].url)) {
+      return {
+        id: cmd.id,
+        ok: false,
+        errorCode: "bound_tab_not_found",
+        error: named.length > 1 ? `${named.length} tabs match ${cmd.url}` : "The named tab is missing or not debuggable",
+        errorHint: "Name exactly one debuggable tab by page (targetId) or exact URL."
+      };
+    }
+    boundTab = named[0];
+  } else {
+    const activeTabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    const fallbackTabs = await chrome.tabs.query({ lastFocusedWindow: true });
+    boundTab = activeTabs.find((tab) => isDebuggableUrl(tab.url)) ?? fallbackTabs.find((tab) => isDebuggableUrl(tab.url));
+  }
   if (!boundTab?.id) {
     return {
       id: cmd.id,
