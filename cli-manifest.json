@@ -9867,14 +9867,14 @@
         "type": "bool",
         "default": false,
         "required": false,
-        "help": "Also fetch the replies under each comment (one extra request per commented thread)"
+        "help": "Also fetch the replies under each comment (one request per reply page, 5-10 s apart to stay under Douyin's rate limit)"
       },
       {
         "name": "timeout",
         "type": "int",
-        "default": 600,
+        "default": 1800,
         "required": false,
-        "help": "Max seconds for the whole crawl (default: 600); raise it for long threads"
+        "help": "Max seconds for the whole crawl (default: 1800); --replies needs ~8 s per commented thread"
       }
     ],
     "columns": [

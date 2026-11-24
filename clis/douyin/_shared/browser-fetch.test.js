@@ -23,6 +23,15 @@ function makeScriptPage(body, { ok = true, status = 200, envelope = false } = {}
     return page;
 }
 describe('browserFetch', () => {
+    it('fails typed instead of hanging when the page never settles the request (verification prompt)', async () => {
+        const page = makePage(null);
+        page.evaluate = vi.fn(async (script) => new Function('fetch', `return (${script});`)(() => new Promise(() => {})));
+        const err = await browserFetch(page, 'GET', 'https://www.douyin.com/aweme/v1/web/comment/list/', { timeoutMs: 20 }).catch((e) => e);
+        expect(err).toBeInstanceOf(AuthRequiredError);
+        expect(err.domain).toBe('www.douyin.com');
+        expect(err.message).toMatch(/did not settle/);
+        expect(err.hint).toMatch(/verification/);
+    });
     it('returns parsed JSON on success', async () => {
         const page = makePage({ status_code: 0, data: { ak: 'KEY' } });
         const result = await browserFetch(page, 'GET', 'https://creator.douyin.com/api/test');

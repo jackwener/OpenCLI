@@ -5,7 +5,11 @@
  * a page (asking for more returns 50 but advances the cursor by the larger
  * count, silently skipping rows), so PAGE_SIZE stays at 50. Replies live
  * behind `/aweme/v1/web/comment/list/reply/` per top-level comment and are
- * only fetched with `--replies`.
+ * only fetched with `--replies`. Douyin rate-limits that endpoint per account
+ * far harder than the top-level list: at 0.5 s between requests it raised a
+ * verification prompt within the first thread (twice), at 5-10 s a run of
+ * ~680 threads went through first (2026-11-24). So each reply request waits
+ * REPLY_PAUSE_S first; top-level pages keep the short pause.
  *
  * Like `douyin detail`, requests run inside a logged-in www.douyin.com video
  * page so the site's own JS signs them. The listed total includes folded and
@@ -20,6 +24,8 @@ import { formatChinaTime, requireCount, walkPages } from './_shared/paging.js';
 
 export const PAGE_SIZE = 50;
 export const MAX_COMMENTS = 20000;
+/** Random 5-10 s before each reply request. */
+export const REPLY_PAUSE_S = [5, 10];
 export const COMMENT_COLUMNS = ['rank', 'cid', 'parent_cid', 'user', 'text', 'likes', 'replies', 'time', 'ip_label', 'aweme_id'];
 
 export function toCommentRow(c, awemeId, parentCid = '') {
@@ -48,8 +54,8 @@ cli({
     args: [
         { name: 'target', required: true, positional: true, help: '视频 ID / 视频链接 / 分享短链' },
         { name: 'limit', type: 'int', default: 100, help: `Max rows, replies included (1-${MAX_COMMENTS})` },
-        { name: 'replies', type: 'bool', default: false, help: 'Also fetch the replies under each comment (one extra request per commented thread)' },
-        { name: 'timeout', type: 'int', default: 600, help: 'Max seconds for the whole crawl (default: 600); raise it for long threads' },
+        { name: 'replies', type: 'bool', default: false, help: 'Also fetch the replies under each comment (one request per reply page, 5-10 s apart to stay under Douyin\'s rate limit)' },
+        { name: 'timeout', type: 'int', default: 1800, help: 'Max seconds for the whole crawl (default: 1800); --replies needs ~8 s per commented thread' },
     ],
     columns: COMMENT_COLUMNS,
     func: async (page, kwargs) => {
@@ -81,10 +87,11 @@ cli({
             for (const parent of top) {
                 if (rows.length >= limit) break;
                 if (!parent.replies) continue;
-                await walkPages(page, (cursor) => browserFetch(page, 'GET',
-                    `https://www.douyin.com/aweme/v1/web/comment/list/reply/?${new URLSearchParams({ item_id: id, comment_id: parent.cid, cursor: String(cursor), count: String(PAGE_SIZE), aid: '6383' })}`,
-                ), 'comments', limit - rows.length, (c) => keep(toCommentRow(c, id, parent.cid)));
-                await page.wait({ time: 0.5 });
+                await walkPages(page, async (cursor) => {
+                    await page.wait({ time: REPLY_PAUSE_S[0] + Math.random() * (REPLY_PAUSE_S[1] - REPLY_PAUSE_S[0]) });
+                    return browserFetch(page, 'GET',
+                        `https://www.douyin.com/aweme/v1/web/comment/list/reply/?${new URLSearchParams({ item_id: id, comment_id: parent.cid, cursor: String(cursor), count: String(PAGE_SIZE), aid: '6383' })}`);
+                }, 'comments', limit - rows.length, (c) => keep(toCommentRow(c, id, parent.cid)), 0);
             }
             const order = new Map(top.map((r, i) => [r.cid, i]));
             const threadOf = (r) => order.get(r.parent_cid || r.cid);

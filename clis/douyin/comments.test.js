@@ -71,6 +71,21 @@ describe('douyin comments', () => {
         expect(page.urls.filter((u) => u.pathname.endsWith('/reply/'))).toHaveLength(2);
     });
 
+    it('--replies paces reply requests 5-10 s apart; top-level pages stay at 0.5 s', async () => {
+        const page = threadedSite();
+        await command.func(page, { target: id, limit: 100, replies: true });
+        const waits = page.wait.mock.calls.map((c) => c[0].time);
+        // goto settle, one top-level page gap, then before each reply request (2 pages in the c1 thread)
+        expect(waits[0]).toBe(2.5);
+        expect(waits[1]).toBe(0.5);
+        const replyWaits = waits.slice(2);
+        expect(replyWaits).toHaveLength(2);
+        for (const w of replyWaits) {
+            expect(w).toBeGreaterThanOrEqual(5);
+            expect(w).toBeLessThanOrEqual(10);
+        }
+    });
+
     it('stops requesting once --limit rows are kept', async () => {
         const page = threadedSite();
         const rows = await command.func(page, { target: id, limit: 2, replies: true });

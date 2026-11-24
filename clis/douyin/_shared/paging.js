@@ -19,8 +19,9 @@ export function requireCount(value, def, max, name = 'limit') {
 /**
  * Walk a cursor-paged Douyin list until it runs out, `want` rows are kept, or
  * the cursor stops advancing. `fetchPage(cursor)` returns the raw JSON.
+ * `pauseS` is the gap between pages (0 when `fetchPage` paces itself).
  */
-export async function walkPages(page, fetchPage, listKey, want, onItem) {
+export async function walkPages(page, fetchPage, listKey, want, onItem, pauseS = PAGE_PAUSE_S) {
     let cursor = 0;
     let kept = 0;
     for (;;) {
@@ -34,6 +35,6 @@ export async function walkPages(page, fetchPage, listKey, want, onItem) {
         const next = Number(data?.cursor);
         if (kept >= want || !data?.has_more || !list?.length || !Number.isFinite(next) || next <= cursor) return;
         cursor = next;
-        await page.wait({ time: PAGE_PAUSE_S });
+        if (pauseS > 0) await page.wait({ time: pauseS });
     }
 }
