@@ -102,6 +102,11 @@ opencli xiaohongshu delete-note 6a08ba0b000000000702a893 --execute
 
 ### User profile pagination
 
+`saved --limit` and `liked --limit` each accept 1–500 notes (default 20).
+When the profile store is available, these commands page until they reach the
+requested count or the list ends. If Xiaohongshu blocks a later request, they
+return the notes collected so far.
+
 `user --limit` accepts 1–1000 notes and `--timeout` accepts 1–1800 seconds
 (default 300). The timeout covers navigation and hydration as well as scrolling.
 Pagination keeps notes by ID across store replacements, waits two seconds after

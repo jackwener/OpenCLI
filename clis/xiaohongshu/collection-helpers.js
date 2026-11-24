@@ -1,10 +1,12 @@
-import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CliError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { PINIA_ACCESS_JS } from './pinia-helpers.js';
 import { buildXhsNoteUrl, normalizeXhsUserId } from './user-helpers.js';
 
 export const COLLECT_API_PATTERN = 'note/collect/page';
 export const LIKE_API_PATTERN = 'note/like/page';
 export const SAVED_PROFILE_TAB = 'fav';
 export const LIKED_PROFILE_TAB = 'liked';
+const MAX_COLLECTION_LIMIT = 500;
 
 export function buildProfileCollectionUrl(userId, tab) {
     const cleanUserId = toCleanString(userId);
@@ -33,10 +35,10 @@ export function unwrapBrowserResult(payload) {
 export function parseCollectionLimit(raw) {
     const parsed = Number(raw ?? 20);
     if (!Number.isFinite(parsed) || !Number.isInteger(parsed)) {
-        throw new ArgumentError(`--limit must be an integer between 1 and 100, got ${JSON.stringify(raw)}`);
+        throw new ArgumentError(`--limit must be an integer between 1 and ${MAX_COLLECTION_LIMIT}, got ${JSON.stringify(raw)}`);
     }
-    if (parsed < 1 || parsed > 100) {
-        throw new ArgumentError(`--limit must be between 1 and 100, got ${parsed}`);
+    if (parsed < 1 || parsed > MAX_COLLECTION_LIMIT) {
+        throw new ArgumentError(`--limit must be between 1 and ${MAX_COLLECTION_LIMIT}, got ${parsed}`);
     }
     return parsed;
 }
@@ -236,6 +238,133 @@ export async function extractNotesFromDom(page) {
     return payload.filter((item) => item?.id);
 }
 
+function readCollectionStoreJs(userId, profileTab, offset) {
+    return `
+  (async () => {
+    ${PINIA_ACCESS_JS}
+    const user = __xhsStore('user');
+    if (__xhsLoggedOut()) return { error: 'login' };
+    if (location.hostname !== 'www.xiaohongshu.com' ||
+        location.pathname !== ${JSON.stringify(`/user/profile/${userId}`)}) return { error: 'profile' };
+    const tab = ${JSON.stringify(profileTab)};
+    const liked = tab === '${LIKED_PROFILE_TAB}';
+    if (typeof user?.fetchNotes !== 'function' || user.activeTab?.query !== tab ||
+        (!liked && user.activeSubTab?.query !== 'note')) return null;
+    const index = liked ? user.activeTab.index : user.activeSubTab.index;
+    const offset = ${JSON.stringify(offset)};
+    if (!Array.isArray(user.notes?.[index]) || typeof user.noteQueries?.[index]?.hasMore !== 'boolean') return null;
+
+    let error;
+    if (offset !== null && user.noteQueries[index].hasMore && user.notes[index].length >= offset) {
+      if (user.userNoteFetchingStatus?.[index] === 'pending') return { pending: true };
+      try {
+        await user.fetchNotes(index);
+      } catch (err) {
+        const status = Number(err?.response?.status ?? err?.status ?? err?.code);
+        error = status === 429 || status === 461 ? 'security' : 'request';
+      }
+      if (__xhsLoggedOut()) return { error: 'login' };
+      if (user.userNoteFetchingStatus?.[index] === 'rejected') error ??= 'request';
+    }
+    const notes = user.notes?.[index];
+    const query = user.noteQueries?.[index];
+    if (!Array.isArray(notes) || typeof query?.hasMore !== 'boolean') return error ? { error } : null;
+    return {
+      notes: __xhsClone(notes.slice(offset ?? 0)), count: notes.length,
+      cursor: query.cursor, page: query.page, hasMore: query.hasMore, error,
+    };
+  })()
+`;
+}
+
+async function fetchCollectionFromStore(page, userId, profileTab, limit) {
+    const readStore = async (offset) => {
+        const script = readCollectionStoreJs(userId, profileTab, offset);
+        for (let i = 0; i < 8; i += 1) {
+            const state = unwrapBrowserResult(await page.evaluate(script));
+            if (!state?.pending && (state !== null || offset !== null)) return state;
+            // Let the tab hydrate and any page-initiated fetch finish.
+            await page.wait(0.25);
+        }
+        return null;
+    };
+    let state = await readStore(null);
+    if (state === null) return null;
+
+    const rows = new Map();
+    let previous;
+    while (state !== null) {
+        if (state.error === 'login') {
+            throw new AuthRequiredError('www.xiaohongshu.com', 'Xiaohongshu collection page requires login; re-login to xiaohongshu.com and retry.');
+        }
+        if (state.error === 'profile') {
+            throw new CommandExecutionError('Xiaohongshu left the requested collection profile while paginating.');
+        }
+        if ('notes' in state) {
+            for (const row of extractNotesFromResponses([{ data: { notes: state.notes } }], userId)) {
+                if (!rows.has(row.id)) rows.set(row.id, row);
+            }
+        }
+        if (state.error === 'security') {
+            if (rows.size > 0) break;
+            throw new CliError('SECURITY_BLOCK', 'Xiaohongshu collection was blocked by risk control.', 'Wait before retrying.');
+        }
+        if (state.error === 'request') {
+            throw new CommandExecutionError('Xiaohongshu collection page failed to load more notes.');
+        }
+        if (rows.size >= limit || !state.hasMore || (previous && (state.count < previous.count ||
+            (state.cursor === previous.cursor && state.page === previous.page)))) break;
+
+        previous = state;
+        await page.wait(0.65);
+        state = await readStore(previous.count);
+    }
+    return state === null && rows.size === 0 ? null : [...rows.values()];
+}
+
+const SCROLL_COLLECTION_JS = `
+  (() => {
+    const container = document.querySelector('#userPageContainer');
+    if (!container) return false;
+    container.scrollTop = container.scrollHeight;
+    return true;
+  })()
+`;
+
+async function fetchCollectionFromPage(page, userId, apiPattern, limit) {
+    const capturedRequests = [];
+    await page.installInterceptor(apiPattern);
+    const notes = new Map();
+    const readNotes = async () => {
+        // The first page can already be rendered before the interceptor is installed.
+        const dom = await extractNotesFromDom(page);
+        for (const row of dom) {
+            if (!notes.has(row.id)) notes.set(row.id, row);
+        }
+        for (const row of await accumulateInterceptedNotes(page, capturedRequests, userId)) {
+            notes.set(row.id, row);
+        }
+    };
+    for (let i = 0; i < 16; i++) {
+        await readNotes();
+        if (notes.size > 0) break;
+        await page.wait(0.5);
+    }
+    for (let i = 0; notes.size < limit && i < 4; i += 1) {
+        const previousCount = notes.size;
+        if (unwrapBrowserResult(await page.evaluate(SCROLL_COLLECTION_JS))) {
+            await page.wait({ time: 1.5 });
+        } else {
+            await page.autoScroll({ times: 1, delayMs: 1500 });
+        }
+        await page.wait(1);
+        await assertOnCollectionProfile(page, userId);
+        await readNotes();
+        if (notes.size === previousCount) break;
+    }
+    return [...notes.values()];
+}
+
 export async function fetchXhsCollectionNotes(page, {
     userId,
     profileTab,
@@ -243,36 +372,11 @@ export async function fetchXhsCollectionNotes(page, {
     limit,
     emptyLabel,
 }) {
-    const capturedRequests = [];
-    await page.installInterceptor(apiPattern);
     await page.goto(buildProfileCollectionUrl(userId, profileTab));
     await page.wait(2);
     await assertOnCollectionProfile(page, userId);
-    let notes = [];
-    for (let i = 0; i < 16; i++) {
-        await page.wait(0.5);
-        notes = await accumulateInterceptedNotes(page, capturedRequests, userId);
-        if (notes.length > 0)
-            break;
-    }
-    let previousCount = notes.length;
-    for (let i = 0; notes.length < limit && i < 4; i += 1) {
-        await page.autoScroll({ times: 1, delayMs: 1500 });
-        await page.wait(1);
-        await assertOnCollectionProfile(page, userId);
-        const nextNotes = await accumulateInterceptedNotes(page, capturedRequests, userId);
-        if (nextNotes.length > previousCount) {
-            notes = nextNotes;
-            previousCount = nextNotes.length;
-            continue;
-        }
-        break;
-    }
-    if (notes.length === 0) {
-        const domNotes = await extractNotesFromDom(page);
-        if (domNotes.length > 0)
-            notes = domNotes;
-    }
+    const notes = await fetchCollectionFromStore(page, userId, profileTab, limit)
+        ?? await fetchCollectionFromPage(page, userId, apiPattern, limit);
     if (notes.length === 0) {
         throw new EmptyResultError('xiaohongshu collection', `No ${emptyLabel} notes found. Ensure you are logged in and this profile tab is visible.`);
     }
