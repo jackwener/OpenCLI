@@ -2356,6 +2356,77 @@ describe('background tab isolation', () => {
     expect(chrome.windows.create).not.toHaveBeenCalled();
   });
 
+  it('bind attaches a named background tab by page without activating or focusing it', async () => {
+    const { chrome, tabs } = createChromeMock();
+    tabs.push({ id: 4, windowId: 1, url: 'https://background.example', title: 'background', active: false, status: 'complete', groupId: -1 });
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+
+    const bound = await mod.__test__.handleBind({
+      id: 'bind-page',
+      action: 'bind',
+      session: 'default',
+      page: 'target-4',
+    }, browserKey('default'));
+
+    expect(bound).toEqual(expect.objectContaining({
+      ok: true,
+      page: 'target-4',
+      data: expect.objectContaining({ session: 'default', url: 'https://background.example' }),
+    }));
+    expect(mod.__test__.getSession(browserKey('default'))).toEqual(expect.objectContaining({
+      windowId: 1,
+      owned: false,
+      kind: 'bound',
+      preferredTabId: 4,
+    }));
+    expect(chrome.tabs.update).not.toHaveBeenCalled();
+    expect(chrome.windows.create).not.toHaveBeenCalled();
+    expect(tabs.find((tab) => tab.id === 2)?.active).toBe(true);
+    expect(tabs.find((tab) => tab.id === 4)?.active).toBe(false);
+  });
+
+  it('bind by exact url binds the one matching tab and refuses several or a non-debuggable one', async () => {
+    const { chrome, tabs } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+
+    const one = await mod.__test__.handleBind({
+      id: 'bind-url',
+      action: 'bind',
+      session: 'by-url',
+      url: 'https://automation.example/',
+    }, browserKey('by-url'));
+    expect(one).toEqual(expect.objectContaining({ ok: true, page: 'target-1' }));
+    expect(mod.__test__.getSession(browserKey('by-url'))).toEqual(expect.objectContaining({ preferredTabId: 1, windowId: 1 }));
+
+    tabs.push({ id: 5, windowId: 2, url: 'https://automation.example', title: 'twin', active: false, status: 'complete', groupId: -1 });
+    const several = await mod.__test__.handleBind({
+      id: 'bind-url-ambiguous',
+      action: 'bind',
+      session: 'ambiguous',
+      url: 'https://automation.example',
+    }, browserKey('ambiguous'));
+    expect(several).toEqual(expect.objectContaining({
+      ok: false,
+      errorCode: 'bound_tab_not_found',
+      error: expect.stringContaining('2 tabs match'),
+    }));
+    expect(mod.__test__.getSession(browserKey('ambiguous'))).toBeNull();
+
+    const internal = await mod.__test__.handleBind({
+      id: 'bind-page-internal',
+      action: 'bind',
+      session: 'internal',
+      page: 'target-3',
+    }, browserKey('internal'));
+    expect(internal).toEqual(expect.objectContaining({ ok: false, errorCode: 'bound_tab_not_found' }));
+    expect(mod.__test__.getSession(browserKey('internal'))).toBeNull();
+    expect(chrome.tabs.update).not.toHaveBeenCalled();
+  });
+
   it('rebind releases an owned browser lease before binding the current user tab', async () => {
     const { chrome } = createChromeMock();
     vi.stubGlobal('chrome', chrome);

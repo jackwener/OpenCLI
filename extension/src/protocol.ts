@@ -43,7 +43,7 @@ export interface Command {
   surface?: 'browser' | 'adapter';
   /** Adapter site session lifecycle. Persistent site sessions do not idle-expire. */
   siteSession?: 'ephemeral' | 'persistent';
-  /** URL to navigate to (navigate action) */
+  /** URL to navigate to (navigate action), or of the one tab to bind (bind action) */
   url?: string;
   /** Sub-operation for tabs: list, new, close, select */
   op?: 'list' | 'new' | 'close' | 'select';
