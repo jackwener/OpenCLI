@@ -23,6 +23,35 @@ function makeScriptPage(body, { ok = true, status = 200, envelope = false } = {}
     return page;
 }
 describe('browserFetch', () => {
+    it('retries once when the page detaches mid-command, then succeeds', async () => {
+        const page = makePage(null);
+        page.evaluate = vi.fn()
+            .mockRejectedValueOnce(new Error('Detached while handling command.'))
+            .mockResolvedValueOnce({ status_code: 0, ok: true });
+        await expect(browserFetch(page, 'GET', 'https://www.douyin.com/aweme/v1/web/comment/list/')).resolves.toEqual({ status_code: 0, ok: true });
+        expect(page.evaluate).toHaveBeenCalledTimes(2);
+        expect(page.wait).toHaveBeenCalledTimes(1);
+    });
+    it('gives up after a second detach and does not retry other evaluate errors', async () => {
+        const page = makePage(null);
+        page.evaluate = vi.fn().mockRejectedValue(new Error('Detached while handling command.'));
+        await expect(browserFetch(page, 'GET', 'https://www.douyin.com/x')).rejects.toThrow(/Detached/);
+        expect(page.evaluate).toHaveBeenCalledTimes(2);
+
+        const other = makePage(null);
+        other.evaluate = vi.fn().mockRejectedValue(new Error('Execution context was destroyed'));
+        await expect(browserFetch(other, 'GET', 'https://www.douyin.com/x')).rejects.toBeInstanceOf(CommandExecutionError);
+        expect(other.evaluate).toHaveBeenCalledTimes(1);
+    });
+    it('fails typed instead of hanging when the page never settles the request (verification prompt)', async () => {
+        const page = makePage(null);
+        page.evaluate = vi.fn(async (script) => new Function('fetch', `return (${script});`)(() => new Promise(() => {})));
+        const err = await browserFetch(page, 'GET', 'https://www.douyin.com/aweme/v1/web/comment/list/', { timeoutMs: 20 }).catch((e) => e);
+        expect(err).toBeInstanceOf(AuthRequiredError);
+        expect(err.domain).toBe('www.douyin.com');
+        expect(err.message).toMatch(/did not settle/);
+        expect(err.hint).toMatch(/verification/);
+    });
     it('returns parsed JSON on success', async () => {
         const page = makePage({ status_code: 0, data: { ak: 'KEY' } });
         const result = await browserFetch(page, 'GET', 'https://creator.douyin.com/api/test');

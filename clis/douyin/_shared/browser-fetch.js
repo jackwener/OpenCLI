@@ -6,15 +6,23 @@ function isAuthLikeError(code, message) {
     return code === 401 || code === 403 || /login|cookie|auth|captcha|verify|forbidden|permission|登录|登陆|权限|验证|验证码/i.test(text);
 }
 
+const STALLED = '__opencli_request_stalled__';
+
 /**
  * Execute a fetch() call inside the Chrome browser context via page.evaluate.
  * This ensures a_bogus signing and cookies are handled automatically by the browser.
+ *
+ * When Douyin shows a verification (captcha) prompt, its page JS holds signed
+ * requests open until the prompt is solved and ignores the abort signal, so the
+ * fetch is also raced against a timer: a request that never settles fails typed
+ * instead of hanging the command.
  */
 export async function browserFetch(page, method, url, options = {}) {
+    const timeoutMs = Number(options.timeoutMs ?? 30000);
     const js = `
-    (async () => {
+    Promise.race([(async () => {
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), ${Number(options.timeoutMs ?? 30000)});
+      const timer = setTimeout(() => controller.abort(), ${timeoutMs});
       try {
         const res = await fetch(${JSON.stringify(url)}, {
           method: ${JSON.stringify(method)},
@@ -43,14 +51,24 @@ export async function browserFetch(page, method, url, options = {}) {
       } finally {
         clearTimeout(timer);
       }
-    })()
+    })(), new Promise((resolve) => setTimeout(() => resolve({ status_code: -3, status_msg: ${JSON.stringify(STALLED)} }), ${Math.round(timeoutMs * 1.1) + 50}))])
   `;
     let result;
-    try {
-        result = unwrapEvaluateResult(await page.evaluate(js));
-    }
-    catch (error) {
-        throw new CommandExecutionError(`Douyin API request failed (${method} ${url}): ${error instanceof Error ? error.message : String(error)}`);
+    for (let attempt = 1; ; attempt++) {
+        try {
+            result = unwrapEvaluateResult(await page.evaluate(js));
+            break;
+        }
+        catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            // The tab occasionally detaches mid-command (~4 in 1,100 live runs); a
+            // second try on the same page succeeded every time.
+            if (attempt === 1 && /detached/i.test(message)) {
+                await page.wait?.({ time: 1 });
+                continue;
+            }
+            throw new CommandExecutionError(`Douyin API request failed (${method} ${url}): ${message}`);
+        }
     }
     if (result == null) {
         throw new CommandExecutionError(
@@ -60,6 +78,13 @@ export async function browserFetch(page, method, url, options = {}) {
     }
     if (Array.isArray(result) || typeof result !== 'object') {
         throw new CommandExecutionError(`Malformed response from Douyin API (${method} ${url})`);
+    }
+    if (result.status_code === -3 && result.status_msg === STALLED) {
+        throw new AuthRequiredError(
+            new URL(url).hostname,
+            `Douyin request did not settle within ${Math.round(timeoutMs / 1000)}s (${method} ${url})`,
+            'Douyin is likely showing a verification (captcha) prompt in the browser tab. Solve it in Chrome, wait a while, then retry; slow down if it keeps coming back.',
+        );
     }
     if (result && typeof result === 'object' && 'status_code' in result) {
         const code = result.status_code;

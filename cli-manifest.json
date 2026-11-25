@@ -9840,6 +9840,69 @@
   },
   {
     "site": "douyin",
+    "name": "comments",
+    "description": "单条视频的全部评论（按游标翻到底，可选带回复）",
+    "access": "read",
+    "example": "opencli douyin comments 7697274002573872394 --limit 500 --replies -f json",
+    "domain": "www.douyin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "target",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "视频 ID / 视频链接 / 分享短链"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 100,
+        "required": false,
+        "help": "Max rows, replies included (1-20000)"
+      },
+      {
+        "name": "replies",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Also fetch the replies under each comment (one request per reply page, 5-10 s apart to stay under Douyin's rate limit)"
+      },
+      {
+        "name": "min-replies",
+        "type": "int",
+        "default": 1,
+        "required": false,
+        "help": "With --replies: only open threads whose comment shows at least this many replies (fewer requests, less rate limiting)"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 1800,
+        "required": false,
+        "help": "Max seconds for the whole crawl (default: 1800); --replies needs ~8 s per commented thread"
+      }
+    ],
+    "columns": [
+      "rank",
+      "cid",
+      "parent_cid",
+      "user",
+      "text",
+      "likes",
+      "replies",
+      "time",
+      "ip_label",
+      "aweme_id"
+    ],
+    "type": "js",
+    "modulePath": "douyin/comments.js",
+    "sourceFile": "douyin/comments.js",
+    "navigateBefore": "https://www.douyin.com"
+  },
+  {
+    "site": "douyin",
     "name": "delete",
     "description": "删除作品（优先使用创作者后台作品管理；找不到时回退到旧删除接口）",
     "access": "write",
@@ -10108,6 +10171,58 @@
     "navigateBefore": false,
     "siteSession": "persistent",
     "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "douyin",
+    "name": "mix",
+    "description": "合集（短剧分集）里的全部视频，按集数排序",
+    "access": "read",
+    "example": "opencli douyin mix 7697274036942571554 --limit 200 -f json",
+    "domain": "www.douyin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "target",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "mix_id / https://www.douyin.com/collection/<mix_id> / 合集内任一视频的链接"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 100,
+        "required": false,
+        "help": "Max videos (1-2000)"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Max seconds for the whole crawl (default: 300); raise it for long threads"
+      }
+    ],
+    "columns": [
+      "episode",
+      "aweme_id",
+      "desc",
+      "duration_s",
+      "digg",
+      "comment",
+      "collect",
+      "share",
+      "created",
+      "author",
+      "mix_id",
+      "mix_name",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "douyin/mix.js",
+    "sourceFile": "douyin/mix.js",
+    "navigateBefore": "https://www.douyin.com"
   },
   {
     "site": "douyin",
