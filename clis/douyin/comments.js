@@ -55,11 +55,13 @@ cli({
         { name: 'target', required: true, positional: true, help: '视频 ID / 视频链接 / 分享短链' },
         { name: 'limit', type: 'int', default: 100, help: `Max rows, replies included (1-${MAX_COMMENTS})` },
         { name: 'replies', type: 'bool', default: false, help: 'Also fetch the replies under each comment (one request per reply page, 5-10 s apart to stay under Douyin\'s rate limit)' },
+        { name: 'min-replies', type: 'int', default: 1, help: 'With --replies: only open threads whose comment shows at least this many replies (fewer requests, less rate limiting)' },
         { name: 'timeout', type: 'int', default: 1800, help: 'Max seconds for the whole crawl (default: 1800); --replies needs ~8 s per commented thread' },
     ],
     columns: COMMENT_COLUMNS,
     func: async (page, kwargs) => {
         const limit = requireCount(kwargs.limit, 100, MAX_COMMENTS);
+        const minReplies = requireCount(kwargs['min-replies'], 1, MAX_COMMENTS, 'min-replies');
         const id = await resolveToId(String(kwargs.target ?? '').trim());
         if (!id) throw new ArgumentError('没能从输入里解析出视频 ID');
         await page.goto(`https://www.douyin.com/video/${id}`);
@@ -74,24 +76,41 @@ cli({
             return true;
         };
         const top = [];
-        await walkPages(page, (cursor) => browserFetch(page, 'GET',
-            `https://www.douyin.com/aweme/v1/web/comment/list/?${new URLSearchParams({ aweme_id: id, cursor: String(cursor), count: String(PAGE_SIZE), aid: '6383' })}`,
-        ), 'comments', limit, (c) => {
-            const row = toCommentRow(c, id);
-            if (!keep(row)) return false;
-            top.push(row);
-            return true;
-        });
+        // Nothing is returned when a request fails part-way, so the error says
+        // how far the crawl got and how to narrow it.
+        const withProgress = (error, where) => {
+            if (error instanceof Error) {
+                error.message = `${error.message} — stopped ${where}; nothing was returned. Retry later, or narrow the crawl with --limit${kwargs.replies === true ? ' / --min-replies' : ''}.`;
+            }
+            return error;
+        };
+        try {
+            await walkPages(page, (cursor) => browserFetch(page, 'GET',
+                `https://www.douyin.com/aweme/v1/web/comment/list/?${new URLSearchParams({ aweme_id: id, cursor: String(cursor), count: String(PAGE_SIZE), aid: '6383' })}`,
+            ), 'comments', limit, (c) => {
+                const row = toCommentRow(c, id);
+                if (!keep(row)) return false;
+                top.push(row);
+                return true;
+            });
+        } catch (error) {
+            throw withProgress(error, `after ${top.length} top-level comments`);
+        }
 
         if (kwargs.replies === true) {
-            for (const parent of top) {
+            const threads = top.filter((r) => r.replies >= minReplies);
+            for (const [i, parent] of threads.entries()) {
                 if (rows.length >= limit) break;
-                if (!parent.replies) continue;
-                await walkPages(page, async (cursor) => {
-                    await page.wait({ time: REPLY_PAUSE_S[0] + Math.random() * (REPLY_PAUSE_S[1] - REPLY_PAUSE_S[0]) });
-                    return browserFetch(page, 'GET',
-                        `https://www.douyin.com/aweme/v1/web/comment/list/reply/?${new URLSearchParams({ item_id: id, comment_id: parent.cid, cursor: String(cursor), count: String(PAGE_SIZE), aid: '6383' })}`);
-                }, 'comments', limit - rows.length, (c) => keep(toCommentRow(c, id, parent.cid)), 0);
+                const repliesBefore = rows.length - top.length;
+                try {
+                    await walkPages(page, async (cursor) => {
+                        await page.wait({ time: REPLY_PAUSE_S[0] + Math.random() * (REPLY_PAUSE_S[1] - REPLY_PAUSE_S[0]) });
+                        return browserFetch(page, 'GET',
+                            `https://www.douyin.com/aweme/v1/web/comment/list/reply/?${new URLSearchParams({ item_id: id, comment_id: parent.cid, cursor: String(cursor), count: String(PAGE_SIZE), aid: '6383' })}`);
+                    }, 'comments', limit - rows.length, (c) => keep(toCommentRow(c, id, parent.cid)), 0);
+                } catch (error) {
+                    throw withProgress(error, `at reply thread ${i + 1}/${threads.length} after ${top.length} top-level comments and ${repliesBefore} replies`);
+                }
             }
             const order = new Map(top.map((r, i) => [r.cid, i]));
             const threadOf = (r) => order.get(r.parent_cid || r.cid);

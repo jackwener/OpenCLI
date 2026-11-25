@@ -94,6 +94,7 @@ opencli douyin mix https://www.douyin.com/video/7697274002573872394   # any vide
 # All comments of one video, then with replies
 opencli douyin comments 7697274002573872394 --limit 2000 -f json
 opencli douyin comments 7697274002573872394 --limit 2000 --replies -f json
+opencli douyin comments 7697274002573872394 --limit 2000 --replies --min-replies 5 -f json   # only threads with ≥5 replies
 ```
 
 | Command | Columns |
@@ -104,7 +105,8 @@ opencli douyin comments 7697274002573872394 --limit 2000 --replies -f json
 - `mix` takes a mix id, a `www.douyin.com/collection/<mix_id>` URL, or a video URL / share link of any video in the mix. A bare number is read as a mix id (mix ids and video ids look alike), so pass a video as a URL.
 - `comments` pages with the site's cursor, 50 per request with a 0.5 s pause, until the list ends or `--limit` (max 20000, replies included) is reached. `--replies` adds one request per page of replies under each comment that has any, each preceded by a random 5–10 s pause; replies follow their parent, with `parent_cid` set and `replies` null.
 - The comment count Douyin shows includes folded and deleted comments the web does not serve, so a complete crawl lands below it: one video showing 1,376 gave 987 top-level comments + 201 replies = 1,188 with `--replies` (2026-11-23).
-- Douyin rate-limits the reply endpoint per account much harder than the top-level list. Measured 2026-11-23/24 on one account: with 0.5 s between reply requests a verification prompt appeared within the first thread (twice); with 5–10 s, ~680 threads went through before one; after that it came back every few threads for a while, even at 15–27 s. Top-level pages at 0.5 s ran 1,100 videos without a prompt. Budget about 8 s per commented thread with `--replies`.
+- Douyin rate-limits the reply endpoint per account much harder than the top-level list. Measured 2026-11-23/24 on one account: with 0.5 s between reply requests a verification prompt appeared within the first thread (twice); with 5–10 s, ~680 threads went through before one; after that it came back every few threads for a while, even at 15–27 s. Top-level pages at 0.5 s ran 1,100 videos without a prompt. Budget about 8 s per commented thread with `--replies`. `--min-replies N` skips threads whose comment shows fewer than N replies: on 《持械入宋》 season 1, the 110 threads with ≥5 replies held 1,368 of the 2,682 declared replies (51%) at 12% of the 932 threads.
 - Both commands take `--timeout` (seconds for the whole crawl; `comments` 1800, `mix` 300). Raise it for `--replies` on videos with hundreds of commented threads.
 - `time` / `created` are China time (`YYYY-MM-DD HH:mm:ss`).
-- Long crawls run on your account. When Douyin shows a verification (captcha) prompt, its page holds requests open instead of failing them; a request that has not settled after ~33 s fails with `AUTH_REQUIRED` ("did not settle") rather than hanging. Solve the prompt in Chrome, wait, then rerun; rows fetched before the prompt are not returned.
+- Long crawls run on your account. When Douyin shows a verification (captcha) prompt, its page holds requests open instead of failing them; a request that has not settled after ~33 s fails with `AUTH_REQUIRED` ("did not settle") rather than hanging. Solve the prompt in Chrome, wait, then rerun. Rows fetched before a failure are not returned; the error says where the crawl stopped (e.g. "at reply thread 87/242 after 1553 top-level comments and 310 replies").
+- A request whose tab detaches mid-command ("Detached while handling command", ~4 in 1,100 live runs) is retried once on the same page.

@@ -54,11 +54,21 @@ export async function browserFetch(page, method, url, options = {}) {
     })(), new Promise((resolve) => setTimeout(() => resolve({ status_code: -3, status_msg: ${JSON.stringify(STALLED)} }), ${Math.round(timeoutMs * 1.1) + 50}))])
   `;
     let result;
-    try {
-        result = unwrapEvaluateResult(await page.evaluate(js));
-    }
-    catch (error) {
-        throw new CommandExecutionError(`Douyin API request failed (${method} ${url}): ${error instanceof Error ? error.message : String(error)}`);
+    for (let attempt = 1; ; attempt++) {
+        try {
+            result = unwrapEvaluateResult(await page.evaluate(js));
+            break;
+        }
+        catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            // The tab occasionally detaches mid-command (~4 in 1,100 live runs); a
+            // second try on the same page succeeded every time.
+            if (attempt === 1 && /detached/i.test(message)) {
+                await page.wait?.({ time: 1 });
+                continue;
+            }
+            throw new CommandExecutionError(`Douyin API request failed (${method} ${url}): ${message}`);
+        }
     }
     if (result == null) {
         throw new CommandExecutionError(

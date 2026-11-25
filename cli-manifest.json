@@ -9870,6 +9870,13 @@
         "help": "Also fetch the replies under each comment (one request per reply page, 5-10 s apart to stay under Douyin's rate limit)"
       },
       {
+        "name": "min-replies",
+        "type": "int",
+        "default": 1,
+        "required": false,
+        "help": "With --replies: only open threads whose comment shows at least this many replies (fewer requests, less rate limiting)"
+      },
+      {
         "name": "timeout",
         "type": "int",
         "default": 1800,

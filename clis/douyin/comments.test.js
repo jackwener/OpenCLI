@@ -86,6 +86,46 @@ describe('douyin comments', () => {
         }
     });
 
+    it('--min-replies skips reply threads below the threshold', async () => {
+        let page = threadedSite();
+        let rows = await command.func(page, { target: id, limit: 100, replies: true, 'min-replies': 3 });
+        expect(rows.map((r) => r.cid)).toEqual(['c1', 'c2', 'c3']);
+        expect(page.urls.filter((u) => u.pathname.endsWith('/reply/'))).toHaveLength(0);
+
+        page = threadedSite();
+        rows = await command.func(page, { target: id, limit: 100, replies: true, 'min-replies': 2 });
+        expect(rows.map((r) => r.cid)).toEqual(['c1', 'r1', 'r2', 'c2', 'c3']);
+    });
+
+    it.each([0, -1, 1.5])('rejects --min-replies %s before touching the page', async (minReplies) => {
+        const page = threadedSite();
+        await expect(command.func(page, { target: id, replies: true, 'min-replies': minReplies })).rejects.toBeInstanceOf(ArgumentError);
+        expect(page.goto).not.toHaveBeenCalled();
+    });
+
+    it('a failure mid-replies says how far the crawl got, keeping the error type', async () => {
+        const page = pageFor((url) => {
+            if (url.pathname.endsWith('/comment/list/reply/')) return { status_code: 8, status_msg: 'server busy' };
+            return { status_code: 0, comments: [comment('c1', { reply_comment_total: 2 }), comment('c2', { reply_comment_total: 1 })], cursor: 50, has_more: 0 };
+        });
+        const err = await command.func(page, { target: id, limit: 100, replies: true }).catch((e) => e);
+        expect(err).toBeInstanceOf(CommandExecutionError);
+        expect(err.message).toMatch(/Douyin API error 8/);
+        expect(err.message).toMatch(/2 top-level comments/);
+        expect(err.message).toMatch(/reply thread 1\/2/);
+        expect(err.message).toMatch(/nothing was returned/);
+    });
+
+    it('a failure while paging top-level comments says how many were read', async () => {
+        let call = 0;
+        const page = pageFor(() => (call++ === 0
+            ? { status_code: 0, comments: [comment('c1'), comment('c2')], cursor: 50, has_more: 1 }
+            : { status_code: 8, status_msg: 'server busy' }));
+        const err = await command.func(page, { target: id, limit: 100 }).catch((e) => e);
+        expect(err).toBeInstanceOf(CommandExecutionError);
+        expect(err.message).toMatch(/after 2 top-level comments/);
+    });
+
     it('stops requesting once --limit rows are kept', async () => {
         const page = threadedSite();
         const rows = await command.func(page, { target: id, limit: 2, replies: true });
