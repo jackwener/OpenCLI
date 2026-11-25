@@ -55,6 +55,17 @@ navigation but block tab creation, selection and closure. `unbind` releases the
 binding without closing the user tab. Owned sessions keep leased tabs until
 `close` or idle expiry. `--window foreground|background` controls owned windows.
 
+A plain `close` only releases the lease: the leased tab stays as an OpenCLI idle
+placeholder, so its `OpenCLI Browser` group and the owned automation window are
+left behind for reuse. To remove them, close owned sessions with
+`OPENCLI_CLOSE_OWNED_TAB=1` — the extension ungroups and closes the tab, and Chrome
+drops the window when its last tab goes. Do that at the end of every ad-hoc browsing
+task unless the user asked to keep the page open:
+
+```sh
+OPENCLI_CLOSE_OWNED_TAB=1 opencli browser close --session research
+```
+
 ## Network and scripts
 
 ```sh
