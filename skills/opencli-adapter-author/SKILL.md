@@ -10,7 +10,7 @@ Choose the simplest implementation that reliably performs the requested task.
 Use an existing site adapter when it already covers the capability:
 
 ```sh
-opencli list search --site example
+opencli list --site example
 opencli example search --help -f json
 ```
 

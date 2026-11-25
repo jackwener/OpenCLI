@@ -6,7 +6,7 @@ implementation from the task, available site behavior and existing adapters.
 ## Discover capabilities
 
 ```sh
-opencli list search --site example
+opencli list --site example
 opencli example search --help -f json
 ```
 

@@ -27,7 +27,7 @@ on stdout with a nonzero exit code. Logs use stderr. Explicit human formats,
 help, version and completion retain their own formats; browser follow modes use JSON Lines.
 
 ```sh
-opencli list search --site github
+opencli list --site github
 opencli browser open https://example.com --session research
 opencli browser network --static --session research
 opencli browser chrome describe

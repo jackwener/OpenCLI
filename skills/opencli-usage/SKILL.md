@@ -9,15 +9,19 @@ allowed-tools: Bash(opencli:*), Read
 OpenCLI exposes reusable website adapters and direct Chrome tools to agents.
 
 ```sh
-opencli list search
-opencli list --site github --limit 20
-opencli github search --help -f json
+opencli list                           # every registered command, paginated
+opencli list <query>                   # one positional: filters command names/descriptions
+opencli list --site github --limit 20  # one site's adapters
+opencli github search --help -f json   # exact args for one command
 ```
 
-`list [query]` searches command names and descriptions across built-ins and adapters.
-Results are compact and paginated: `{ok:true,data:{commands,total,nextOffset?}}`.
-Pass `--offset <nextOffset>` to continue. Inspect exact inputs using command help.
-Do not hard-code the adapter catalog or dump all commands into context.
+`list` takes at most one positional query — it has no `search` subcommand, and a
+second positional fails with `commander.excessArguments`. The query matches command
+names and descriptions (whitespace inside one quoted query is AND-ed); `--site <site>`
+restricts results to one adapter site. Results are compact and paginated:
+`{ok:true,data:{commands,total,nextOffset?}}`. Pass `--offset <nextOffset>` to continue.
+Inspect exact inputs using command help. Do not hard-code the adapter catalog or dump
+all commands into context.
 
 ## Results
 

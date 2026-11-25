@@ -27,7 +27,7 @@ OpenCLI 可以用同一套 CLI 做三类事情：
 help、version 和 completion 保留各自格式；browser follow 模式使用 JSON Lines。
 
 ```sh
-opencli list search --site github
+opencli list --site github
 opencli browser open https://example.com --session research
 opencli browser network --static --session research
 opencli browser chrome describe
