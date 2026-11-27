@@ -2861,4 +2861,26 @@ describe('background tab isolation', () => {
     const leftover = (await chrome.storage.local.get(REGISTRY_KEY) as any)[REGISTRY_KEY];
     expect(leftover).toBeUndefined();
   });
+
+  it('routes native runtime.reload without mutating tabs and blocks subsequent commands until reconnect', async () => {
+    const { chrome } = createChromeMock();
+    const reload = vi.fn();
+    Object.assign(chrome.runtime, { reload });
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    const result = await mod.__test__.handleCommand({
+      id: 'reload',
+      action: 'chrome-call',
+      chromeMethod: 'runtime.reload',
+    });
+
+    expect(result).toMatchObject({ ok: true, data: { reloading: true } });
+    expect(reload).not.toHaveBeenCalled();
+
+    const blocked = await mod.__test__.handleCommand({ id: 'next', action: 'tabs', op: 'list' });
+    expect(blocked).toMatchObject({ ok: false, errorCode: 'extension_reload_busy' });
+    expect(chrome.tabs.create).not.toHaveBeenCalled();
+    expect(chrome.tabs.update).not.toHaveBeenCalled();
+  });
 });

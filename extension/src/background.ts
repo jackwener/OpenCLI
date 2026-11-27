@@ -8,6 +8,7 @@
 declare const __OPENCLI_COMPAT_RANGE__: string;
 
 import { callChrome, describeChrome, ChromeApiError } from './chrome-api';
+import { createExtensionReloader } from './extension-reload';
 import type { Command, Result } from './protocol';
 import { DAEMON_HOST, DAEMON_PORT, DAEMON_WS_URL, DAEMON_PING_URL } from './protocol';
 import { findIdleInteractiveGroup, idlePlaceholderUrl, parkIdleInteractiveTab, consumeIdlePlaceholder } from './idle-container';
@@ -206,7 +207,8 @@ async function connectAttempt(): Promise<void> {
       // the result on the freshest open socket — the daemon correlates by id,
       // and the journal replays it if this delivery is lost too.
       const target = ws && ws.readyState === WebSocket.OPEN ? ws : thisWs;
-      safeSend(target, result);
+      const sent = safeSend(target, result);
+      selfReloader.acknowledge(result, sent);
     } catch (err) {
       console.error('[opencli] Message handling error:', err);
     }
@@ -391,6 +393,13 @@ function setSessionOverride(key: string, patch: SessionOverrides): void {
 
 /** Commands currently executing per lease — idle release is deferred while > 0. */
 const activeCommandCounts = new Map<string, number>();
+
+const selfReloader = createExtensionReloader({
+  ready: () => workerReady,
+  isIdle: () => [...activeCommandCounts.values()].every(count => count === 0),
+  reload: () => chrome.runtime.reload(),
+  schedule: (callback, delayMs) => setTimeout(callback, delayMs),
+});
 const closingLeases = new Set<string>();
 const closingTabs = new Set<number>();
 const LEASE_KEY_SEPARATOR = '\u0000';
@@ -1328,6 +1337,17 @@ async function fetchDaemonVersion(): Promise<string | null> {
 // ─── Command dispatcher ─────────────────────────────────────────────
 
 async function handleCommand(cmd: Command): Promise<Result> {
+  if (cmd.action === 'chrome-call' && cmd.chromeMethod === 'runtime.reload') {
+    return selfReloader.prepare(cmd);
+  }
+  if (selfReloader.isPending()) {
+    return {
+      id: cmd.id,
+      ok: false,
+      errorCode: 'extension_reload_busy',
+      error: 'Extension reload is pending; wait for reconnection.',
+    };
+  }
   // Native browser resources do not belong to a page session or idle timer.
   if (cmd.action === 'chrome-describe' || cmd.action === 'chrome-call') {
     try {
