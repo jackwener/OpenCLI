@@ -10,6 +10,7 @@ import { BrowserConnectError, SessionBusyError } from '../errors.js';
 import { COMMAND_RESULT_UNKNOWN_CODE, COMMAND_RESULT_UNKNOWN_HINT } from '../daemon-utils.js';
 import { classifyBrowserError } from './errors.js';
 import { profileRouteParams, resolveProfileSelection } from './profile.js';
+import { normalizeBrowserTabPlacement, resolveBrowserTabPlacementFromEnv, type BrowserTabPlacement } from './tab-placement.js';
 import { DEFAULT_BROWSER_CONNECT_TIMEOUT } from './config.js';
 import { ensureBrowserBridgeReady } from './daemon-lifecycle.js';
 import { isPreDispatchError } from './bridge-readiness.js';
@@ -262,6 +263,7 @@ export interface DaemonCommand extends Partial<SlotPolicy> {
   cdpParams?: Record<string, unknown>;
   /** Window foreground/background policy for owned Browser Bridge containers. */
   windowMode?: 'foreground' | 'background';
+  tabPlacement?: BrowserTabPlacement;
   /** Custom idle timeout in seconds for this session. Overrides the default. */
   idleTimeout?: number;
   /** Frame index for cross-frame operations (0-based, from 'frames' action) */
@@ -367,6 +369,9 @@ async function sendCommandRaw(
   const contextId = routing.contextId;
   const preferredContextId = routing.preferredContextId;
   const windowMode = params.windowMode ?? envWindowMode;
+  const tabPlacement = params.tabPlacement !== undefined
+    ? (normalizeBrowserTabPlacement('tabPlacement', params.tabPlacement) ?? undefined)
+    : (process.env.OPENCLI_TAB_PLACEMENT ? resolveBrowserTabPlacementFromEnv() : undefined);
   // Override the owned session idle timeout, not the container window lifetime.
   // Explicit close still releases ephemeral sessions; persistent adapter sessions
   // and borrowed bound tabs ignore idle timeouts. Per-command values take priority.
@@ -417,6 +422,7 @@ async function sendCommandRaw(
       ...(contextId && { contextId }),
       ...(preferredContextId && { preferredContextId }),
       ...(windowMode && { windowMode }),
+      ...(tabPlacement && { tabPlacement }),
       ...(idleTimeout !== undefined && { idleTimeout }),
       // Carry the run identity so the daemon can acquire/refresh the write
       // lease on the persistent site session. The same runId across every exec
