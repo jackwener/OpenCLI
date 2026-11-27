@@ -20,8 +20,8 @@ import type { ManifestEntry } from './manifest-types.js';
 import { findPackageRoot, getCliManifestPath } from './package-paths.js';
 import { linkHostOpencli } from './plugin-runtime.js';
 
-/** User runtime directory: ~/.opencli */
-export const USER_OPENCLI_DIR = path.join(os.homedir(), '.opencli');
+/** User runtime directory: $OPENCLI_CONFIG_DIR or ~/.opencli */
+export const USER_OPENCLI_DIR = process.env.OPENCLI_CONFIG_DIR || path.join(os.homedir(), '.opencli');
 /** User CLIs directory: ~/.opencli/clis */
 export const USER_CLIS_DIR = path.join(USER_OPENCLI_DIR, 'clis');
 /** Plugins directory: ~/.opencli/plugins/ */
