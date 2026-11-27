@@ -207,6 +207,12 @@ export async function ensureAttached(tabId: number, aggressiveRetry: boolean = f
   attached.add(tabId);
 
   try {
+    await sendDebuggerCommand({ tabId }, 'Page.enable');
+  } catch {
+    // Best-effort: enables Page.javascriptDialogOpening for beforeunload handling
+  }
+
+  try {
     await sendDebuggerCommand({ tabId }, 'Runtime.enable');
   } catch {
     // Some pages may not need explicit enable
@@ -859,6 +865,14 @@ export function registerListeners(): void {
   chrome.debugger.onEvent.addListener(async (source, method, params) => {
     const tabId = source.tabId;
     if (!tabId) return;
+    if (
+      method === 'Page.javascriptDialogOpening'
+      && (params as { type?: string } | undefined)?.type === 'beforeunload'
+      && attached.has(tabId)
+    ) {
+      await sendDebuggerCommand({ tabId }, 'Page.handleJavaScriptDialog', { accept: true }).catch(() => {});
+      return;
+    }
     const state = networkCaptures.get(tabId);
     if (!state) return;
     const eventParams = params as Record<string, any> | undefined;

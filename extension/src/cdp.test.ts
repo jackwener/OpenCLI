@@ -51,6 +51,35 @@ describe('cdp attach recovery', () => {
     vi.unstubAllGlobals();
   });
 
+  it('auto-accepts only beforeunload dialogs on attached tabs via CDP', async () => {
+    const { chrome, debuggerApi, debuggerEventListeners } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./cdp');
+    mod.registerListeners();
+    await mod.ensureAttached(1);
+
+    expect(debuggerApi.sendCommand).toHaveBeenCalledWith({ tabId: 1 }, 'Page.enable');
+    debuggerApi.sendCommand.mockClear();
+
+    for (const listener of debuggerEventListeners) {
+      await listener({ tabId: 2 }, 'Page.javascriptDialogOpening', { type: 'beforeunload' });
+      await listener({ tabId: 1 }, 'Page.javascriptDialogOpening', { type: 'confirm' });
+      await listener({ tabId: 1 }, 'Page.javascriptDialogOpening', { type: 'alert' });
+    }
+    expect(debuggerApi.sendCommand).not.toHaveBeenCalled();
+
+    for (const listener of debuggerEventListeners) {
+      await listener({ tabId: 1 }, 'Page.javascriptDialogOpening', { type: 'beforeunload' });
+    }
+    expect(debuggerApi.sendCommand).toHaveBeenCalledTimes(1);
+    expect(debuggerApi.sendCommand).toHaveBeenCalledWith(
+      { tabId: 1 },
+      'Page.handleJavaScriptDialog',
+      { accept: true },
+    );
+  });
+
   it('does not mutate the DOM before a successful attach', async () => {
     const { chrome, debuggerApi, scripting } = createChromeMock();
     vi.stubGlobal('chrome', chrome);
