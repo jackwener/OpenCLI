@@ -1,5 +1,6 @@
 /** Native browser management. Calls use Chrome IDs and do not acquire page leases. */
 export const CHROME_METHODS = {
+  'runtime.reload': '() => {reloading: true}; idle only, after acknowledgement',
   'tabs.query': '(queryInfo: object) => Tab[]',
   'tabs.get': '(tabId: number) => Tab',
   'tabs.create': '(createProperties: object) => Tab',
@@ -24,7 +25,7 @@ export class ChromeApiError extends Error {
   constructor(readonly code: string, message: string) { super(message); }
 }
 export const nativeError = (code: string, message: string) => new ChromeApiError(code, message);
-const READ = new Set(['tabs.query', 'tabs.get', 'tabGroups.query', 'tabGroups.get', 'windows.get', 'windows.getAll']);
+const READ = new Set(['runtime.reload', 'tabs.query', 'tabs.get', 'tabGroups.query', 'tabGroups.get', 'windows.get', 'windows.getAll']);
 function resolve(method: string) {
   if (!Object.hasOwn(CHROME_METHODS, method)) throw nativeError('unsupported_chrome_method', `Unsupported Chrome method ${method}. Use chrome describe to list browser-management methods.`);
   const [namespace, name] = method.split('.');
