@@ -115,8 +115,9 @@ function isDebuggableUrl(url?: string): boolean {
 
 export async function ensureAttached(tabId: number, aggressiveRetry: boolean = false): Promise<void> {
   // Verify the tab URL is debuggable before attempting attach
+  let tab: chrome.tabs.Tab;
   try {
-    const tab = await chrome.tabs.get(tabId);
+    tab = await chrome.tabs.get(tabId);
     if (!isDebuggableUrl(tab.url)) {
       // Invalidate cache if previously attached
       attached.delete(tabId);
@@ -127,6 +128,20 @@ export async function ensureAttached(tabId: number, aggressiveRetry: boolean = f
     if (e instanceof Error && e.message.startsWith('Cannot debug tab')) throw e;
     attached.delete(tabId);
     throw new Error(`Tab ${tabId} no longer exists`);
+  }
+
+  if (tab.autoDiscardable === true && typeof chrome.tabs.update === 'function') {
+    await chrome.tabs.update(tabId, { autoDiscardable: false }).catch(() => {});
+  }
+  if (tab.discarded || tab.status === 'unloaded') {
+    attached.delete(tabId);
+    await chrome.tabs.reload(tabId);
+    for (let attempt = 0; attempt < 50; attempt++) {
+      const current = await chrome.tabs.get(tabId);
+      if (!current.discarded && current.status !== 'unloaded') break;
+      if (attempt === 49) throw new Error(`Tab ${tabId} remained unloaded after reload`);
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
   }
 
   if (attached.has(tabId)) {
@@ -850,8 +865,12 @@ export function registerListeners(): void {
     }
     if (source.targetId) clearFrameTarget(source.targetId);
   });
-  // Invalidate attached cache when tab URL changes to non-debuggable
-  chrome.tabs.onUpdated.addListener(async (tabId, info) => {
+  // Invalidate attached cache when tab URL changes to non-debuggable,
+  // and keep managed attached tabs protected from browser auto-discarding.
+  chrome.tabs.onUpdated.addListener(async (tabId, info, tab) => {
+    if (attached.has(tabId) && tab?.autoDiscardable === true && typeof chrome.tabs.update === 'function') {
+      chrome.tabs.update(tabId, { autoDiscardable: false }).catch(() => {});
+    }
     if (info.url && !isDebuggableUrl(info.url)) {
       await detach(tabId);
     }
