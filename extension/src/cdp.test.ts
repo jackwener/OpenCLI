@@ -51,6 +51,64 @@ describe('cdp attach recovery', () => {
     vi.unstubAllGlobals();
   });
 
+  it.each(['discarded', 'unloaded', 'awake'] as const)('revives %s tabs before CDP attach without changing focus', async (mode) => {
+    const { chrome, debuggerApi } = createChromeMock();
+    let discarded = mode === 'discarded';
+    let unloaded = mode === 'unloaded';
+    chrome.tabs.get.mockImplementation(async () => ({
+      id: 1,
+      windowId: 1,
+      url: 'https://example.com/',
+      autoDiscardable: true,
+      discarded,
+      status: unloaded ? 'unloaded' : 'complete',
+    }));
+    const update = vi.fn(async () => ({}));
+    const reload = vi.fn(async () => {
+      discarded = false;
+      unloaded = false;
+    });
+    Object.assign(chrome.tabs, { update, reload });
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./cdp');
+    await mod.ensureAttached(1);
+
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(update).toHaveBeenCalledWith(1, { autoDiscardable: false });
+    expect(reload).toHaveBeenCalledTimes(mode === 'awake' ? 0 : 1);
+    if (mode !== 'awake') {
+      expect(reload.mock.invocationCallOrder[0]).toBeLessThan(debuggerApi.attach.mock.invocationCallOrder[0]);
+    }
+  });
+
+  it('re-applies autoDiscardable: false on updates only for attached managed tabs', async () => {
+    const { chrome } = createChromeMock();
+    const update = vi.fn(async () => ({}));
+    Object.assign(chrome.tabs, { update });
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./cdp');
+    mod.registerListeners();
+    await mod.ensureAttached(1);
+    update.mockClear();
+
+    const onUpdated = chrome.tabs.onUpdated.addListener.mock.calls[0][0] as (
+      tabId: number,
+      info: Record<string, unknown>,
+      tab?: { id?: number; autoDiscardable?: boolean },
+    ) => Promise<void>;
+
+    // Unmanaged tab should NOT be touched
+    await onUpdated(99, {}, { id: 99, autoDiscardable: true });
+    // Managed attached tab reverted to discardable should be protected again
+    await onUpdated(1, {}, { id: 1, autoDiscardable: true });
+    // Already protected managed tab needs no update
+    await onUpdated(1, {}, { id: 1, autoDiscardable: false });
+
+    expect(update.mock.calls).toEqual([[1, { autoDiscardable: false }]]);
+  });
+
   it('does not mutate the DOM before a successful attach', async () => {
     const { chrome, debuggerApi, scripting } = createChromeMock();
     vi.stubGlobal('chrome', chrome);
