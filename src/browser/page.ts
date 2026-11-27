@@ -52,6 +52,7 @@ export class Page extends CDPBasePage {
     private readonly siteSession?: 'ephemeral' | 'persistent',
     /** Soft profile preference (config default) — daemon arbitrates; see profileRouteParams. */
     public readonly preferredContextId?: string,
+    private readonly tabPlacement?: 'owned-container' | 'existing-window',
   ) {
     super();
     this._idleTimeout = idleTimeout;
@@ -63,7 +64,7 @@ export class Page extends CDPBasePage {
   private _networkCaptureWarned = false;
 
   /** Helper: spread session into command params */
-  private _sessionOpts(): { session: string; surface: 'browser' | 'adapter'; idleTimeout?: number; contextId?: string; preferredContextId?: string; windowMode?: 'foreground' | 'background'; siteSession?: 'ephemeral' | 'persistent' } {
+  private _sessionOpts(): { session: string; surface: 'browser' | 'adapter'; idleTimeout?: number; contextId?: string; preferredContextId?: string; windowMode?: 'foreground' | 'background'; tabPlacement?: 'owned-container' | 'existing-window'; siteSession?: 'ephemeral' | 'persistent' } {
     return {
       session: this.session,
       surface: this.surface,
@@ -71,6 +72,7 @@ export class Page extends CDPBasePage {
       ...(this.preferredContextId && { preferredContextId: this.preferredContextId }),
       ...(this._idleTimeout != null && { idleTimeout: this._idleTimeout }),
       ...(this.windowMode && { windowMode: this.windowMode }),
+      ...(this.tabPlacement && { tabPlacement: this.tabPlacement }),
       ...(this.siteSession && { siteSession: this.siteSession }),
     };
   }
@@ -85,6 +87,7 @@ export class Page extends CDPBasePage {
       ...(this._page !== undefined && { page: this._page }),
       ...(this._idleTimeout != null && { idleTimeout: this._idleTimeout }),
       ...(this.windowMode && { windowMode: this.windowMode }),
+      ...(this.tabPlacement && { tabPlacement: this.tabPlacement }),
       ...(this.siteSession && { siteSession: this.siteSession }),
     };
   }

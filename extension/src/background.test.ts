@@ -2861,4 +2861,67 @@ describe('background tab isolation', () => {
     const leftover = (await chrome.storage.local.get(REGISTRY_KEY) as any)[REGISTRY_KEY];
     expect(leftover).toBeUndefined();
   });
+
+  it('reuses an existing normal window with inactive tabs and no tab groups when tabPlacement is existing-window', async () => {
+    const { chrome } = createChromeMock();
+    Object.assign(chrome.windows, {
+      getAll: vi.fn(async () => [{ id: 1, type: 'normal', focused: true, state: 'normal' }]),
+    });
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    const created = await mod.__test__.handleCommand({
+      id: 'bg-new-1',
+      action: 'tabs',
+      op: 'new',
+      session: 'bg-existing',
+      url: 'https://example.com/a',
+      windowMode: 'background',
+      tabPlacement: 'existing-window',
+    });
+
+    expect(created.ok).toBe(true);
+    expect(chrome.windows.create).not.toHaveBeenCalled();
+    expect(chrome.tabs.group).not.toHaveBeenCalled();
+    expect(chrome.tabs.create).toHaveBeenCalledWith(expect.objectContaining({
+      windowId: 1,
+      url: 'https://example.com/a',
+      active: false,
+    }));
+
+    const second = await mod.__test__.handleCommand({
+      id: 'bg-new-2',
+      action: 'tabs',
+      op: 'new',
+      session: 'bg-existing',
+      url: 'https://example.com/b',
+      windowMode: 'background',
+      tabPlacement: 'existing-window',
+    });
+    expect(second.ok).toBe(true);
+    expect(chrome.tabs.group).not.toHaveBeenCalled();
+
+    // Selecting tab 0 updates logical target without activating the Chrome tab
+    chrome.tabs.update.mockClear();
+    const selected = await mod.__test__.handleCommand({
+      id: 'bg-select',
+      action: 'tabs',
+      op: 'select',
+      session: 'bg-existing',
+      index: 0,
+      tabPlacement: 'existing-window',
+    });
+    expect(selected.ok).toBe(true);
+    expect(chrome.tabs.update).not.toHaveBeenCalled();
+
+    // Closing the lease removes only its owned tabs and never touches user tab 1
+    const closed = await mod.__test__.handleCommand({
+      id: 'bg-close',
+      action: 'close-owned-tab',
+      session: 'bg-existing',
+      tabPlacement: 'existing-window',
+    });
+    expect(closed).toMatchObject({ ok: true, data: { tabCleanup: 'closed-owned-tab' } });
+    expect(chrome.tabs.remove).not.toHaveBeenCalledWith(1);
+  });
 });

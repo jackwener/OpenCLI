@@ -288,6 +288,7 @@ type LeaseLifecycle = 'ephemeral' | 'persistent' | 'pinned';
 type WindowRole = 'interactive' | 'automation' | 'borrowed-user';
 type OwnedWindowRole = Exclude<WindowRole, 'borrowed-user'>;
 type WindowMode = 'foreground' | 'background';
+type TabPlacement = 'owned-container' | 'existing-window';
 type BrowserSurface = 'browser' | 'adapter';
 type LeaseKind = 'owned' | 'bound';
 
@@ -300,6 +301,8 @@ type TargetLease = {
   idleDeadlineAt: number;
   owned: boolean;
   preferredTabId: number | null;
+  tabPlacement?: TabPlacement;
+  ownedTabIds?: number[];
   contextId: BrowserContextId;
   ownership: LeaseOwnership;
   lifecycle: LeaseLifecycle;
@@ -381,6 +384,7 @@ class CommandFailure extends Error {
 type SessionOverrides = {
   idleTimeoutMs?: number;
   windowMode?: WindowMode;
+  tabPlacement?: TabPlacement;
   lifecycle?: LeaseLifecycle;
 };
 const sessionOverrides = new Map<string, SessionOverrides>();
@@ -458,6 +462,12 @@ function getWindowMode(key: string): WindowMode {
     ?? (getOwnedWindowRole(key) === 'interactive' ? 'foreground' : 'background');
 }
 
+function getTabPlacement(key: string): TabPlacement {
+  return sessionOverrides.get(key)?.tabPlacement
+    ?? automationSessions.get(key)?.tabPlacement
+    ?? 'owned-container';
+}
+
 function makeAlarmName(leaseKey: string): string {
   return `${LEASE_IDLE_ALARM_PREFIX}${encodeURIComponent(leaseKey)}`;
 }
@@ -482,13 +492,58 @@ function makeSession(
   session: Omit<TargetLease, 'idleTimer' | 'idleDeadlineAt' | 'contextId' | 'ownership' | 'lifecycle' | 'windowRole'>,
 ): Omit<TargetLease, 'idleTimer' | 'idleDeadlineAt'> {
   const ownership = session.owned ? 'owned' : 'borrowed';
+  const tabPlacement = session.tabPlacement ?? getTabPlacement(key);
+  const ownedTabIds = session.owned && tabPlacement === 'existing-window'
+    ? [...new Set([
+        ...(session.ownedTabIds ?? automationSessions.get(key)?.ownedTabIds ?? []),
+        ...(session.preferredTabId === null ? [] : [session.preferredTabId]),
+      ])]
+    : session.ownedTabIds;
   return {
     ...session,
+    tabPlacement,
+    ...(ownedTabIds !== undefined ? { ownedTabIds } : {}),
     contextId: currentContextId,
     ownership,
     lifecycle: getLeaseLifecycle(key, session.kind),
     windowRole: getWindowRole(key, ownership),
   };
+}
+
+async function findExistingNormalWindowId(): Promise<number> {
+  const windows = await chrome.windows.getAll({ windowTypes: ['normal'] });
+  const candidate = windows.find(w => w.id !== undefined && w.focused)
+    ?? windows.find(w => w.id !== undefined && w.state !== 'minimized')
+    ?? windows.find(w => w.id !== undefined);
+  if (candidate?.id === undefined) {
+    throw new CommandFailure(
+      'existing_window_not_found',
+      'No existing normal Chrome window is available for existing-window tab placement.',
+      'Open a normal Chrome window in this profile or use the default owned-container tab placement.',
+    );
+  }
+  return candidate.id;
+}
+
+async function closeExistingWindowTab(tabId: number): Promise<void> {
+  let tab: chrome.tabs.Tab;
+  try {
+    tab = await chrome.tabs.get(tabId);
+  } catch (error) {
+    if (/No tab with id|no longer exists|Unknown tab/.test(error instanceof Error ? error.message : String(error))) {
+      identity.evictTab(tabId);
+      return;
+    }
+    throw error;
+  }
+  await safeDetach(tabId);
+  const siblings = await chrome.tabs.query({ windowId: tab.windowId }).catch(() => []);
+  if (siblings.length > 0 && !siblings.some(other => other.id !== tabId)) {
+    await chrome.tabs.update(tabId, { url: BLANK_PAGE, active: false }).catch(() => {});
+  } else {
+    await chrome.tabs.remove(tabId);
+  }
+  identity.evictTab(tabId);
 }
 
 function emptyRegistry(): StoredRegistry {
@@ -1102,6 +1157,24 @@ async function createOwnedTabLease(leaseKey: string, initialUrl?: string): Promi
 
 async function createOwnedTabLeaseUnlocked(leaseKey: string, initialUrl?: string): Promise<ResolvedTab> {
   const targetUrl = (initialUrl && isSafeNavigationUrl(initialUrl)) ? initialUrl : BLANK_PAGE;
+  if (getTabPlacement(leaseKey) === 'existing-window') {
+    const windowId = await findExistingNormalWindowId();
+    const tab = await chrome.tabs.create({ windowId, url: targetUrl, active: false });
+    const tabId = tab.id;
+    if (!tabId) throw new Error('Failed to create background tab lease in existing window');
+    setLeaseSession(leaseKey, {
+      session: getSessionFromKey(leaseKey),
+      surface: getSurfaceFromKey(leaseKey),
+      kind: 'owned',
+      windowId: tab.windowId,
+      owned: true,
+      preferredTabId: tabId,
+      tabPlacement: 'existing-window',
+      ownedTabIds: [tabId],
+    });
+    resetWindowIdleTimer(leaseKey);
+    return { tabId, tab };
+  }
   const role = getOwnedWindowRole(leaseKey);
   // Container creation must not start the lease's navigation as well. A slow
   // initial load can still expose about:blank, causing a duplicate tabs.update.
@@ -1348,6 +1421,16 @@ async function handleCommand(cmd: Command): Promise<Result> {
   if (cmd.windowMode === 'foreground' || cmd.windowMode === 'background') {
     setSessionOverride(leaseKey, { windowMode: cmd.windowMode });
   }
+  if (cmd.tabPlacement === 'existing-window' || cmd.tabPlacement === 'owned-container') {
+    const existingLease = automationSessions.get(leaseKey);
+    if (existingLease?.owned && existingLease.tabPlacement && existingLease.tabPlacement !== cmd.tabPlacement) {
+      return errorResult(cmd.id, new CommandFailure(
+        'tab_placement_mismatch',
+        `Session "${existingLease.session}" already uses tab placement "${existingLease.tabPlacement}".`,
+      ));
+    }
+    setSessionOverride(leaseKey, { tabPlacement: cmd.tabPlacement });
+  }
   if (surface === 'adapter' && (cmd.siteSession === 'persistent' || cmd.siteSession === 'ephemeral')) {
     setSessionOverride(leaseKey, { lifecycle: cmd.siteSession });
   }
@@ -1523,9 +1606,14 @@ async function resolveTab(tabId: number | undefined, leaseKey: string, initialUr
       const tab = await chrome.tabs.get(tabId);
       const session = existingSession;
       const matchesSession = session
-        ? (session.preferredTabId !== null ? session.preferredTabId === tabId : tab.windowId === session.windowId)
+        ? (session.tabPlacement === 'existing-window'
+          ? session.ownedTabIds?.includes(tabId) === true
+          : (session.preferredTabId !== null ? session.preferredTabId === tabId : tab.windowId === session.windowId))
         : false;
       if (isDebuggableUrl(tab.url) && matchesSession) return { tabId, tab };
+      if (session?.tabPlacement === 'existing-window' && !matchesSession) {
+        throw new CommandFailure('tab_not_owned', 'The target tab does not belong to this session.');
+      }
       if (session && !session.owned) {
         throw new CommandFailure(
           matchesSession ? 'bound_tab_not_debuggable' : 'bound_tab_mismatch',
@@ -1645,6 +1733,11 @@ async function resolveTabId(tabId: number | undefined, leaseKey: string, initial
 async function listAutomationTabs(leaseKey: string): Promise<chrome.tabs.Tab[]> {
   const session = automationSessions.get(leaseKey);
   if (!session) return [];
+  if (session.tabPlacement === 'existing-window') {
+    const ids = session.ownedTabIds ?? (session.preferredTabId !== null ? [session.preferredTabId] : []);
+    const resolved = await Promise.all(ids.map(id => chrome.tabs.get(id).catch(() => null)));
+    return resolved.filter((t): t is chrome.tabs.Tab => t !== null);
+  }
   if (session.preferredTabId !== null) {
     try {
       return [await chrome.tabs.get(session.preferredTabId)];
@@ -1889,6 +1982,25 @@ async function handleTabs(cmd: Command, leaseKey: string): Promise<Result> {
         const created = await createOwnedTabLease(leaseKey, cmd.url);
         return pageScopedResult(cmd.id, created.tabId, { url: created.tab?.url });
       }
+      if (getTabPlacement(leaseKey) === 'existing-window') {
+        const current = automationSessions.get(leaseKey);
+        const windowId = current?.windowId ?? await findExistingNormalWindowId();
+        const tab = await chrome.tabs.create({ windowId, url: cmd.url ?? BLANK_PAGE, active: false });
+        const tabId = tab.id;
+        if (!tabId) return { id: cmd.id, ok: false, error: 'Failed to create tab' };
+        setLeaseSession(leaseKey, {
+          session: getSessionFromKey(leaseKey),
+          surface: getSurfaceFromKey(leaseKey),
+          kind: 'owned',
+          windowId: tab.windowId,
+          owned: true,
+          preferredTabId: tabId,
+          tabPlacement: 'existing-window',
+          ownedTabIds: [...(current?.ownedTabIds ?? []), tabId],
+        });
+        resetWindowIdleTimer(leaseKey);
+        return pageScopedResult(cmd.id, tabId, { url: tab.url });
+      }
       const windowId = await getAutomationWindow(leaseKey);
       let tab = await chrome.tabs.create({ windowId, url: cmd.url ?? BLANK_PAGE, active: true });
       const tabId = tab.id;
@@ -1974,17 +2086,21 @@ async function handleTabs(cmd: Command, leaseKey: string): Promise<Result> {
         } catch {
           return { id: cmd.id, ok: false, error: `Page no longer exists` };
         }
-        if (!session || tab.windowId !== session.windowId) {
+        if (!session || tab.windowId !== session.windowId || (session.tabPlacement === 'existing-window' && !session.ownedTabIds?.includes(cmdTabId))) {
           return { id: cmd.id, ok: false, error: `Page is not in the automation container` };
         }
-        await chrome.tabs.update(cmdTabId, { active: true });
+        if (getTabPlacement(leaseKey) !== 'existing-window') {
+          await chrome.tabs.update(cmdTabId, { active: true });
+        }
         preferOwnedTab(leaseKey, cmdTabId);
         return pageScopedResult(cmd.id, cmdTabId, { selected: true });
       }
       const tabs = await listAutomationWebTabs(leaseKey);
       const target = tabs[cmd.index!];
       if (!target?.id) return { id: cmd.id, ok: false, error: `Tab index ${cmd.index} not found` };
-      await chrome.tabs.update(target.id, { active: true });
+      if (getTabPlacement(leaseKey) !== 'existing-window') {
+        await chrome.tabs.update(target.id, { active: true });
+      }
       preferOwnedTab(leaseKey, target.id);
       return pageScopedResult(cmd.id, target.id, { selected: true });
     }
@@ -2120,6 +2236,14 @@ async function handleCloseWindow(cmd: Command, leaseKey: string): Promise<Result
         closingTabs.add(tabId);
         // Only touch the lease's tab, even if the user added pages to its window.
         // Ungroup first so Chrome does not save the closing automation group.
+        if (session.tabPlacement === 'existing-window') {
+          const ownedIds = session.ownedTabIds ?? [tabId];
+          for (const ownedId of ownedIds) {
+            await closeExistingWindowTab(ownedId);
+          }
+          await removeLeaseSession(leaseKey);
+          return { id: cmd.id, ok: true, data: { closed: true, session: session.session, tabCleanup: 'closed-owned-tab' } };
+        }
         const tab = await chrome.tabs.get(tabId);
         if (tab.groupId !== undefined && tab.groupId !== chrome.tabGroups.TAB_GROUP_ID_NONE) {
           await chrome.tabs.ungroup(tabId);
@@ -2214,6 +2338,13 @@ async function releaseLease(leaseKey: string, reason: string = 'released'): Prom
   scheduleIdleAlarm(leaseKey, IDLE_TIMEOUT_NONE);
 
   if (session.owned) {
+    if (session.tabPlacement === 'existing-window') {
+      const ownedIds = session.ownedTabIds ?? (session.preferredTabId !== null ? [session.preferredTabId] : []);
+      for (const ownedId of ownedIds) {
+        await closeExistingWindowTab(ownedId).catch(() => {});
+      }
+      console.log(`[opencli] Released existing-window tab lease(s) [${ownedIds.join(',')}] (session=${session.session}, surface=${session.surface}, ${reason})`);
+    } else {
     const tabId = session.preferredTabId;
     if (tabId !== null) {
       const hasOtherOwnedLease = [...automationSessions.entries()].some(([otherLease, otherSession]) =>
@@ -2243,6 +2374,7 @@ async function releaseLease(leaseKey: string, reason: string = 'released'): Prom
       }
     } else {
       console.log(`[opencli] Released legacy owned window lease ${session.windowId} without closing container (session=${session.session}, surface=${session.surface}, ${reason})`);
+    }
     }
   } else if (session.preferredTabId !== null) {
     await safeDetach(session.preferredTabId);
